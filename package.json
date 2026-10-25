@@ -16,7 +16,9 @@
     "test": "tsx tests/run.ts",
     "web:dev": "npm run dev --workspace @ziwei/web",
     "web:build": "npm run build --workspace @ziwei/web",
-    "acceptance": "bash scripts/acceptance.sh"
+    "acceptance": "bash scripts/acceptance.sh",
+    "ask:selftest": "tsx packages/ask/src/__selftest.ts",
+    "ask:typecheck": "tsc --noEmit -p packages/ask/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

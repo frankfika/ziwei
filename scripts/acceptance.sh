@@ -78,8 +78,12 @@ fi
 hr "5. 键口径实证校验"
 if [[ -f tests/test_key_alignment.ts ]]; then
   out=$(npx tsx tests/test_key_alignment.ts 2>&1)
-  echo "$out" | grep -E "口径A|样本总数" | sed 's/^/    /'
+  echo "$out" | grep -E "样本总数|口径A|口径B|不匹配" | sed 's/^/    /'
+  # 兼容两种输出契约：旧版打印 PASS/FAIL，新版打印 通过 N / 失败 N
   if echo "$out" | grep -q "PASS"; then
+    printf '  \033[32m✓\033[0m 键口径一致\n'
+    PASS=$((PASS+1))
+  elif echo "$out" | grep -qE "失败\s*0" && echo "$out" | grep -q "口径A"; then
     printf '  \033[32m✓\033[0m 键口径一致\n'
     PASS=$((PASS+1))
   else
@@ -125,9 +129,12 @@ else
   SKIP=$((SKIP+1))
 fi
 
-hr "7. 引文降级工具"
+hr "7. 引文降级与追问模块"
 if [[ -f packages/citation-guard/src/selftest.ts ]]; then
   check "citation-guard 自测" npx tsx packages/citation-guard/src/selftest.ts
+fi
+if [[ -f packages/ask/src/__selftest.ts ]]; then
+  check "ask 模块自测" npx tsx packages/ask/src/__selftest.ts
 fi
 
 hr "8. Web 构建"

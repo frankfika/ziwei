@@ -40,7 +40,8 @@
 | 不做真太阳时校正（数据集未做） | ✅ 已确认 |
 | 不做子时换日折算进 key | ✅ 已确认（口径B 匹配率 0%） |
 
-校验方法与代码见 `tests/test_key_alignment.ts`（用数据集 `ms` 字段当指纹）。
+校验方法与代码见 `tests/test_key_alignment.test.ts`（进回归套件，600 条样本）
+与 `tests/test_key_alignment.ts`（独立运行入口，输出带 `PASS` 标记）。
 
 > **推论**：`chart()` 的 `hour` 是「时辰序号」，而数据集 key 的日期是「排盘日」。
 > 若产品要接受用户输入的**钟点**（如 23:30），必须先经
@@ -59,6 +60,19 @@
 
 数据集原始行（JSONL）：
 `k, y, m, d, h, g, ms, t, c` —— `c` 是 13 维 Markdown 文本的字典。
+
+### 2.3 引擎输出的两个坑
+
+- **`isLeapMonth` 在默认 `split` 策略下恒为 `false`**（闰月体现为农历月归属）
+- **`currentAge` / `isCurrentDaXian` 随当天日期变化** → 整个 `ChartJSON` 不可缓存
+
+详见 `docs/KEY_SEMANTICS.md` 第 8 节。
+
+### 2.4 全部 70 颗星在每张盘里都会出现
+
+引擎在每张盘都落全部 70 颗目录星曜（只落宫不同）。
+所以「星曜名不在盘里」这类集合判定在本引擎上几乎不触发 ——
+防编造要靠**落宫检查**。详见 `docs/KEY_SEMANTICS.md` 第 9 节。
 
 ---
 

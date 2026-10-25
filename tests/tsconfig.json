@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "**/*.ts",
+    "../packages/chart-engine/src/engine/lunar-javascript.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

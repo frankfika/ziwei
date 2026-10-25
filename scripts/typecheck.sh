@@ -8,7 +8,7 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 TARGETS=()
-for d in packages/*/ apps/*/; do
+for d in packages/*/ apps/*/ tests/; do
   [[ -f "${d}tsconfig.json" ]] && TARGETS+=("${d%/}")
 done
 

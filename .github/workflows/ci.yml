@@ -1,0 +1,42 @@
+name: CI
+
+# 触发时机：每次 push 与每个 PR。
+# 守门目标：**排盘结果被静默改掉**（引擎升级 / 改代码 / 换依赖）。
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 排盘回归 + 类型检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node（20 LTS）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # 本仓库的 lockfile 由多个 agent 并行改动，npm ci 在 lock 与 package.json
+      # 不同步时会直接失败；因此以 npm ci 为主、失败回落 npm install。
+      - name: 装依赖
+        run: npm ci || npm install --no-audit --no-fund
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      # 数据集（56GB）不进 git，CI 里没有。
+      # 依赖数据的用例会明确 skip 并说明原因；
+      # 纯引擎用例（金标准快照 / 确定性 / 边界 / 错误处理）必须真的跑起来 ——
+      # 金标准快照在 tests/golden/*.json，已进 git，所以不依赖任何数据文件。
+      - name: 回归测试
+        run: npm test

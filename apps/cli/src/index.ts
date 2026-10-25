@@ -154,6 +154,7 @@ export function run(argv: string[]): number {
         reason: reading.reason,
         message: reading.message,
         availableYears: reading.availableYears,
+        dimensions: [],
         birth,
         ...(conversion ? { conversion } : {}),
         chart,

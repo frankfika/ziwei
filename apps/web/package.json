@@ -1,0 +1,29 @@
+{
+  "name": "@ziwei/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "紫微助手 Web 界面 —— 排盘 + 13 维解读",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ziwei/chart-engine": "*",
+    "@ziwei/core": "*",
+    "@ziwei/reading-index": "*",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  }
+}

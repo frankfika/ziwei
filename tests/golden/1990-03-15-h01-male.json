@@ -1,0 +1,726 @@
+{
+  "meta": {
+    "schema": "ziwei-golden-chart/v1",
+    "generatedBy": "tests/golden.test.ts（环境变量 ZIWEI_UPDATE_GOLDEN=1 时重写）",
+    "engine": "@ziwei/chart-engine —— 排盘引擎源码 vendored 自 https://github.com/Renhuai123/ziwei-doushu （MIT，作者：王多鱼AI），位于 packages/chart-engine/src/engine",
+    "engineVersion": "@ziwei/chart-engine@0.1.0",
+    "dataset": "紫微斗数开源解读数据集 v4.0-13d（674,976 张命盘 × 13 维，CC BY 4.0，须署名）—— 来源 https://github.com/Renhuai123/ziwei-doushu",
+    "excludedTimeVaryingFields": [
+      "currentAge",
+      "palaces[].isCurrentDaXian"
+    ],
+    "normalization": [
+      "palaces 按 branch 0–11 升序存放（引擎数组顺序变化不算回归）",
+      "daXians 按 palaceBranch 升序存放",
+      "宫名 / 大限宫名按引擎当前输出原样记录（含「宫」字后缀），改名会如实报出来",
+      "每颗星记录 name / type / siHua / brightness / brightnessRaw"
+    ],
+    "howToRefresh": "确认盘面变化是**有意为之**后，在仓库根执行：ZIWEI_UPDATE_GOLDEN=1 npx tsx tests/golden.test.ts，然后 review git diff 再提交。本文件是回归基线，不要手改。"
+  },
+  "id": "1990-03-15-h01-male",
+  "label": "丑时 · 男",
+  "covers": [
+    "时辰边界·丑时(1)",
+    "性别·男"
+  ],
+  "birth": {
+    "year": 1990,
+    "month": 3,
+    "day": 15,
+    "hour": 1,
+    "gender": "male"
+  },
+  "snapshot": {
+    "mingGongBranch": 2,
+    "mingGongBranchName": "寅",
+    "shenGongBranch": 4,
+    "shenGongBranchName": "辰",
+    "wuxingJu": 5,
+    "wuxingJuName": "土五局",
+    "ziweiPos": 4,
+    "mingGongFirstMajorStar": "贪狼",
+    "lunar": {
+      "lunarYear": 1990,
+      "lunarMonth": 2,
+      "lunarDay": 19,
+      "yearStem": 6,
+      "yearBranch": 6,
+      "isLeapMonth": false,
+      "fourPillars": [
+        "庚午",
+        "己卯",
+        "己卯",
+        "乙丑"
+      ],
+      "fourPillarsLunar": [
+        "庚午",
+        "己卯",
+        "己卯",
+        "乙丑"
+      ]
+    },
+    "palaces": [
+      {
+        "branch": 0,
+        "branchName": "子",
+        "stem": 4,
+        "stemName": "戊",
+        "name": "夫妻宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "武曲",
+            "type": "major",
+            "siHua": "权",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "天府",
+            "type": "major",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "地劫",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "阴煞",
+            "type": "sha"
+          },
+          {
+            "name": "天哭",
+            "type": "sha",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "天虚",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          }
+        ],
+        "majorStars": [
+          "武曲",
+          "天府"
+        ],
+        "daXianAge": [
+          105,
+          114
+        ]
+      },
+      {
+        "branch": 1,
+        "branchName": "丑",
+        "stem": 5,
+        "stemName": "己",
+        "name": "兄弟宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "太阳",
+            "type": "major",
+            "siHua": "禄",
+            "brightnessRaw": "不"
+          },
+          {
+            "name": "太阴",
+            "type": "major",
+            "siHua": "科",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天魁",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "龙德",
+            "type": "minor"
+          },
+          {
+            "name": "大耗",
+            "type": "sha",
+            "brightnessRaw": "平"
+          }
+        ],
+        "majorStars": [
+          "太阳",
+          "太阴"
+        ],
+        "daXianAge": [
+          115,
+          124
+        ]
+      },
+      {
+        "branch": 2,
+        "branchName": "寅",
+        "stem": 4,
+        "stemName": "戊",
+        "name": "命宫",
+        "isMingGong": true,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "贪狼",
+            "type": "major",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "火星",
+            "type": "sha",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天姚",
+            "type": "minor",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "恩光",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "天厨",
+            "type": "minor"
+          },
+          {
+            "name": "蜚廉",
+            "type": "sha"
+          }
+        ],
+        "majorStars": [
+          "贪狼"
+        ],
+        "daXianAge": [
+          5,
+          14
+        ]
+      },
+      {
+        "branch": 3,
+        "branchName": "卯",
+        "stem": 5,
+        "stemName": "己",
+        "name": "父母宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "天机",
+            "type": "major",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "巨门",
+            "type": "major",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天喜",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "咸池",
+            "type": "minor",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "八座",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "封诰",
+            "type": "lucky"
+          },
+          {
+            "name": "天德",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          }
+        ],
+        "majorStars": [
+          "天机",
+          "巨门"
+        ],
+        "daXianAge": [
+          15,
+          24
+        ]
+      },
+      {
+        "branch": 4,
+        "branchName": "辰",
+        "stem": 6,
+        "stemName": "庚",
+        "name": "福德宫",
+        "isMingGong": false,
+        "isShenGong": true,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "紫微",
+            "type": "major",
+            "brightnessRaw": "得"
+          },
+          {
+            "name": "天相",
+            "type": "major",
+            "brightnessRaw": "得"
+          },
+          {
+            "name": "铃星",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "凤阁",
+            "type": "lucky",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "寡宿",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "年解",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          }
+        ],
+        "majorStars": [
+          "紫微",
+          "天相"
+        ],
+        "daXianAge": [
+          25,
+          34
+        ]
+      },
+      {
+        "branch": 5,
+        "branchName": "巳",
+        "stem": 7,
+        "stemName": "辛",
+        "name": "田宅宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "天梁",
+            "type": "major",
+            "brightnessRaw": "得"
+          },
+          {
+            "name": "左辅",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "文曲",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天月",
+            "type": "sha"
+          },
+          {
+            "name": "破碎",
+            "type": "minor",
+            "brightnessRaw": "陷"
+          }
+        ],
+        "majorStars": [
+          "天梁"
+        ],
+        "daXianAge": [
+          35,
+          44
+        ]
+      },
+      {
+        "branch": 6,
+        "branchName": "午",
+        "stem": 8,
+        "stemName": "壬",
+        "name": "官禄宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "七杀",
+            "type": "major",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "天福",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "截空",
+            "type": "sha",
+            "brightnessRaw": "庙"
+          }
+        ],
+        "majorStars": [
+          "七杀"
+        ],
+        "daXianAge": [
+          45,
+          54
+        ]
+      },
+      {
+        "branch": 7,
+        "branchName": "未",
+        "stem": 9,
+        "stemName": "癸",
+        "name": "仆役宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": true,
+        "stars": [
+          {
+            "name": "天钺",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "陀罗",
+            "type": "sha",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "台辅",
+            "type": "lucky"
+          },
+          {
+            "name": "天空",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "副截",
+            "type": "sha",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天伤",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          }
+        ],
+        "majorStars": [],
+        "borrowedFromBranch": 1,
+        "borrowedFromName": "兄弟宫",
+        "borrowedStars": [
+          "太阳",
+          "太阴"
+        ],
+        "daXianAge": [
+          55,
+          64
+        ]
+      },
+      {
+        "branch": 8,
+        "branchName": "申",
+        "stem": 0,
+        "stemName": "甲",
+        "name": "迁移宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "廉贞",
+            "type": "major",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "禄存",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天马",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "解神",
+            "type": "lucky",
+            "brightnessRaw": "不"
+          },
+          {
+            "name": "天才",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "天巫",
+            "type": "lucky"
+          },
+          {
+            "name": "孤辰",
+            "type": "sha",
+            "brightnessRaw": "平"
+          }
+        ],
+        "majorStars": [
+          "廉贞"
+        ],
+        "daXianAge": [
+          65,
+          74
+        ]
+      },
+      {
+        "branch": 9,
+        "branchName": "酉",
+        "stem": 1,
+        "stemName": "乙",
+        "name": "疾厄宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": true,
+        "stars": [
+          {
+            "name": "右弼",
+            "type": "lucky",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "文昌",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "擎羊",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "红鸾",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "天使",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          }
+        ],
+        "majorStars": [],
+        "borrowedFromBranch": 3,
+        "borrowedFromName": "父母宫",
+        "borrowedStars": [
+          "天机",
+          "巨门"
+        ],
+        "daXianAge": [
+          75,
+          84
+        ]
+      },
+      {
+        "branch": 10,
+        "branchName": "戌",
+        "stem": 2,
+        "stemName": "丙",
+        "name": "财帛宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "破军",
+            "type": "major",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "地空",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "天贵",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "龙池",
+            "type": "lucky",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "天寿",
+            "type": "lucky",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "华盖",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "旬空",
+            "type": "sha",
+            "brightnessRaw": "陷"
+          },
+          {
+            "name": "天刑",
+            "type": "sha",
+            "brightnessRaw": "庙"
+          }
+        ],
+        "majorStars": [
+          "破军"
+        ],
+        "daXianAge": [
+          85,
+          94
+        ]
+      },
+      {
+        "branch": 11,
+        "branchName": "亥",
+        "stem": 3,
+        "stemName": "丁",
+        "name": "子女宫",
+        "isMingGong": false,
+        "isShenGong": false,
+        "isEmpty": false,
+        "stars": [
+          {
+            "name": "天同",
+            "type": "major",
+            "siHua": "忌",
+            "brightnessRaw": "庙"
+          },
+          {
+            "name": "三台",
+            "type": "lucky",
+            "brightnessRaw": "平"
+          },
+          {
+            "name": "天官",
+            "type": "lucky",
+            "brightnessRaw": "旺"
+          },
+          {
+            "name": "月德",
+            "type": "lucky"
+          },
+          {
+            "name": "劫煞",
+            "type": "minor"
+          },
+          {
+            "name": "副旬",
+            "type": "sha",
+            "brightnessRaw": "平"
+          }
+        ],
+        "majorStars": [
+          "天同"
+        ],
+        "daXianAge": [
+          95,
+          104
+        ]
+      }
+    ],
+    "daXians": [
+      {
+        "startAge": 105,
+        "endAge": 114,
+        "palaceBranch": 0,
+        "palaceName": "夫妻宫"
+      },
+      {
+        "startAge": 115,
+        "endAge": 124,
+        "palaceBranch": 1,
+        "palaceName": "兄弟宫"
+      },
+      {
+        "startAge": 5,
+        "endAge": 14,
+        "palaceBranch": 2,
+        "palaceName": "命宫"
+      },
+      {
+        "startAge": 15,
+        "endAge": 24,
+        "palaceBranch": 3,
+        "palaceName": "父母宫"
+      },
+      {
+        "startAge": 25,
+        "endAge": 34,
+        "palaceBranch": 4,
+        "palaceName": "福德宫"
+      },
+      {
+        "startAge": 35,
+        "endAge": 44,
+        "palaceBranch": 5,
+        "palaceName": "田宅宫"
+      },
+      {
+        "startAge": 45,
+        "endAge": 54,
+        "palaceBranch": 6,
+        "palaceName": "官禄宫"
+      },
+      {
+        "startAge": 55,
+        "endAge": 64,
+        "palaceBranch": 7,
+        "palaceName": "仆役宫"
+      },
+      {
+        "startAge": 65,
+        "endAge": 74,
+        "palaceBranch": 8,
+        "palaceName": "迁移宫"
+      },
+      {
+        "startAge": 75,
+        "endAge": 84,
+        "palaceBranch": 9,
+        "palaceName": "疾厄宫"
+      },
+      {
+        "startAge": 85,
+        "endAge": 94,
+        "palaceBranch": 10,
+        "palaceName": "财帛宫"
+      },
+      {
+        "startAge": 95,
+        "endAge": 104,
+        "palaceBranch": 11,
+        "palaceName": "子女宫"
+      }
+    ],
+    "mingZhu": "禄存",
+    "shenZhu": "火星",
+    "yinYangGender": "阳男"
+  }
+}

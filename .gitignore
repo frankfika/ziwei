@@ -13,3 +13,6 @@ dist/
 .DS_Store
 *.log
 npm-debug.log*
+
+# 视觉验证截图等构建产物
+apps/web/.verify/

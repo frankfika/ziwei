@@ -30,7 +30,9 @@ export function resolveDataDir(explicit?: string): string {
     fs.existsSync(path.join(p, 'index')) || fs.existsSync(path.join(p, 'raw'));
 
   // 3. 从 cwd 向上找
-  let dir = path.resolve(process.cwd());
+  // turbopackIgnore: 避免 Next.js 构建时把整个项目纳入 fs tracing
+  // （process.cwd() 是动态路径，静态分析会认为要打包整个仓库）
+  let dir = path.resolve(/* turbopackIgnore: true */ process.cwd());
   for (let i = 0; i < 8; i++) {
     const candidate = path.join(dir, 'data');
     if (isDataDir(candidate)) return candidate;

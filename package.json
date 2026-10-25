@@ -6,15 +6,17 @@
   "description": "紫微助手 — 排盘引擎 + v4.0 解读数据集检索的最小可用产品",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "vendor/*"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit -p packages/chart-engine/tsconfig.json && tsc --noEmit -p packages/reading-index/tsconfig.json",
+    "typecheck": "bash scripts/typecheck.sh",
     "index:build": "tsx packages/reading-index/src/cli.ts",
     "chart": "tsx apps/cli/src/index.ts",
     "test": "tsx tests/run.ts",
     "web:dev": "npm run dev --workspace @ziwei/web",
-    "web:build": "npm run build --workspace @ziwei/web"
+    "web:build": "npm run build --workspace @ziwei/web",
+    "acceptance": "bash scripts/acceptance.sh"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

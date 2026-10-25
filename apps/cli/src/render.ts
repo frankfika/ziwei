@@ -28,18 +28,21 @@ function genderText(g: 'male' | 'female'): string {
   return g === 'male' ? '男' : '女';
 }
 
-/** 截断预览：尽量切在句末标点处，避免断在半句 */
+/** 截断预览：尽量切在句末标点处，避免断在半句；总长（含省略号）不超过 limit */
 export function previewText(text: string, limit = PREVIEW_CHARS): string {
   if (text.length <= limit) return text;
-  const slice = text.slice(0, limit);
+  const slice = text.slice(0, limit - 1);
   const breaks = '。！？；\n';
-  let cut = limit;
-  for (let i = limit - 1; i >= Math.floor(limit * 0.5); i--) {
+  let cut = slice.length;
+  for (let i = slice.length - 1; i >= Math.floor(limit * 0.5); i--) {
     if (breaks.includes(slice[i]!)) {
       cut = i + 1;
       break;
     }
   }
+  // 数据集里有 4 字节 emoji（如 🟡），按 UTF-16 码元切分可能劈开代理对，回退一格
+  const last = slice.charCodeAt(cut - 1);
+  if (cut > 0 && last >= 0xd800 && last <= 0xdbff) cut -= 1;
   return slice.slice(0, cut) + '…';
 }
 
@@ -65,6 +68,15 @@ function palaceStars(palace: ChartPalace): string {
     return `${from}${borrowed}`;
   }
   return '无主星';
+}
+
+/**
+ * 宫名。
+ * 引擎给的是「兄弟 / 财帛」这类两字名，适配器层已统一补成「兄弟宫 / 财帛宫」，
+ * 这里直接用即可（不要再补，否则会变成「财帛宫宫」）。
+ */
+function palaceName(palace: ChartPalace): string {
+  return palace.name;
 }
 
 /** 宫干自化文本 */
@@ -127,20 +139,19 @@ export function renderChart(c: ChartJSON, opts: ChartRenderOptions): string[] {
   lines.push(t.bold('十二宫（地支子 → 亥）'));
   const palaces = [...c.palaces].sort((a, b2) => a.branch - b2.branch);
   for (const p of palaces) {
-    const markers = [p.isMingGong ? '命宫' : '', p.isShenGong ? '身宫' : '']
-      .filter(Boolean)
-      .join('·');
+    const markers = p.isShenGong ? '身宫' : '';
     const stars = palaceStars(p) + selfSihuaText(p);
     const age = p.daXianAge ? `${p.daXianAge[0]}-${p.daXianAge[1]}` : '—';
     const current = p.isCurrentDaXian ? t.green('  ← 当前大限') : '';
-    const nameCell = p.isMingGong ? t.bold(padEnd(p.name, 6)) : padEnd(p.name, 6);
+    const name = palaceName(p);
+    const nameCell = p.isMingGong ? t.bold(padEnd(name, 6)) : padEnd(name, 6);
     lines.push(
       '  ' +
         padEnd(p.branchName, 2) +
         '  ' +
         nameCell +
         ' ' +
-        padEnd(markers, 6) +
+        padEnd(markers, 4) +
         ' ' +
         padEnd(p.stemName, 2) +
         '  ' +
@@ -159,7 +170,7 @@ export function renderChart(c: ChartJSON, opts: ChartRenderOptions): string[] {
       t.dim(padEnd('当前大限', 10)) +
         '  ' +
         t.green(
-          `${currentPalace.name}（${currentPalace.branchName}）` +
+          `${palaceName(currentPalace)}（${currentPalace.branchName}）` +
             (age ? ` ${age[0]}-${age[1]} 岁` : ''),
         ) +
         `   当前年龄 ${c.currentAge} 岁`,

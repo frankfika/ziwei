@@ -5,8 +5,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx",
-    "../chart-engine/src/engine/lunar-javascript.d.ts"
+    "src/**/*.tsx"
   ],
   "exclude": ["node_modules"]
 }

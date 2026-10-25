@@ -4,8 +4,7 @@
     "baseUrl": "."
   },
   "include": [
-    "src/**/*.ts",
-    "../chart-engine/src/engine/lunar-javascript.d.ts"
+    "src/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

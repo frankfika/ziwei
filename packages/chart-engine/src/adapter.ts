@@ -46,6 +46,18 @@ export function validateBirth(birth: Birth): void {
   }
 }
 
+/**
+ * 宫名规范化。
+ *
+ * 引擎返回的是「兄弟 / 财帛 / 夫妻」这类两字名（仅命宫自带「宫」字），
+ * 而紫微盘的标准称法是「兄弟宫 / 财帛宫 / 夫妻宫」。
+ * 在适配器层统一补齐，下游（Web / CLI / 提示词）就不用各自处理。
+ */
+function palaceLabel(name: string): string {
+  if (!name) return name;
+  return name.endsWith('宫') ? name : `${name}宫`;
+}
+
 function mapStar(s: Star): ChartStar {
   return {
     name: s.name,
@@ -63,12 +75,12 @@ function mapPalace(p: Palace): ChartPalace {
     branchName: BRANCHES[p.branch] ?? '',
     stem: p.stem,
     stemName: STEMS[p.stem] ?? '',
-    name: p.name,
+    name: palaceLabel(p.name),
     isMingGong: !!p.isMingGong,
     isShenGong: !!p.isShenGong,
     isEmpty: !!p.isEmpty,
     ...(p.borrowedFromBranch !== undefined ? { borrowedFromBranch: p.borrowedFromBranch } : {}),
-    ...(p.borrowedFromName ? { borrowedFromName: p.borrowedFromName } : {}),
+    ...(p.borrowedFromName ? { borrowedFromName: palaceLabel(p.borrowedFromName) } : {}),
     ...(p.borrowedStars ? { borrowedStars: p.borrowedStars } : {}),
     ...(p.selfSihua
       ? { selfSihua: p.selfSihua.map((s) => ({ siHua: s.siHua, starName: s.starName })) }
@@ -89,7 +101,7 @@ function mapDaXian(d: ZiweiChart['daXians'][number]): ChartDaXian {
     startAge: d.startAge,
     endAge: d.endAge,
     palaceBranch: d.palaceBranch,
-    palaceName: d.palaceName,
+    palaceName: palaceLabel(d.palaceName),
     ...(d.stemIndex !== undefined ? { stemIndex: d.stemIndex } : {}),
     ...(d.stemName ? { stemName: d.stemName } : {}),
     ...(d.siHua
@@ -140,9 +152,16 @@ export function chart(birth: Birth): ChartJSON {
     ...(ziwei.shenZhu ? { shenZhu: ziwei.shenZhu } : {}),
     ...(ziwei.yinYangGender ? { yinYangGender: ziwei.yinYangGender } : {}),
     currentAge: ziwei.currentAge,
-    palaces: ziwei.palaces.map(mapPalace),
+    // 统一按地支 0–11 升序。引擎返回的是传统盘面序（寅起逆时针），
+    // 下游按 branch 定位宫位，顺序统一可避免各处自行排序。
+    palaces: [...ziwei.palaces].sort((a, b) => a.branch - b.branch).map(mapPalace),
     daXians: ziwei.daXians.map(mapDaXian),
   };
+}
+
+/** 按地支索引取宫；不存在返回 null */
+export function palaceAt(c: ChartJSON, branch: number): ChartPalace | null {
+  return c.palaces.find((p) => p.branch === branch) ?? null;
 }
 
 /**

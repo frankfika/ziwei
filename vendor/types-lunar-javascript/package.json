@@ -1,0 +1,7 @@
+{
+  "name": "@types/lunar-javascript",
+  "version": "1.0.0",
+  "private": true,
+  "description": "lunar-javascript 的本地类型声明（npm 上无官方 @types 包）",
+  "types": "index.d.ts"
+}

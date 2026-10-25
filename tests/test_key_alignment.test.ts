@@ -25,8 +25,27 @@ import { ReadingIndex, parseKey } from '@ziwei/reading-index';
 import type { Tester } from './harness';
 import { probeData } from './fixtures/data';
 
-/** 每个年份取多少条样本 */
-const PER_YEAR = 200;
+/**
+ * 每个年份取多少条样本。
+ *
+ * 自适应：**总样本量守恒在 ~600–1000 条**，按已建索引的年份数摊分。
+ *
+ * 为什么不是固定 200/年：
+ *  · 3 个年份时 → 200/年 = 600 条（扎堆 3 年，测得深）
+ *  · 77 个年份时 → 8/年 = 616 条（铺开 77 年，测得广）
+ *
+ * 键口径要回答的问题是「**整个数据集**的 key 约定是否一致」，
+ * 所以**年份覆盖度比单年深度更重要** —— 77 年各 8 条的证据力
+ * 远强于 3 年各 200 条。而固定 200/年还会让 77 年场景跑到 15,400 次排盘
+ * （约 7 分钟），日常回归跑不动。
+ */
+const MIN_TOTAL_SAMPLES = 600;
+const MAX_PER_YEAR = 200;
+
+function perYearFor(yearCount: number): number {
+  if (yearCount <= 0) return 0;
+  return Math.min(MAX_PER_YEAR, Math.max(8, Math.ceil(MIN_TOTAL_SAMPLES / yearCount)));
+}
 
 /** 样本 */
 interface Sample {
@@ -71,7 +90,7 @@ export const keyAlignmentStats: KeyAlignmentStats = {
   shiftedOnlyHit: 0,
   shiftedCoincidence: 0,
   years: [],
-  perYear: PER_YEAR,
+  perYear: 0,
   mismatches: [],
   skipped: false,
 };
@@ -147,11 +166,14 @@ export const suite = async (t: Tester): Promise<void> => {
 
   keyAlignmentStats.years = [...data.indexedYears];
 
+  const PER_YEAR = perYearFor(data.indexedYears.length);
+  keyAlignmentStats.perYear = PER_YEAR;
+
   await t.test('键口径样本量 ≥ 600', () => {
     const total = data.indexedYears.length * PER_YEAR;
     assert.ok(
-      total >= 600,
-      `样本量只有 ${total} 条（${data.indexedYears.length} 个年份 × ${PER_YEAR}），要求 ≥ 600`,
+      total >= MIN_TOTAL_SAMPLES,
+      `样本量只有 ${total} 条（${data.indexedYears.length} 个年份 × ${PER_YEAR}），要求 ≥ ${MIN_TOTAL_SAMPLES}`,
     );
   });
 

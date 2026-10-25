@@ -100,7 +100,8 @@ if [[ -f apps/cli/src/index.ts ]]; then
   check_contains "chart 输出 命主巨门" "巨门" npx tsx apps/cli/src/index.ts chart --date 1990-01-01 --hour 0 --gender male
   check_contains "read 命中 13 维" "13/13" npx tsx apps/cli/src/index.ts read --date 1990-01-01 --hour 0 --gender male
   check_contains "中文时辰等价" "天府" npx tsx apps/cli/src/index.ts read --date 1990-01-01 --hour 子 --gender male
-  check_contains "未覆盖诚实提示" "样本库未覆盖" npx tsx apps/cli/src/index.ts read --date 1991-06-15 --hour 6 --gender female
+# 1949 在数据集范围（1950–2026）之外，是当前唯一可达的「年份未建索引」分支
+  check_contains "未覆盖诚实提示" "样本库未覆盖" npx tsx apps/cli/src/index.ts read --date 1949-06-15 --hour 6 --gender female
   check_contains "署名（数据集）" "王多鱼AI" npx tsx apps/cli/src/index.ts chart --date 1990-01-01 --hour 0 --gender male
   check_contains "免责声明" "不构成任何医疗" npx tsx apps/cli/src/index.ts chart --date 1990-01-01 --hour 0 --gender male
   check_contains "coverage 输出年份" "1990" npx tsx apps/cli/src/index.ts coverage

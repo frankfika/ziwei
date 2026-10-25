@@ -62,7 +62,15 @@ const fetchCalls = () => netGuard.calls;
 
 // ── 测试用生辰 ──────────────────────────────────────────────
 const BIRTH: Birth = { year: 1990, month: 3, day: 15, hour: 6, gender: 'male' };
-const UNCOVERED_BIRTH: Birth = { year: 1991, month: 3, day: 15, hour: 6, gender: 'male' };
+/**
+ * 未覆盖样本：**1950 之前**的生辰。
+ *
+ * 注意不要用「已建索引但没这条 key」的年份来测 —— 数据集覆盖 1950–2026
+ * 的每个真实日期 × 12 时辰 × 男女，所以 1950–2026 区间内**不存在**
+ * 「年份已索引但 key 缺失」的情况。唯一可达的未覆盖分支是
+ * 「年份不在已建索引范围内」，所以必须取 1950 之前的年份。
+ */
+const UNCOVERED_BIRTH: Birth = { year: 1949, month: 3, day: 15, hour: 6, gender: 'male' };
 
 const svc = new ZiweiService();
 const chart = svc.chart(BIRTH);

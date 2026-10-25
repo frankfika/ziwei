@@ -1,0 +1,191 @@
+import { generateChart } from './engine/algorithm';
+import { BRANCHES, STEMS } from './engine/constants';
+import type { ZiweiChart, Palace, Star } from './engine/types';
+import {
+  HOUR_BRANCHES,
+  InvalidBirthError,
+  type Birth,
+  type ChartDaXian,
+  type ChartJSON,
+  type ChartPalace,
+  type ChartStar,
+  type StarType,
+} from './types';
+
+/**
+ * 校验生辰输入。
+ * 引擎本身也会校验，这里提前拦下并给出更贴近用户的错误信息。
+ */
+export function validateBirth(birth: Birth): void {
+  const { year, month, day, hour } = birth;
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+    throw new InvalidBirthError(`出生年份需在 1900–2100 之间，收到：${year}`);
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new InvalidBirthError(`出生月份需在 1–12 之间，收到：${month}`);
+  }
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    throw new InvalidBirthError(`出生日期需在 1–31 之间，收到：${day}`);
+  }
+  // 公历日期必须真实存在（2 月 30 日、非闰年 2 月 29 日等）
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    throw new InvalidBirthError(`该日期不存在：${year}-${month}-${day}`);
+  }
+  if (!Number.isInteger(hour) || hour < 0 || hour > 11) {
+    throw new InvalidBirthError(
+      `时辰需为 0–11 的序号（子=0 … 亥=11），收到：${hour}`,
+    );
+  }
+  if (birth.gender !== 'male' && birth.gender !== 'female') {
+    throw new InvalidBirthError(`性别需为 male 或 female，收到：${birth.gender}`);
+  }
+}
+
+function mapStar(s: Star): ChartStar {
+  return {
+    name: s.name,
+    type: s.type as StarType,
+    ...(s.brightness ? { brightness: s.brightness } : {}),
+    ...(s.brightnessRaw ? { brightnessRaw: s.brightnessRaw } : {}),
+    ...(s.siHua ? { siHua: s.siHua } : {}),
+  };
+}
+
+function mapPalace(p: Palace): ChartPalace {
+  const stars = p.stars.map(mapStar);
+  return {
+    branch: p.branch,
+    branchName: BRANCHES[p.branch] ?? '',
+    stem: p.stem,
+    stemName: STEMS[p.stem] ?? '',
+    name: p.name,
+    isMingGong: !!p.isMingGong,
+    isShenGong: !!p.isShenGong,
+    isEmpty: !!p.isEmpty,
+    ...(p.borrowedFromBranch !== undefined ? { borrowedFromBranch: p.borrowedFromBranch } : {}),
+    ...(p.borrowedFromName ? { borrowedFromName: p.borrowedFromName } : {}),
+    ...(p.borrowedStars ? { borrowedStars: p.borrowedStars } : {}),
+    ...(p.selfSihua
+      ? { selfSihua: p.selfSihua.map((s) => ({ siHua: s.siHua, starName: s.starName })) }
+      : {}),
+    ...(p.daXianAge ? { daXianAge: p.daXianAge } : {}),
+    ...(p.isCurrentDaXian !== undefined ? { isCurrentDaXian: p.isCurrentDaXian } : {}),
+    ...(p.oppositeBranch !== undefined ? { oppositeBranch: p.oppositeBranch } : {}),
+    stars,
+    majorStars: stars.filter((s) => s.type === 'major').map((s) => s.name),
+    minorStars: stars.filter((s) => s.type === 'minor').map((s) => s.name),
+    luckyStars: stars.filter((s) => s.type === 'lucky').map((s) => s.name),
+    shaStars: stars.filter((s) => s.type === 'sha').map((s) => s.name),
+  };
+}
+
+function mapDaXian(d: ZiweiChart['daXians'][number]): ChartDaXian {
+  return {
+    startAge: d.startAge,
+    endAge: d.endAge,
+    palaceBranch: d.palaceBranch,
+    palaceName: d.palaceName,
+    ...(d.stemIndex !== undefined ? { stemIndex: d.stemIndex } : {}),
+    ...(d.stemName ? { stemName: d.stemName } : {}),
+    ...(d.siHua
+      ? { siHua: { lu: d.siHua.lu, quan: d.siHua.quan, ke: d.siHua.ke, ji: d.siHua.ji } }
+      : {}),
+  };
+}
+
+/**
+ * 排盘主入口。
+ *
+ * 这是「排盘只走确定性引擎、禁止 LLM 自己算盘」的落地点：
+ * 上层（Web / CLI / 追问）只能通过本函数拿盘，拿不到就是拿不到。
+ */
+export function chart(birth: Birth): ChartJSON {
+  validateBirth(birth);
+
+  const ziwei: ZiweiChart = generateChart({
+    year: birth.year,
+    month: birth.month,
+    day: birth.day,
+    hour: birth.hour,
+    gender: birth.gender,
+    ...(birth.name ? { name: birth.name } : {}),
+    ...(birth.longitude !== undefined ? { longitude: birth.longitude } : {}),
+  });
+
+  return {
+    birth: { ...birth },
+    lunar: {
+      lunarYear: ziwei.lunarInfo.lunarYear,
+      lunarMonth: ziwei.lunarInfo.lunarMonth,
+      lunarDay: ziwei.lunarInfo.lunarDay,
+      yearStem: ziwei.lunarInfo.yearStem,
+      yearBranch: ziwei.lunarInfo.yearBranch,
+      isLeapMonth: ziwei.lunarInfo.isLeapMonth,
+      ...(ziwei.lunarInfo.fourPillars ? { fourPillars: ziwei.lunarInfo.fourPillars } : {}),
+      ...(ziwei.lunarInfo.fourPillarsLunar
+        ? { fourPillarsLunar: ziwei.lunarInfo.fourPillarsLunar }
+        : {}),
+    },
+    mingGongBranch: ziwei.mingGongBranch,
+    shenGongBranch: ziwei.shenGongBranch,
+    wuxingJu: ziwei.wuxingJu,
+    wuxingJuName: ziwei.wuxingJuName,
+    ziweiPos: ziwei.ziweiPos,
+    ...(ziwei.mingZhu ? { mingZhu: ziwei.mingZhu } : {}),
+    ...(ziwei.shenZhu ? { shenZhu: ziwei.shenZhu } : {}),
+    ...(ziwei.yinYangGender ? { yinYangGender: ziwei.yinYangGender } : {}),
+    currentAge: ziwei.currentAge,
+    palaces: ziwei.palaces.map(mapPalace),
+    daXians: ziwei.daXians.map(mapDaXian),
+  };
+}
+
+/**
+ * 把命盘压成一段紧凑文本，供追问层注入提示词。
+ * 只陈述盘面事实，不含任何解读断语（断语来自数据集检索）。
+ */
+export function chartSummary(c: ChartJSON): string {
+  const lines: string[] = [];
+  const b = c.birth;
+  lines.push(
+    `生辰：${b.year}年${b.month}月${b.day}日 ${HOUR_BRANCHES[b.hour]}时（时辰序号 ${b.hour}） ${
+      b.gender === 'male' ? '男' : '女'
+    }`,
+  );
+  lines.push(
+    `农历：${c.lunar.lunarYear}年${c.lunar.lunarMonth}月${c.lunar.lunarDay}日` +
+      `${c.lunar.isLeapMonth ? '（闰月）' : ''}` +
+      `${c.lunar.fourPillars ? ` 四柱 ${c.lunar.fourPillars.join(' ')}` : ''}`,
+  );
+  lines.push(
+    `命宫在${c.palaces.find((p) => p.branch === c.mingGongBranch)?.branchName ?? '?'}，` +
+      `身宫在${c.palaces.find((p) => p.branch === c.shenGongBranch)?.branchName ?? '?'}，` +
+      `${c.wuxingJuName}，命主${c.mingZhu ?? '—'}，身主${c.shenZhu ?? '—'}` +
+      `${c.yinYangGender ? `，${c.yinYangGender}` : ''}`,
+  );
+  lines.push('');
+  lines.push('十二宫：');
+  for (const p of c.palaces) {
+    const stars = p.stars
+      .map((s) => {
+        const bh = s.brightnessRaw ? `(${s.brightnessRaw})` : '';
+        const sh = s.siHua ? `[${s.siHua}]` : '';
+        return `${s.name}${bh}${sh}`;
+      })
+      .join('、');
+    const marks = [
+      p.isMingGong ? '命宫' : '',
+      p.isShenGong ? '身宫' : '',
+      p.isEmpty ? '空宫' : '',
+    ].filter(Boolean).join('/');
+    lines.push(
+      `- ${p.name}（${p.branchName}宫${marks ? `·${marks}` : ''}）：${stars || '无主星'}`,
+    );
+  }
+  return lines.join('\n');
+}

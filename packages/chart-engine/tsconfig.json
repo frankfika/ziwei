@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "."
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../chart-engine/src/engine/lunar-javascript.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

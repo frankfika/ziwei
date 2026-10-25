@@ -52,7 +52,63 @@ npm run web:dev                                             # 浏览器
 3. **默认不做微调**（无 LoRA / 全参训练 / 继续预训练）。
 4. **检索键与数据集严格一致**：`YYYY-MM-DD-时辰序号-性别`，时辰序号 0–11。
 
-> 键口径是**实测确认**的，不是照抄文档 —— 详见 `docs/KEY_SEMANTICS.md`。
+> 键口径是**实测确认**的，不是照抄文档 —— 600 条样本 100% 直排匹配，
+> 详见 `docs/KEY_SEMANTICS.md`。
+
+---
+
+## 三种用法
+
+### Web
+
+```bash
+npm run web:dev      # http://localhost:3000
+```
+
+| 路由 | 说明 |
+|---|---|
+| `/` | 输入页：出生日期 + 时辰/钟点 + 性别，实时口径预览，本地排盘历史 |
+| `/chart?y=&m=&d=&h=&g=` | 12 宫盘面 + 13 维解读 + 晚子时提示 |
+| `/about` | 口径说明、检索键、覆盖情况、署名与免责声明 |
+
+排盘在 **Server Action** 里算（浏览器端不进排盘引擎，避免把 iztro 打进客户端包）。
+
+### 命令行
+
+```bash
+npm run chart -- chart --date 1990-01-01 --hour 0 --gender male
+npm run chart -- read  --date 1990-01-01 --hour 0 --gender male
+npm run chart -- read  --date 1990-01-01 --hour 0 --gender male --dim love
+npm run chart -- coverage
+```
+
+| 开关 | 说明 |
+|---|---|
+| `--date` | 公历出生日期 `YYYY-MM-DD` |
+| `--hour` | 时辰序号 0–11，**或**中文 `子丑寅…` |
+| `--clock` | 用钟点代替时辰序号（`--clock 23:30` → 晚子时按次日排盘） |
+| `--gender` | `male`/`female`，或 `男`/`女`/`m`/`f` |
+| `--dim` | 只看某一维（`love` 或 `感情`） |
+| `--full` | 打印 13 维全文（默认每维 200 字预览） |
+| `--json` | 机器可读输出 |
+
+退出码：`0` 成功 / `2` 参数错误 / `3` 样本库未覆盖 / `1` 其他。
+
+### 追问（可选）
+
+```bash
+export ZIWEI_ASK_PROVIDER=openai     # openai | anthropic | echo
+export ZIWEI_ASK_BASE_URL=https://api.deepseek.com
+export ZIWEI_ASK_API_KEY=sk-...
+export ZIWEI_ASK_MODEL=deepseek-chat
+```
+
+**默认不接任何真实 API**（成本约束：单次预期花费 > ≈¥7 / USD $1 须先确认）。
+未配置时调用方拿到明确的 `AskProviderNotConfiguredError`，不会静默降级。
+
+追问的硬约束：只允许使用引擎产出的盘面事实 + 检索到的原文；
+材料没写的必须回答「原文未写」。回答返回后还会跑一遍**机械自检**
+（落宫检查 + 参考星表比对），越界内容会被标出来。
 
 ---
 
@@ -112,6 +168,9 @@ scripts/download_data.sh --all
 | 真太阳时 / 夏令时 | **不做**（数据集未做，做了检索键会错位）。后续独立需求 |
 | 倪师《天纪》引文 | 数据集里密度很高（98.9% 的维度文本含引文）。已提供检测与降级工具，商业化前须处理，见 `docs/LEGAL_NOTES.md` |
 | 闰月 / 亮度流派 | 引擎内部固定为 `split`（月中分界）+ 全书派亮度表，与数据集生成口径一致 |
+| 闰月标记 | `isLeapMonth` 在 `split` 下**恒为 false**，闰月体现为农历月归属，别拿它判断闰月 |
+| 盘面缓存 | `currentAge` 随当天日期变 → 整个 `ChartJSON` **不可缓存** |
+| 盘外星曜检测 | 引擎每张盘都落全部 70 颗星（只落宫不同），所以集合判定几乎不触发；防编造靠**落宫检查** + 参考星表 |
 | 追问模块 | 默认不接任何真实 API（需自行配置 provider 环境变量） |
 | 上游商业站功能 | **不**实现会员/支付/防刷/SEO 站群；界面为自研 |
 
@@ -120,20 +179,37 @@ scripts/download_data.sh --all
 ## 开发
 
 ```bash
-npm run typecheck     # 全包类型检查
-npm test              # 回归套件（含金标准盘）
+npm run typecheck     # 全仓类型检查（packages + apps + tests）
+npm test              # 回归套件（56 用例，含金标准盘与键口径实证）
+npm run acceptance    # MVP 总验收（24 项，typecheck + test + CLI 端到端 + web build）
 npm run index:build   # 建索引
 npm run chart -- ...  # CLI
 npm run web:dev       # Web 开发服务器
 npm run web:build     # Web 生产构建
+npm run ask:selftest  # 追问模块自测（零网络）
 ```
 
-回归套件包含**金标准盘快照**：引擎变更若静默改盘，测试会指出具体哪个字段变了。
-刷新快照（确认变更是有意的后）：
+回归套件包含**金标准盘快照**（9 份，覆盖闰日/闰月/年末/时辰边界/男女/数据集首尾年）：
+引擎变更若静默改盘，测试会指出**具体哪个 JSON 路径**变了。
+
+```bash
+npm test
+# ✗ 金标准盘被改动了：2000-02-29-h06-male（闰年 2 月 29 日 · 午时 · 男）
+#   共 3 处差异：
+#     · $.mingGongFirstMajorStar   快照: "紫微"   重算: "天同"
+#     · $.wuxingJuName             快照: "木三局"  重算: "水二局"
+```
+
+刷新快照（确认变更是**有意**的之后）：
 
 ```bash
 ZIWEI_UPDATE_GOLDEN=1 npm test
 ```
+
+然后 review `git diff` 再提交。
+
+CI：`.github/workflows/ci.yml`（push / PR → 装依赖 → typecheck → test）。
+CI 没有 56GB 数据集，数据相关用例**自动跳过并说明原因**，纯引擎用例照跑。
 
 ---
 

@@ -1,0 +1,15 @@
+import { ZiweiService } from '@ziwei/core';
+const svc = new ZiweiService();
+const c = svc.chart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+console.log('mingGongBranch', c.mingGongBranch, 'wuxingJu', c.wuxingJu, c.wuxingJuName);
+console.log('mingZhu', c.mingZhu, 'shenZhu', c.shenZhu, 'yinYang', c.yinYangGender, 'currentAge', c.currentAge);
+console.log('lunar', JSON.stringify(c.lunar));
+const mg = c.palaces.find(p => p.branch === c.mingGongBranch)!;
+console.log('MING PALACE:', mg.name, mg.branchName, mg.stemName, 'major=', JSON.stringify(mg.majorStars), 'selfSihua=', JSON.stringify(mg.selfSihua), 'daXianAge=', JSON.stringify(mg.daXianAge), 'isCur=', mg.isCurrentDaXian);
+console.log('palaces count', c.palaces.length);
+console.log('--- palace[0] raw ---');
+console.log(JSON.stringify(c.palaces[0], null, 1));
+console.log('--- daXians[0..2] ---');
+console.log(JSON.stringify(c.daXians.slice(0,2), null, 1));
+console.log('--- stars sample of ming palace ---');
+console.log(JSON.stringify(mg.stars, null, 1));

@@ -5,7 +5,7 @@
  */
 
 export function helpText(): string {
-  return `紫微助手 CLI —— 排盘 + 13 维解读
+  return `紫微助手 CLI —— 排盘 + 13 维解读 + 命盘追问
 
 最常用的三条：
   ziwei chart --date 1990-01-01 --hour 0 --gender male     只看命盘（12 宫）
@@ -15,6 +15,7 @@ export function helpText(): string {
 子命令：
   chart       排盘并打印 12 宫摘要
   read        排盘 + 13 维解读
+  ask         基于命盘追问（需要先配置模型 provider，见下）
   coverage    样本库覆盖情况
   help        显示本帮助
 
@@ -25,15 +26,23 @@ export function helpText(): string {
   --gender <male|female> 性别（必填，也可写 男/女、m/f）
   --name <姓名>          展示用称呼
   --dim <维度>           只看某一维，如 love / 感情（仅 read）
+  --question <问题>      要问的问题（仅 ask，必填）
   --full                 read 打印 13 维全文（默认只显示每维前 200 字）
   --json                 输出机器可读 JSON
   --no-color             关闭颜色
   -h, --help             显示帮助
 
+追问（ask）需要先配置模型 provider（默认不联网）：
+  export ZIWEI_ASK_PROVIDER=openai
+  export ZIWEI_ASK_BASE_URL=https://api.minimax.cn/v1
+  export ZIWEI_ASK_API_KEY=sk-...
+  export ZIWEI_ASK_MODEL=MiniMax-M3
+  # 可选：export ZIWEI_ASK_MAX_TOKENS=8000
+
 示例：
   ziwei read --date 1990-01-01 --hour 子 --gender male
   ziwei chart --date 1990-01-01 --clock 23:30 --gender male
   ziwei read --date 1990-01-01 --hour 0 --gender male --dim love
-  ziwei read --date 1990-01-01 --hour 0 --gender male --full
+  ziwei ask  --date 1990-01-01 --hour 0 --gender male --question "这份命盘适合做什么工作？"
   ziwei coverage --json`;
 }

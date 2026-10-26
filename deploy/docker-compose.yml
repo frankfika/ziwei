@@ -1,0 +1,56 @@
+# 紫微助手 —— 单机 Docker 编排
+#
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# 数据集不在镜像里（解压后 53GB），必须挂载到 /app/data。
+# 首次部署前请先看 deploy/README.md 的「数据准备」一节。
+
+services:
+  ziwei:
+    build:
+      # 上下文是仓库根（Dockerfile 在 deploy/ 下）
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: ziwei-assistant:latest
+    container_name: ziwei-assistant
+    restart: unless-stopped
+
+    ports:
+      # 宿主机端口可改：ZIWEI_PORT=8080（写在 deploy/.env 里）
+      # 容器内固定 3000（镜像里的 PORT 环境变量）
+      - "${ZIWEI_PORT:-3000}:3000"
+
+    environment:
+      # 数据目录（绝对路径）—— 解读数据集检索全靠它
+      ZIWEI_DATA_DIR: /app/data
+
+      # ── 追问 provider（可选）─────────────────────────────────
+      # 全部留空 = 不接任何模型 API：追问面板会明确提示「未配置 provider」，
+      # 排盘与 13 维解读（数据集检索）完全不受影响，也不会联网。
+      # 真实值写在 deploy/.env 里，镜像与仓库里都不放密钥。
+      ZIWEI_ASK_PROVIDER: "${ZIWEI_ASK_PROVIDER:-}"
+      ZIWEI_ASK_BASE_URL: "${ZIWEI_ASK_BASE_URL:-}"
+      ZIWEI_ASK_API_KEY: "${ZIWEI_ASK_API_KEY:-}"
+      ZIWEI_ASK_MODEL: "${ZIWEI_ASK_MODEL:-}"
+      ZIWEI_ASK_MAX_TOKENS: "${ZIWEI_ASK_MAX_TOKENS:-8000}"
+
+    volumes:
+      # 解读数据集：压缩包 164MB / 解压 53GB / 索引 15MB
+      - ziwei-data:/app/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ziwei-data:
+    name: ziwei-data

@@ -21,12 +21,12 @@ export class UsageError extends Error {
 }
 
 /** 已知子命令 */
-export type Command = 'chart' | 'read' | 'coverage' | 'help';
+export type Command = 'chart' | 'read' | 'ask' | 'coverage' | 'help';
 
-const COMMANDS: Command[] = ['chart', 'read', 'coverage', 'help'];
+const COMMANDS: Command[] = ['chart', 'read', 'ask', 'coverage', 'help'];
 
 /** 取值的参数 */
-const VALUE_OPTIONS = ['date', 'hour', 'clock', 'gender', 'name', 'dim'] as const;
+const VALUE_OPTIONS = ['date', 'hour', 'clock', 'gender', 'name', 'dim', 'question'] as const;
 
 /** 布尔开关 */
 const BOOL_FLAGS = ['json', 'full', 'no-color', 'help'] as const;

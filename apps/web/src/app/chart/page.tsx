@@ -2,6 +2,7 @@ import Link from 'next/link';
 import ChartBoard from '@/components/ChartBoard';
 import ReadingPanel from '@/components/ReadingPanel';
 import NotCoveredNotice from '@/components/NotCoveredNotice';
+import AskPanel from '@/components/AskPanel';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
 
@@ -157,6 +158,16 @@ export default async function ChartPage({
           />
         )}
       </section>
+
+      {/* 追问 */}
+      <AskPanel
+        year={year}
+        month={month}
+        day={day}
+        hour={hour}
+        gender={gender}
+        available={reading.status === 'ok'}
+      />
 
       <div className="mt-10 flex flex-wrap gap-3">
         <Link

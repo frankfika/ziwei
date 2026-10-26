@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@ziwei/chart-engine": "*",
-    "@ziwei/core": "*"
+    "@ziwei/core": "*",
+    "@ziwei/ask": "*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

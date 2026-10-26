@@ -1,0 +1,37 @@
+# 构建上下文排除清单
+#
+# ⚠️ 本文件名为 `Dockerfile.dockerignore`（不是 `.dockerignore`）：
+#    只有当 Dockerfile 以 `-f deploy/Dockerfile` 指定时，Docker 才会自动读取它。
+#    这样就不必在仓库根目录放一个 `.dockerignore`（那会影响到其它可能的构建方式）。
+#
+# 最重要的两条：**data/ 绝不能进构建上下文**（解压后 53GB），
+# **node_modules/ 绝不能进构建上下文**（宿主机的 macOS 二进制在 Linux 里用不了）。
+
+# ── 数据集：53GB / 77 个年份，只允许通过 volume 挂载 ──────────────
+data/
+**/data/
+
+# ── 依赖与构建产物：镜像内重新 npm ci / 重新 next build ────────────
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+dist/
+*.tsbuildinfo
+
+# ── 本地状态与密钥 ───────────────────────────────────────────────
+.git/
+.gitignore
+.github/
+.verify/
+**/.verify/
+.DS_Store
+*.log
+npm-debug.log*
+
+# 只排除真实的环境变量文件；.env.example 是给用户看的模板，保留在仓库里
+.env
+.env.local
+**/.env
+**/.env.local

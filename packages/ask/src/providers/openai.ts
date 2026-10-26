@@ -9,6 +9,7 @@
  */
 
 import { AskProviderError, type AskProvider, type AskRequest, type AskResponse } from '../types';
+import { splitReasoning } from '../reasoning';
 
 export interface OpenAICompatibleProviderOptions {
   /**
@@ -34,6 +35,14 @@ export interface OpenAICompatibleProviderOptions {
   headers?: Record<string, string>;
   /** 注入 fetch 实现（测试用）。 */
   fetchImpl?: typeof fetch;
+  /**
+   * 是否从正文里剥离思维链（`<think>…</think>`）。
+   *
+   * 默认 **true**。不少模型（MiniMax-M3 / DeepSeek-R1 / QwQ）会把思维链塞进
+   * `content`，原样透出会污染用户看到的答案，也会让防编造机械检查误报
+   * （思维链里常出现盘面外的星名）。剥离后原文仍保留在 `raw.reasoning`。
+   */
+  stripReasoning?: boolean;
 }
 
 const PROVIDER_NAME = 'openai-compatible';
@@ -74,6 +83,7 @@ export function createOpenAICompatibleProvider(
     defaultTemperature,
     headers = {},
     fetchImpl,
+    stripReasoning: shouldStripReasoning = true,
   } = opts;
 
   if (!baseUrl && !endpoint) {
@@ -144,8 +154,13 @@ export function createOpenAICompatibleProvider(
         );
       }
 
+      const rawText2 = readContent(data);
+      const split = shouldStripReasoning
+        ? splitReasoning(rawText2)
+        : { text: rawText2, reasoning: '' };
+
       return {
-        text: readContent(data),
+        text: split.text,
         provider: PROVIDER_NAME,
         model: data?.model ?? model,
         usage: {
@@ -153,7 +168,7 @@ export function createOpenAICompatibleProvider(
           completionTokens: data?.usage?.completion_tokens,
           totalTokens: data?.usage?.total_tokens,
         },
-        raw: data,
+        raw: { ...data, reasoning: split.reasoning || undefined },
       };
     },
   };

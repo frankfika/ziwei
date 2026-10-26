@@ -7,6 +7,12 @@
  *   ZIWEI_ASK_BASE_URL   OpenAI 兼容端点的 API 根地址（provider=openai 时必填）
  *   ZIWEI_ASK_API_KEY    API key（provider=openai / anthropic 时必填）
  *   ZIWEI_ASK_MODEL      模型名（provider=openai / anthropic 时必填）
+ *   ZIWEI_ASK_MAX_TOKENS 单次输出上限（可选，默认 8000）
+ *
+ * ⚠️ **max_tokens 的默认值为什么给到 8000**：
+ *   带思维链的模型（MiniMax-M3 / DeepSeek-R1 / QwQ…）的**思考 token 吃满整个
+ *   max_tokens 预算**。给小了会出现「content 为空、只有 reasoning」的返回
+ *   （表现为回答莫名其妙地空掉），所以预算必须按「思考 + 正文」一起算。
  *
  * 读取时机：调用 `resolveProviderFromEnv()` 的那一刻。**不在 import 时读、不在 import 时联网。**
  */
@@ -23,7 +29,16 @@ export interface ProviderEnvSnapshot {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  maxTokens?: number;
 }
+
+/**
+ * 单次输出 token 上限的默认值。
+ *
+ * 给到 8000 是因为带思维链的模型会把**思考 token 吃进同一个预算** ——
+ * 给小了会出现「正文为空」的诡异返回。
+ */
+export const DEFAULT_MAX_TOKENS = 8000;
 
 export interface ProviderEnvStatus {
   /** 是否可以构造出 provider */
@@ -60,6 +75,12 @@ export function readProviderEnv(
     baseUrl: env.ZIWEI_ASK_BASE_URL?.trim() || undefined,
     apiKey: env.ZIWEI_ASK_API_KEY?.trim() || undefined,
     model: env.ZIWEI_ASK_MODEL?.trim() || undefined,
+    maxTokens: (() => {
+      const raw = env.ZIWEI_ASK_MAX_TOKENS?.trim();
+      if (!raw) return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+    })(),
   };
 }
 
@@ -147,11 +168,13 @@ export function resolveProviderFromEnv(
         baseUrl: snap.baseUrl!,
         apiKey: snap.apiKey,
         model: snap.model!,
+        ...(snap.maxTokens ? { defaultMaxTokens: snap.maxTokens } : {}),
       });
     case 'anthropic':
       return createAnthropicProvider({
         apiKey: snap.apiKey!,
         model: snap.model!,
+        ...(snap.maxTokens ? { defaultMaxTokens: snap.maxTokens } : {}),
       });
     default:
       return undefined;

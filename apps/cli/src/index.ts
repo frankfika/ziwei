@@ -36,6 +36,7 @@ import {
   PREVIEW_CHARS,
 } from './render';
 import { createTheme, shouldUseColor } from './theme';
+import { renderAsk } from './render-ask';
 
 const EXIT_OK = 0;
 const EXIT_ERROR = 1;
@@ -64,7 +65,7 @@ function writeJson(payload: unknown): void {
   write(JSON.stringify(payload, null, 2));
 }
 
-export function run(argv: string[]): number {
+export async function run(argv: string[]): Promise<number> {
   const parsed = parseArgv(argv);
   const command: Command = resolveCommand(parsed);
   const json = parsed.flags.has('json');
@@ -139,6 +140,92 @@ export function run(argv: string[]): number {
     return EXIT_OK;
   }
 
+
+  // ask —— 唯一会联网的子命令
+  if (command === 'ask') {
+    const question = (parsed.values.question ?? '').trim();
+    if (!question) {
+      throw new UsageError(
+        'ask 子命令需要 --question "<你的问题>"。例：ziwei ask --date 1990-01-01 --hour 0 --gender male --question "这份命盘适合做什么工作？"',
+      );
+    }
+
+    const { AskService } = await import('@ziwei/ask');
+    const askService = new AskService();
+    const result = await askService.ask(birth, question);
+
+    if (result.status === 'not-covered') {
+      if (json) {
+        writeJson({
+          command: 'ask',
+          ok: false,
+          status: 'not-covered',
+          key: result.key,
+          reason: result.reason,
+          message: result.message,
+          availableYears: result.availableYears,
+          question,
+          birth,
+          ...(conversion ? { conversion } : {}),
+          attribution: ATTRIBUTION,
+          disclaimer: DISCLAIMER,
+        });
+      } else {
+        write(renderChart(service.chart(birth), { theme, ...(conversion ? { conversion } : {}) }).join('\n'));
+        write(renderNotCovered(
+          {
+            status: 'not-covered',
+            key: result.key,
+            year: result.key ? Number(result.key.slice(0, 4)) : 0,
+            reason: result.reason,
+            message: result.message,
+            availableYears: result.availableYears,
+          },
+          { theme },
+        ).join('\n'));
+        write(renderFooter({ theme }).join('\n'));
+      }
+      return EXIT_NOT_COVERED;
+    }
+
+    if (json) {
+      writeJson({
+        command: 'ask',
+        ok: true,
+        status: 'ok',
+        question,
+        answer: result.answer,
+        provider: result.provider,
+        model: result.model,
+        usage: result.usage,
+        citedDimensions: result.citedDimensions,
+        verification: result.verification,
+        readingKey: result.readingKey,
+        birth,
+        ...(conversion ? { conversion } : {}),
+        attribution: ATTRIBUTION,
+        disclaimer: DISCLAIMER,
+      });
+      return EXIT_OK;
+    }
+
+    write(
+      renderAsk(
+        {
+          answer: result.answer,
+          provider: result.provider,
+          ...(result.model ? { model: result.model } : {}),
+          ...(result.usage ? { usage: result.usage } : {}),
+          citedDimensions: result.citedDimensions,
+          verification: result.verification,
+        },
+        theme,
+      ).join('\n'),
+    );
+    write(renderFooter({ theme }).join('\n'));
+    return EXIT_OK;
+  }
+
   // read
   const { chart, reading } = service.full(birth);
   const full = parsed.flags.has('full');
@@ -206,9 +293,9 @@ export function run(argv: string[]): number {
   return EXIT_OK;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   try {
-    process.exitCode = run(process.argv.slice(2));
+    process.exitCode = await run(process.argv.slice(2));
   } catch (err) {
     if (err instanceof UsageError) {
       process.stderr.write(`参数错误：${err.message}\n`);
@@ -228,4 +315,4 @@ function main(): void {
   }
 }
 
-main();
+await main();

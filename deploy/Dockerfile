@@ -1,0 +1,107 @@
+#
+# 紫微助手（ziwei-assistant）—— 单机 Docker 部署镜像
+#
+# ─────────────────────────────────────────────────────────────────
+# 关键设计
+# ─────────────────────────────────────────────────────────────────
+# 1. **解读数据集不进镜像**。数据是文件系统驱动的（packages/reading-index
+#    用 fs.readSync 按字节偏移 seek 读 data/raw/year-YYYY.jsonl），
+#    解压后 53GB。镜像里只放代码，数据一律 volume 挂载到 /app/data。
+# 2. **必须显式设 ZIWEI_DATA_DIR**。Next.js 打包后 import.meta.url 指向构建
+#    产物，容器里靠模块自身路径找仓库根会失败 —— resolveDataDir() 的第一优先级
+#    就是环境变量，所以镜像里 ENV ZIWEI_DATA_DIR=/app/data。
+# 3. **镜像里不放任何 API key**。追问 provider 全部走运行时环境变量注入。
+#
+# 构建：
+#   docker build -f deploy/Dockerfile -t ziwei-assistant:latest .
+# 运行：
+#   docker run --rm -p 3000:3000 -v <宿主机数据目录>:/app/data ziwei-assistant:latest
+
+# ═══════════════════════════════════════════════════════════════════
+# 阶段 1：依赖（只复制清单文件，让 npm ci 命中层缓存）
+# ═══════════════════════════════════════════════════════════════════
+FROM node:22-slim AS deps
+
+WORKDIR /app
+ENV NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false
+
+# npm workspaces：lockfile 里记录了全部 workspace，缺一个 npm ci 就会报
+# "npm ci can only install packages when your package.json and package-lock.json
+#  are in sync"。所以这里必须把每个 workspace 的 package.json 都复制进来。
+COPY package.json package-lock.json ./
+COPY apps/cli/package.json                   apps/cli/package.json
+COPY apps/web/package.json                   apps/web/package.json
+COPY packages/ask/package.json               packages/ask/package.json
+COPY packages/chart-engine/package.json      packages/chart-engine/package.json
+COPY packages/citation-guard/package.json    packages/citation-guard/package.json
+COPY packages/core/package.json              packages/core/package.json
+COPY packages/reading-index/package.json     packages/reading-index/package.json
+COPY vendor/types-lunar-javascript/package.json vendor/types-lunar-javascript/package.json
+
+# 保留 devDependencies（tsx / typescript）：容器内要能跑
+# `npm run index:build`（建索引）与 `npm run chart`（CLI 排盘）
+RUN npm ci --no-audit --no-fund
+
+# ═══════════════════════════════════════════════════════════════════
+# 阶段 2：构建 Next.js 生产产物
+# ═══════════════════════════════════════════════════════════════════
+FROM node:22-slim AS build
+
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
+
+COPY --from=deps /app/node_modules /app/node_modules
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY vendor ./vendor
+COPY scripts ./scripts
+
+# 所有页面都是 force-dynamic，构建期不需要数据集（data/ 也不在上下文里）
+RUN npm run web:build
+
+# ═══════════════════════════════════════════════════════════════════
+# 阶段 3：运行时
+# ═══════════════════════════════════════════════════════════════════
+FROM node:22-slim AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    ZIWEI_DATA_DIR=/app/data
+
+# zstd：解压数据集（上游用了长窗口压缩，必须 --long=27，见 docs/DATA.md）
+# curl：下载数据集（scripts/download_data.sh）+ 容器健康检查
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends zstd curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=deps /app/node_modules /app/node_modules
+
+# 源码：workspace 包是 TS 源码（main 指向 src/index.ts），
+# transpilePackages 编译、tsx 运行都需要它们在场
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY vendor ./vendor
+COPY scripts ./scripts
+
+# Next.js 生产构建产物（放在源码之后，避免被覆盖）
+COPY --from=build /app/apps/web/.next /app/apps/web/.next
+
+COPY deploy/entrypoint.sh ./deploy/entrypoint.sh
+RUN chmod +x ./deploy/entrypoint.sh ./scripts/*.sh \
+ && rm -rf apps/web/.next/cache
+
+# 注意：这里**不**声明 VOLUME，也**不**创建 /app/data。
+#   · 不声明 VOLUME → 镜像里确实没有 data/ 目录（可用 docker run --rm <image> ls /app 验证）
+#   · 不创建 /app/data → 忘了挂载数据时 entrypoint 会明确报错退出，而不是静默空盘
+# 数据一律由 compose 的 volume（或 docker run -v）挂载到 /app/data。
+
+EXPOSE 3000
+
+ENTRYPOINT ["/app/deploy/entrypoint.sh"]

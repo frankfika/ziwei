@@ -5,6 +5,9 @@
 # 数据集不在镜像里（解压后 53GB），必须挂载到 /app/data。
 # 首次部署前请先看 deploy/README.md 的「数据准备」一节。
 
+# 项目名（决定默认网络名 ziwei_default），显式写死避免随目录名漂移
+name: ziwei
+
 services:
   ziwei:
     build:

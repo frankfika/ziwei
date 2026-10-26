@@ -37,6 +37,12 @@ import {
 } from './render';
 import { createTheme, shouldUseColor } from './theme';
 import { renderAsk } from './render-ask';
+import {
+  applyCitationModeToDimensions,
+  resolveCitationMode,
+  CITATION_MODE_LABEL,
+  type CitationMode,
+} from './citations';
 
 const EXIT_OK = 0;
 const EXIT_ERROR = 1;
@@ -256,16 +262,30 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT_NOT_COVERED;
   }
 
+  const citationMode: CitationMode = parsed.values.citations
+    ? resolveCitationMode(parsed.values.citations)
+    : resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
+  const citationApplied = applyCitationModeToDimensions(
+    reading.dimensions.map((d) => ({
+      key: d.key,
+      label: d.label,
+      text: d.text,
+      chars: d.chars,
+    })),
+    citationMode,
+  );
+  const dimsForOutput = citationApplied.dimensions.filter(
+    (d) => !dim || d.key === dim,
+  );
+
   if (json) {
-    const dimensions = reading.dimensions
-      .filter((d) => !dim || d.key === dim)
-      .map((d) => ({
-        key: d.key,
-        label: d.label,
-        chars: d.chars,
-        preview: previewText(d.text),
-        text: d.text,
-      }));
+    const dimensions = dimsForOutput.map((d) => ({
+      key: d.key,
+      label: d.label,
+      chars: d.chars,
+      preview: previewText(d.text),
+      text: d.text,
+    }));
     writeJson({
       command: 'read',
       ok: true,
@@ -275,6 +295,9 @@ export async function run(argv: string[]): Promise<number> {
       totalChars: reading.totalChars,
       selectedDimension: dim ?? null,
       previewChars: PREVIEW_CHARS,
+      citationMode,
+      citationModeLabel: CITATION_MODE_LABEL[citationMode],
+      citationHits: citationApplied.totalCitations,
       dimensions,
       birth,
       ...(conversion ? { conversion } : {}),
@@ -287,8 +310,20 @@ export async function run(argv: string[]): Promise<number> {
 
   write(renderChart(chart, { theme, ...(conversion ? { conversion } : {}) }).join('\n'));
   write(
-    renderReading(reading, { theme, full, ...(dim ? { dim } : {}) }).join('\n'),
+    renderReading(
+      { ...reading, dimensions: citationApplied.dimensions },
+      { theme, full, ...(dim ? { dim } : {}) },
+    ).join('\n'),
   );
+  if (citationApplied.totalCitations > 0) {
+    write(
+      theme.dim(
+        citationMode === 'full'
+          ? `引文模式：完整展示（本文本含 ${citationApplied.totalCitations} 处《天纪》引文，属受限授权范围，不可商用）`
+          : `引文模式：已降级（${citationApplied.totalCitations} 处引文，涉 ${citationApplied.redactedDims} 个维度）`,
+      ),
+    );
+  }
   write(renderFooter({ theme }).join('\n'));
   return EXIT_OK;
 }

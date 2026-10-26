@@ -171,7 +171,32 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.hostdata.ym
 zstd -d --long=27 year-1990.jsonl.zst
 ```
 
-### 4.5 数据没就位时容器会怎样
+### 4.5 不想下 53GB？先用迷你假数据集冒烟
+
+`deploy/make-test-dataset.sh` 造 1 个年份、4 条**合法**记录（字段照 `docs/DATA.md` 第 6 节），
+再用**真正的** `index:build` 生成偏移索引 —— 与生产完全同一条代码路径。几秒钟就能验证整套部署：
+
+```bash
+# 宿主机造数据 + 建索引
+deploy/make-test-dataset.sh /tmp/ziwei-test-data 1990
+
+# 起容器 + 验证
+docker run --rm -d --name ziwei -p 3000:3000 -v /tmp/ziwei-test-data:/app/data ziwei-assistant:latest
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/
+curl -s 'http://localhost:3000/chart?y=1990&m=1&d=1&h=0&g=male' | grep -o '天府' | head -1
+```
+
+镜像里也带了这个脚本，容器内一条命令搞定：
+
+```bash
+docker run --rm -v /tmp/ziwei-test-data:/app/data ziwei-assistant:latest \
+  sh -c "deploy/make-test-dataset.sh /app/data 1990 --no-index && npm run index:build -- --years 1990"
+```
+
+> 假数据只适合验证部署链路（挂载、索引、检索、渲染），
+> 解读正文是占位文本，**不是**真实解读内容。
+
+### 4.6 数据没就位时容器会怎样
 
 `deploy/entrypoint.sh` 在启动 Next.js 之前检查 `raw/` 与 `index/`：
 
@@ -183,6 +208,10 @@ zstd -d --long=27 year-1990.jsonl.zst
 | 都就位 | 启动 Next.js | 0 |
 
 不会静默空盘跑起来，也**不会**打印堆栈。
+
+> compose 里 `restart: unless-stopped`，所以数据没就位时容器会**反复重启**（日志里每次都会打
+> 上面那段中文指引）。这不是故障循环 —— 数据一灌好它就自动起来了。
+> 不想看它刷屏就把 `restart` 改成 `"no"`，或直接用 `docker compose run` 灌完数据再 `up -d`。
 
 ---
 

@@ -19,7 +19,9 @@ function findDataDir(): string | undefined {
 }
 
 const dataDir = findDataDir();
-if (dataDir) {
+// 显式指定的环境变量优先于探测结果 ——
+// 容器部署的契约是「把数据挂载到 ZIWEI_DATA_DIR」，不能让探测逻辑覆盖它。
+if (dataDir && !process.env.ZIWEI_DATA_DIR) {
   // 解读数据集是文件系统驱动的，必须在服务端把路径钉死。
   process.env.ZIWEI_DATA_DIR = dataDir;
 }

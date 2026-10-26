@@ -16,7 +16,8 @@
   "dependencies": {
     "@ziwei/chart-engine": "*",
     "@ziwei/core": "*",
-    "@ziwei/ask": "*"
+    "@ziwei/ask": "*",
+    "@ziwei/citation-guard": "*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

@@ -128,10 +128,12 @@ ziwei-assistant/
 ├── tests/                 回归套件 + 金标准盘快照
 ├── scripts/
 │   └── download_data.sh   数据集下载/解压
+├── deploy/                单机 Docker 部署（镜像构建、compose、运维说明）
 ├── docs/
 │   ├── ARCHITECTURE.md    架构契约（实现方必读）
 │   ├── KEY_SEMANTICS.md   键口径与排盘语义
 │   ├── DATA.md            数据运维手册
+│   ├── DEPLOY.md          部署指南（部署者必读）
 │   └── LEGAL_NOTES.md     法务要点与引文处理
 ├── vendor/upstream-reference/   上游 MIT 组件参考（只读）
 ├── ATTRIBUTION.md         署名与许可（法律义务）
@@ -170,7 +172,7 @@ npm run index:build            # 约 3.5 分钟
 |---|---|
 | 数据覆盖 | **已全年代 1950–2026**（674,976 条全部可查）；重铺见 `docs/DATA.md` 第 4.3 节 |
 | 真太阳时 / 夏令时 | **不做**（数据集未做，做了检索键会错位）。后续独立需求 |
-| 倪师《天纪》引文 | 数据集里密度很高（98.9% 的维度文本含引文）。已提供检测与降级工具，商业化前须处理，见 `docs/LEGAL_NOTES.md` |
+| 倪师《天纪》引文 | 数据集里密度很高（79% 的维度文本含受限引文片段）。已提供检测与降级工具，商业化前须处理，见 `docs/LEGAL_NOTES.md` |
 | 闰月 / 亮度流派 | 引擎内部固定为 `split`（月中分界）+ 全书派亮度表，与数据集生成口径一致 |
 | 闰月标记 | `isLeapMonth` 在 `split` 下**恒为 false**，闰月体现为农历月归属，别拿它判断闰月 |
 | 盘面缓存 | `currentAge` 随当天日期变 → 整个 `ChartJSON` **不可缓存** |
@@ -191,6 +193,16 @@ npm run chart -- ...  # CLI
 npm run web:dev       # Web 开发服务器
 npm run web:build     # Web 生产构建
 npm run ask:selftest  # 追问模块自测（零网络）
+npm run citation:selftest  # 引文降级自测（25 用例，含真实数据回归）
+```
+
+单机 Docker 部署见 [`docs/DEPLOY.md`](docs/DEPLOY.md)：
+
+```bash
+npm run docker:build  # 构建镜像（数据集不进镜像，走卷挂载）
+npm run docker:up     # 起服务
+npm run docker:logs   # 看日志
+npm run docker:down   # 停服务
 ```
 
 回归套件包含**金标准盘快照**（9 份，覆盖闰日/闰月/年末/时辰边界/男女/数据集首尾年）：

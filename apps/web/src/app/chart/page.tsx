@@ -5,6 +5,11 @@ import NotCoveredNotice from '@/components/NotCoveredNotice';
 import AskPanel from '@/components/AskPanel';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
+import {
+  applyCitationModeToDimensions,
+  resolveCitationMode,
+  CITATION_MODE_LABEL,
+} from '@/lib/citations';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,15 +146,30 @@ export default async function ChartPage({
       {/* 解读 */}
       <section aria-label="十三维解读">
         {reading.status === 'ok' ? (
-          <ReadingPanel
-            dimensions={reading.dimensions.map((d) => ({
-              key: d.key,
-              label: d.label,
-              text: d.text,
-              chars: d.chars,
-            }))}
-            totalChars={reading.totalChars}
-          />
+          (() => {
+            const mode = resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
+            const applied = applyCitationModeToDimensions(
+              reading.dimensions.map((d) => ({
+                key: d.key,
+                label: d.label,
+                text: d.text,
+                chars: d.chars,
+              })),
+              mode,
+            );
+            return (
+              <ReadingPanel
+                dimensions={applied.dimensions}
+                totalChars={reading.totalChars}
+                citationNotice={{
+                  mode,
+                  modeLabel: CITATION_MODE_LABEL[mode],
+                  totalCitations: applied.totalCitations,
+                  redactedDims: applied.redactedDims,
+                }}
+              />
+            );
+          })()
         ) : (
           <NotCoveredNotice
             message={reading.message}

@@ -93,8 +93,9 @@ COPY scripts ./scripts
 # Next.js 生产构建产物（放在源码之后，避免被覆盖）
 COPY --from=build /app/apps/web/.next /app/apps/web/.next
 
-COPY deploy/entrypoint.sh ./deploy/entrypoint.sh
-RUN chmod +x ./deploy/entrypoint.sh ./scripts/*.sh \
+# 只复制两个可执行脚本（不整目录复制，避免 .env / 文档混进镜像）
+COPY deploy/entrypoint.sh deploy/make-test-dataset.sh ./deploy/
+RUN chmod +x ./deploy/entrypoint.sh ./deploy/make-test-dataset.sh ./scripts/*.sh \
  && rm -rf apps/web/.next/cache
 
 # 注意：这里**不**声明 VOLUME，也**不**创建 /app/data。

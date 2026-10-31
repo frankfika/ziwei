@@ -11,7 +11,7 @@
  *    不自己编措辞。
  */
 
-import { useId, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { askChart, type AskActionResult } from '@/app/ask-action';
 import Markdown from './Markdown';
 
@@ -59,6 +59,20 @@ export default function AskPanel({
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const resultId = useId();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    function expandFromHash() {
+      if (window.location.hash !== '#ask-panel') return;
+      setExpanded(true);
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
+    }
+    expandFromHash();
+    window.addEventListener('hashchange', expandFromHash);
+    return () => window.removeEventListener('hashchange', expandFromHash);
+  }, []);
 
   function submit(q: string) {
     const text = q.trim();
@@ -122,6 +136,11 @@ export default function AskPanel({
             {expanded ? '收起' : '展开'}
           </span>
         </button>
+        {!expanded && (
+          <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+            可追问例如：{PRESETS[0]}
+          </p>
+        )}
       </div>
 
       <div
@@ -151,6 +170,7 @@ export default function AskPanel({
           你的问题
         </label>
         <textarea
+          ref={textareaRef}
           id="ask-question"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChartPalace } from '@ziwei/chart-engine';
 import PalaceCell, { GRID_POS, sanFangBranches } from './PalaceCell';
 import CenterPanel, { type ChartCenterInfo } from './CenterPanel';
+import { preferredScrollBehavior } from '@/lib/motion';
 
 interface ChartBoardProps {
   palaces: ChartPalace[];
@@ -15,6 +16,18 @@ type MobileFilter = 'all' | 'ming-shen' | 'da-xian' | 'has-major';
 function majorStarsLine(palace: ChartPalace): string {
   if (palace.majorStars.length === 0) return '（无主星）';
   return palace.majorStars.join('、');
+}
+
+/** Compact aux line when majors are sparse — top lucky / sha / minor names. */
+function auxStarsLine(palace: ChartPalace): string | null {
+  if (palace.majorStars.length > 1) return null;
+  const parts = [
+    ...palace.luckyStars.slice(0, 3),
+    ...palace.shaStars.slice(0, 2),
+    ...palace.minorStars.slice(0, 2),
+  ].slice(0, 4);
+  if (parts.length === 0) return null;
+  return parts.join(' · ');
 }
 
 export default function ChartBoard({ palaces, center }: ChartBoardProps) {
@@ -51,7 +64,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
 
   useEffect(() => {
     if (selectedPalace && window.matchMedia('(max-width: 767px)').matches) {
-      mobileDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      mobileDetailRef.current?.scrollIntoView({
+        behavior: preferredScrollBehavior(),
+        block: 'start',
+      });
     }
   }, [selectedPalace]);
 
@@ -245,6 +261,31 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
               inSanFang={false}
               onSelect={closeMobileDetail}
             />
+            <div className="border-t border-line bg-paper px-3.5 py-2.5">
+              <p className="mb-1.5 text-2xs text-ink-3">三方四正</p>
+              <div className="flex flex-wrap gap-1.5" aria-label="三方四正宫位">
+                {sanFangBranches(selectedPalace.branch).map((branch) => {
+                  const palace = palaces.find((p) => p.branch === branch);
+                  if (!palace) return null;
+                  const isSelf = palace.branch === selectedPalace.branch;
+                  return (
+                    <button
+                      key={branch}
+                      type="button"
+                      onClick={() => toggleSelected(palace.branch)}
+                      aria-current={isSelf ? 'true' : undefined}
+                      className={`rounded-full border px-2.5 py-1 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                        isSelf
+                          ? 'border-zhu bg-zhu-soft text-ink'
+                          : 'border-line bg-surface text-ink-2'
+                      }`}
+                    >
+                      {palace.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 
@@ -257,6 +298,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
               : inSan
                 ? '三方四正关联宫位'
                 : '';
+            const aux = auxStarsLine(palace);
 
             return (
               <li key={palace.branch}>
@@ -303,6 +345,11 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                   <p className="mt-1 text-xs leading-relaxed text-ink-2">
                     {majorStarsLine(palace)}
                   </p>
+                  {aux && (
+                    <p className="mt-0.5 text-2xs leading-relaxed text-ink-3">
+                      {aux}
+                    </p>
+                  )}
                   {palace.daXianAge && (
                     <p className="mt-0.5 text-2xs text-ink-3">
                       大限 {palace.daXianAge[0]}–{palace.daXianAge[1]}
@@ -316,9 +363,16 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
         </ul>
 
         {filteredPalaces.length === 0 && (
-          <p className="rounded-lg border border-line bg-paper px-3 py-3 text-center text-2xs text-ink-3">
-            当前筛选下没有宫位，试试「全部」。
-          </p>
+          <div className="rounded-lg border border-line bg-paper px-3 py-4 text-center">
+            <p className="text-2xs text-ink-3">当前筛选下没有宫位。</p>
+            <button
+              type="button"
+              onClick={() => changeMobileFilter('all')}
+              className="mt-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              显示全部
+            </button>
+          </div>
         )}
 
         <p className="mt-3 text-center text-2xs leading-relaxed text-ink-3">

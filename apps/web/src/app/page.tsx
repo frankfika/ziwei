@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import BirthForm from '@/components/BirthForm';
+import ErrorAlert from '@/components/ErrorAlert';
 import { getService } from '@/lib/service';
 
 export const dynamic = 'force-dynamic';
@@ -37,15 +38,7 @@ export default async function HomePage({
           输入公历出生日期与时辰，得到十二宫命盘与十三维解读。
           盘面由确定性排盘引擎算出，解读正文逐条检索自开源解读数据集 —— 不做推算，也不做补写。
         </p>
-        {errorText && (
-          <div
-            className="mt-5 rounded-lg border border-zhu/25 bg-zhu-soft/50 px-4 py-3 text-sm text-ink-2"
-            role="alert"
-            tabIndex={-1}
-          >
-            {errorText}
-          </div>
-        )}
+        {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </section>
 
       <BirthForm indexedYears={years} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Markdown from './Markdown';
+import { preferredScrollBehavior } from '@/lib/motion';
 
 export interface ReadingDimensionData {
   key: string;
@@ -34,9 +35,9 @@ export default function ReadingPanel({
   useEffect(() => {
     const el = tabRefs.current[active];
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    el.scrollIntoView({ behavior: preferredScrollBehavior(), inline: 'center', block: 'nearest' });
     if (window.matchMedia('(max-width: 1023px)').matches) {
-      articleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      articleRef.current?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' });
     }
   }, [active]);
 

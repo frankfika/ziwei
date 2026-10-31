@@ -171,6 +171,9 @@ export default function ReadingPanel({
           tabIndex={0}
           className="min-w-0 scroll-mt-28 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
+          <p className="sr-only" aria-live="polite">
+            当前维度：{current.label}
+          </p>
           <div className="mb-4 flex flex-wrap items-baseline gap-2">
             <h3 className="font-serif text-base font-semibold tracking-wide text-ink sm:text-lg">
               {current.label}

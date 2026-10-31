@@ -328,6 +328,29 @@ export default function AskPanel({
                       ✓ 机械自检：未发现盘面外的星曜 / 宫位
                     </p>
                   )}
+
+                  {(() => {
+                    const followUps = PRESETS.filter((p) => p !== question.trim());
+                    if (followUps.length === 0) return null;
+                    return (
+                      <div className="mt-5 border-t border-lineSoft pt-4">
+                        <p className="mb-2 text-2xs font-medium text-ink-2">继续追问：</p>
+                        <div className="flex flex-wrap gap-2">
+                          {followUps.map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => submit(p)}
+                              disabled={pending || !providerConfigured}
+                              className="max-w-full truncate rounded-full border border-zhu/25 bg-zhu-soft/40 px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-zhu/50 hover:bg-zhu-soft disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 

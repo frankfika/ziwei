@@ -25,6 +25,7 @@ export default function NotCoveredNotice({
     <section
       className="rounded-xl border border-zhu/25 bg-zhu-soft/50 p-6 sm:p-7"
       aria-labelledby="not-covered-title"
+      aria-live="polite"
     >
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-zhu" aria-hidden="true" />

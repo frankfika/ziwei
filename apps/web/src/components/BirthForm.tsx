@@ -139,6 +139,7 @@ export default function BirthForm({
   if (form.month === '') missingDateParts.push('月');
   if (form.day === '') missingDateParts.push('日');
   const hasDateError = missingDateParts.length > 0;
+  const dateValueInvalid = !resolved.ok && !hasDateError;
   const submitHint = resolved.ok
     ? '提交后将按当前口径生成命盘与数据集解读。'
     : hasDateError
@@ -195,7 +196,7 @@ export default function BirthForm({
                 name="year"
                 className="field-input"
                 value={form.year}
-                aria-invalid={form.year === '' || undefined}
+                aria-invalid={form.year === '' || dateValueInvalid || undefined}
                 onChange={(e) => patch({ year: e.target.value })}
               >
                 <option value="">年</option>
@@ -223,7 +224,7 @@ export default function BirthForm({
                 name="month"
                 className="field-input"
                 value={form.month}
-                aria-invalid={form.month === '' || undefined}
+                aria-invalid={form.month === '' || dateValueInvalid || undefined}
                 onChange={(e) => patch({ month: e.target.value })}
               >
                 <option value="">月</option>
@@ -243,7 +244,7 @@ export default function BirthForm({
                 name="day"
                 className="field-input"
                 value={form.day}
-                aria-invalid={form.day === '' || undefined}
+                aria-invalid={form.day === '' || dateValueInvalid || undefined}
                 onChange={(e) => patch({ day: e.target.value })}
               >
                 <option value="">日</option>

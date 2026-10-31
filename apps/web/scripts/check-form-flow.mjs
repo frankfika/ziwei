@@ -247,7 +247,7 @@ if (url4) {
     const t = document.body.innerText;
     return {
       hasNotice: t.includes('样本库未覆盖该生辰'),
-      hasMessage: t.includes('样本库未覆盖该生辰：1991 年尚未建索引。当前已覆盖 1990 / 2000 / 2020。'),
+      hasMessage: t.includes('样本库未覆盖该生辰：1991 年尚未建索引。当前已覆盖 1990 / 2000 / 2020。') && t.includes('请换一个已覆盖年份重试'),
       leaked: t.includes('你是天生的守护者') || t.includes('一句话定调'),
     };
   })()`);

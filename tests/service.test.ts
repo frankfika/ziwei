@@ -106,11 +106,21 @@ export const suite = async (t: Tester): Promise<void> => {
         `availableYears 里没有已覆盖年份 ${y}`,
       );
     }
-    // message 里应该能看到已覆盖年份，用户才知道能覆盖什么
-    for (const y of data.indexedYears) {
+    // message 应提示覆盖范围；年份很多时用起止摘要，不必枚举每一年
+    const sorted = [...data.indexedYears].sort((a, b) => a - b);
+    if (sorted.length <= 12) {
+      for (const y of sorted) {
+        assert.ok(
+          r.message.includes(String(y)),
+          `not-covered 的 message 里没有提到已覆盖年份 ${y}`,
+        );
+      }
+    } else {
       assert.ok(
-        r.message.includes(String(y)),
-        `not-covered 的 message 里没有提到已覆盖年份 ${y}`,
+        r.message.includes(String(sorted[0])) &&
+          r.message.includes(String(sorted[sorted.length - 1])) &&
+          r.message.includes(`共 ${sorted.length} 年`),
+        `not-covered 的 message 应含年份摘要，实际：${r.message}`,
       );
     }
   });

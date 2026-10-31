@@ -99,11 +99,17 @@ export class ZiweiService {
     const availableYears = this.index.indexedYears();
 
     if (!res.found) {
+      const yearSummary = (() => {
+        if (!availableYears.length) return '（无）';
+        const sorted = [...availableYears].sort((a, b) => a - b);
+        if (sorted.length <= 12) return sorted.join(' / ');
+        return `${sorted[0]}–${sorted[sorted.length - 1]}（共 ${sorted.length} 年）`;
+      })();
       const message =
         res.reason === 'year-not-indexed'
           ? `样本库未覆盖该生辰：${birth.year} 年尚未建索引。` +
-            `当前已覆盖 ${availableYears.length ? availableYears.join(' / ') : '（无）'}。` +
-            `如需覆盖，请解压该年份数据并运行 npm run index:build。`
+            `当前已覆盖 ${yearSummary}。` +
+            `请换一个已覆盖年份重试；扩充样本需维护者解压该年数据并重建索引。`
           : `样本库未覆盖该生辰（${key}）。` +
             `该年份 ${birth.year} 已在索引中，但没有这一条 —— ` +
             `通常是该日期在数据集的覆盖范围之外。`;

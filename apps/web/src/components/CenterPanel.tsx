@@ -112,7 +112,9 @@ export default function CenterPanel({
           在{branchOf(info.ziweiPos)}宫
         </Row>
         {info.yinYangGender && <Row label="阴阳男女">{info.yinYangGender}</Row>}
-        <Row label="虚岁">{info.currentAge} 岁</Row>
+        {info.currentAge > 0 && info.currentAge < 150 ? (
+          <Row label="虚岁">{info.currentAge} 岁</Row>
+        ) : null}
       </div>
     </div>
   );

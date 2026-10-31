@@ -121,33 +121,37 @@ export default async function ChartPage({
   const chartDate = formatDate(year, month, day);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+    <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-5">
       {/* 生辰摘要 */}
-      <header className="mb-8 border-b border-line pb-6">
-        <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">紫微斗数命盘</p>
-        <h1 className="font-serif text-2xl font-semibold tracking-[0.1em] text-ink sm:text-3xl">
-          {name ? `${name} · ` : ''}
-          {year} 年 {month} 月 {day} 日 · {SHICHEN_NAMES[hour]}时 ·{' '}
-          {GENDER_LABEL[gender]}
-        </h1>
-        <p className="mt-3 text-xs leading-relaxed text-ink-2">
-          排盘日 <span className="tabular-nums">{chartDate}</span>
-          {' · '}{SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
-          {' · '}未做真太阳时校正
-        </p>
-        <ChartShareButton
-          {...(name ? { name } : {})}
-          year={year}
-          month={month}
-          day={day}
-          hour={hour}
-          gender={gender}
-          chartDate={chartDate}
-        />
+      <header className="mb-4 border-b border-line pb-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div>
+            <p className="mb-1.5 text-2xs tracking-[0.3em] text-ink-3">紫微斗数命盘</p>
+            <h1 className="font-serif text-xl font-semibold tracking-[0.1em] text-ink sm:text-2xl">
+              {name ? `${name} · ` : ''}
+              {year} 年 {month} 月 {day} 日 · {SHICHEN_NAMES[hour]}时 ·{' '}
+              {GENDER_LABEL[gender]}
+            </h1>
+            <p className="mt-2 text-xs leading-relaxed text-ink-2">
+              排盘日 <span className="tabular-nums">{chartDate}</span>
+              {' · '}{SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
+              {' · '}未做真太阳时校正
+            </p>
+          </div>
+          <ChartShareButton
+            {...(name ? { name } : {})}
+            year={year}
+            month={month}
+            day={day}
+            hour={hour}
+            gender={gender}
+            chartDate={chartDate}
+          />
+        </div>
       </header>
 
       <nav
-        className="sticky top-14 z-30 -mx-5 mb-8 flex gap-1 overflow-x-auto border-b border-line bg-paper/95 px-5 py-2 backdrop-blur print:hidden sm:-mx-8 sm:px-8 md:hidden"
+        className="sticky top-14 z-30 -mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-line bg-paper/95 px-4 py-2 backdrop-blur print:hidden sm:-mx-6 sm:px-6 md:hidden"
         aria-label="命盘章节"
       >
         <a
@@ -182,7 +186,7 @@ export default async function ChartPage({
       {/* 晚子时提示 */}
       {lateFlag && (
         <div
-          className="mb-8 rounded-xl border border-zhu/25 bg-zhu-soft/50 px-5 py-4"
+          className="mb-5 rounded-xl border border-zhu/25 bg-zhu-soft/50 px-5 py-4"
           role="status"
         >
           <p className="text-sm leading-relaxed text-ink-2">
@@ -195,7 +199,7 @@ export default async function ChartPage({
       )}
 
       {/* 命盘 */}
-      <section id="chart-board" aria-label="十二宫命盘" className="mb-14 scroll-mt-28">
+      <section id="chart-board" aria-label="十二宫命盘" className="mb-10 scroll-mt-28">
         <ChartBoard palaces={chart.palaces} center={center} />
       </section>
 

@@ -153,16 +153,15 @@ function check(label, ok, detail) {
 
 /* ── 用例 1：时辰模式 1990-01-01 子时 男 ───────────────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '1990');
-await setValue('#zi-month', '1');
-await setValue('#zi-day', '1');
+await setValue('#zi-date', '1990-01-01');
 await sleep(300);
 
-const preview = await evaluate(`(() => {
-  const box = document.querySelector('input[name="timeMode"]')?.closest('div')?.parentElement;
-  return document.body.innerText.split('当前口径')[1]?.slice(0, 120) ?? '';
-})()`);
-check('时辰模式：实时口径提示已生成', preview.includes('子时'), preview.trim().slice(0, 60));
+const preview = await evaluate(`(() => document.body.innerText)()`);
+check(
+  '时辰模式：实时口径提示已生成',
+  preview.includes('将按 1990 年 1 月 1 日 子时 排盘'),
+  preview.slice(0, 60),
+);
 
 const before1 = await evaluate('location.href');
 await evaluate(`document.querySelector('button[type="submit"]').click()`);
@@ -175,27 +174,21 @@ check(
 
 /* ── 用例 2：钟点模式 23:30 → 次日子时 ─────────────────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '1990');
-await setValue('#zi-month', '1');
-await setValue('#zi-day', '1');
+await setValue('#zi-date', '1990-01-01');
 await sleep(200);
 
 // 切到「按钟点」
 await evaluate(clickByText('按钟点'));
 await sleep(400);
 
-await setValue('#zi-clock-hour', '23');
-await setValue('#zi-clock-minute', '30');
+await setValue('#zi-clock', '23:30');
 await sleep(400);
 
-const clockPreview = await evaluate(`(() => {
-  const i = document.body.innerText.indexOf('当前口径');
-  return document.body.innerText.slice(i, i + 180);
-})()`);
+const clockPreview = await evaluate(`(() => document.body.innerText)()`);
 check(
   '钟点模式：23:30 提示顺延至次日',
-  clockPreview.includes('晚子时') && clockPreview.includes('1990-01-02'),
-  clockPreview.replace(/\s+/g, ' ').slice(0, 110),
+  clockPreview.includes('晚子时') && clockPreview.includes('将按 1990 年 1 月 2 日 子时 排盘'),
+  clockPreview.replace(/\s+/g, ' ').match(/将按[^。]*/)?.[0] ?? '未见口径行',
 );
 
 const before2 = await evaluate('location.href');
@@ -216,14 +209,11 @@ if (url2) {
 
 /* ── 用例 3：钟点模式 00:30 → 当日子时（不顺延） ───────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '1990');
-await setValue('#zi-month', '1');
-await setValue('#zi-day', '1');
+await setValue('#zi-date', '1990-01-01');
 await sleep(200);
 await evaluate(clickByText('按钟点'));
 await sleep(400);
-await setValue('#zi-clock-hour', '0');
-await setValue('#zi-clock-minute', '30');
+await setValue('#zi-clock', '00:30');
 await sleep(400);
 const before3 = await evaluate('location.href');
 await evaluate(`document.querySelector('button[type="submit"]').click()`);
@@ -236,9 +226,7 @@ check(
 
 /* ── 用例 4：未覆盖年份 1991-06-15 午时 女 ─────────────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '1991');
-await setValue('#zi-month', '6');
-await setValue('#zi-day', '15');
+await setValue('#zi-date', '1991-06-15');
 await sleep(300);
 await setValue('#zi-shichen', '6');
 await sleep(300);
@@ -299,21 +287,18 @@ check(
 
 /* ── 用例 6：两种输入方式互相联动 ─────────────────────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '1990');
-await setValue('#zi-month', '1');
-await setValue('#zi-day', '1');
+await setValue('#zi-date', '1990-01-01');
 await setValue('#zi-shichen', '6'); // 午时
 await sleep(300);
 await evaluate(clickByText('按钟点'));
 await sleep(400);
 const linked = await evaluate(`(() => ({
-  h: document.querySelector('#zi-clock-hour')?.value,
-  m: document.querySelector('#zi-clock-minute')?.value,
+  clock: document.querySelector('#zi-clock')?.value,
 }))()`);
 check(
   '按时辰 → 按钟点联动（午时 → 11:30）',
-  linked.h === '11' && linked.m === '30',
-  `clock=${linked.h}:${linked.m}`,
+  linked.clock === '11:30',
+  `clock=${linked.clock}`,
 );
 
 await evaluate(clickByText('按时辰'));
@@ -323,9 +308,7 @@ check('按钟点 → 按时辰联动（11:30 → 时辰序号 6）', back === '6
 
 /* ── 用例 7：排盘历史写入本地 ─────────────────────────────────── */
 await goto(`${BASE}/`);
-await setValue('#zi-year', '2000');
-await setValue('#zi-month', '3');
-await setValue('#zi-day', '3');
+await setValue('#zi-date', '2000-03-03');
 await sleep(300);
 await evaluate(clickByText('女'));
 await sleep(200);

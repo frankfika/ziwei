@@ -31,8 +31,11 @@ export default function ReadingPanel({
   const current = dimensions.find((d) => d.key === active) ?? dimensions[0];
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const articleRef = useRef<HTMLElement | null>(null);
+  // 首屏不滚动：只有用户主动切维度才把标签/正文滚进视野
+  const userDriven = useRef(false);
 
   useEffect(() => {
+    if (!userDriven.current) return;
     const el = tabRefs.current[active];
     if (!el) return;
     const behavior = preferredScrollBehavior();
@@ -72,6 +75,7 @@ export default function ReadingPanel({
   function focusDimension(index: number) {
     const next = dimensions[(index + dimensions.length) % dimensions.length];
     if (!next) return;
+    userDriven.current = true;
     setActive(next.key);
     window.requestAnimationFrame(() => tabRefs.current[next.key]?.focus());
   }
@@ -141,7 +145,10 @@ export default function ReadingPanel({
                 ref={(el) => {
                   tabRefs.current[d.key] = el;
                 }}
-                onClick={() => setActive(d.key)}
+                onClick={() => {
+                  userDriven.current = true;
+                  setActive(d.key);
+                }}
                 aria-controls="reading-panel-active"
                 id={`reading-tab-${d.key}`}
                 className={`inline-flex min-h-9 shrink-0 items-baseline gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu lg:w-full ${
@@ -199,7 +206,7 @@ export default function ReadingPanel({
               <button
                 type="button"
                 disabled={!prevDim}
-                onClick={() => prevDim && setActive(prevDim.key)}
+                onClick={() => prevDim && (userDriven.current = true, setActive(prevDim.key))}
                 className="inline-flex min-h-9 flex-1 items-center justify-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:flex-none"
               >
                 {prevDim ? `上一维 · ${prevDim.label}` : '已是第一维'}
@@ -207,7 +214,7 @@ export default function ReadingPanel({
               <button
                 type="button"
                 disabled={!nextDim}
-                onClick={() => nextDim && setActive(nextDim.key)}
+                onClick={() => nextDim && (userDriven.current = true, setActive(nextDim.key))}
                 className="inline-flex min-h-9 flex-1 items-center justify-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:flex-none"
               >
                 {nextDim ? `下一维 · ${nextDim.label}` : '已是最后一维'}

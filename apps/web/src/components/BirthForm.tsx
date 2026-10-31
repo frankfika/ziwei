@@ -11,7 +11,6 @@ import {
   SHICHEN_NAMES,
   SHICHEN_RANGES,
   clockToShichen,
-  daysInMonth,
   formatClock,
   formatDate,
   resolveForm,
@@ -20,8 +19,6 @@ import {
 import { preferredScrollBehavior } from '@/lib/motion';
 
 export type { BirthFormState };
-
-const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i);
 
 /** Reports form pending to parent so an external sticky submit can mirror it. */
 function FormPendingSync({ onPending }: { onPending: (pending: boolean) => void }) {
@@ -80,10 +77,16 @@ export default function BirthForm({
     indexedYears.length > 0 &&
     !indexedSet.has(yearNum);
 
-  const maxDay = useMemo(() => daysInMonth(Number(form.year), Number(form.month)), [
-    form.year,
-    form.month,
-  ]);
+  // 日期输入：值与可选手范围（有索引时限定在覆盖范围内）
+  const dateValue =
+    form.year && form.month && form.day
+      ? formatDate(Number(form.year), Number(form.month), Number(form.day))
+      : '';
+  const minDate = indexedYears.length > 0 ? `${indexedYears[0]}-01-01` : '1900-01-01';
+  const maxDate =
+    indexedYears.length > 0
+      ? `${indexedYears[indexedYears.length - 1]}-12-31`
+      : '2100-12-31';
 
   const resolved = useMemo(() => resolveForm(form), [form]);
 
@@ -136,11 +139,6 @@ export default function BirthForm({
     await startChart(formData);
   };
 
-  const timeModeHint =
-    form.timeMode === 'shichen'
-      ? '时辰按传统十二时辰划分，排盘日就是你填写的公历出生日。'
-      : '直接填出生钟点即可；23:00 后属晚子时，会按传统规则顺延到次日排盘。';
-
   const missingDateParts: string[] = [];
   if (form.year === '') missingDateParts.push('年');
   if (form.month === '') missingDateParts.push('月');
@@ -148,7 +146,7 @@ export default function BirthForm({
   const hasDateError = missingDateParts.length > 0;
   const dateValueInvalid = !resolved.ok && !hasDateError;
   const submitHint = resolved.ok
-    ? '提交后将按当前口径生成命盘与数据集解读。'
+    ? '提交后生成你的命盘与解读。'
     : hasDateError
       ? `请先选择出生${missingDateParts.join('、')}，再排盘。`
       : resolved.error
@@ -187,84 +185,31 @@ export default function BirthForm({
 
         {/* 出生日期 */}
         <div className="mb-7">
-          <span className="field-label" id="birth-date-label">
+          <label className="field-label" htmlFor="zi-date">
             出生日期（公历）
-          </span>
-          <div
-            className="grid grid-cols-3 gap-3"
-            role="group"
-            aria-labelledby="birth-date-label"
+          </label>
+          <input
+            id="zi-date"
+            type="date"
+            className="field-input"
+            value={dateValue}
+            min={minDate}
+            max={maxDate}
+            aria-invalid={attemptedSubmit && (!form.year || dateValueInvalid) ? true : undefined}
             aria-describedby={attemptedSubmit && !resolved.ok ? 'birth-date-error' : undefined}
-          >
-            <div>
-              <label className="sr-only" htmlFor="zi-year">
-                年
-              </label>
-              <select
-                id="zi-year"
-                name="year"
-                className="field-input"
-                value={form.year}
-                aria-invalid={attemptedSubmit && (form.year === '' || dateValueInvalid) ? true : undefined}
-                onChange={(e) => patch({ year: e.target.value })}
-              >
-                <option value="">年</option>
-                {Array.from({ length: 21 }, (_, i) => 1900 + i * 10).map((start) => {
-                  const end = Math.min(start + 9, 2100);
-                  return (
-                    <optgroup key={start} label={`${start}–${end}`}>
-                      {YEARS.filter((y) => y >= start && y <= end).map((y) => (
-                        <option key={y} value={y}>
-                          {y} 年
-                          {indexedSet.has(y) ? '' : ' · 未索引'}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
-            </div>
-            <div>
-              <label className="sr-only" htmlFor="zi-month">
-                月
-              </label>
-              <select
-                id="zi-month"
-                name="month"
-                className="field-input"
-                value={form.month}
-                aria-invalid={attemptedSubmit && (form.month === '' || dateValueInvalid) ? true : undefined}
-                onChange={(e) => patch({ month: e.target.value })}
-              >
-                <option value="">月</option>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {m} 月
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="sr-only" htmlFor="zi-day">
-                日
-              </label>
-              <select
-                id="zi-day"
-                name="day"
-                className="field-input"
-                value={form.day}
-                aria-invalid={attemptedSubmit && (form.day === '' || dateValueInvalid) ? true : undefined}
-                onChange={(e) => patch({ day: e.target.value })}
-              >
-                <option value="">日</option>
-                {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={d}>
-                    {d} 日
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+            onChange={(e) => {
+              const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value);
+              patch(
+                m
+                  ? { year: m[1], month: String(Number(m[2])), day: String(Number(m[3])) }
+                  : { year: '', month: '', day: '' },
+              );
+            }}
+          />
+          {/* 隐藏字段保持 Server Action 入参契约不变 */}
+          <input type="hidden" name="year" value={form.year} />
+          <input type="hidden" name="month" value={form.month} />
+          <input type="hidden" name="day" value={form.day} />
           {attemptedSubmit && resolved.ok === false && (
             <p
               id="birth-date-error"
@@ -272,35 +217,18 @@ export default function BirthForm({
               role="alert"
             >
               {hasDateError
-                ? `还差：${missingDateParts.join('、')}。请选择完整的公历出生日期。`
+                ? '请选择完整的公历出生日期。'
                 : resolved.error}
             </p>
           )}
           {yearNotCovered && (
-            <div
-              className="mt-2 rounded-lg border border-zhu/20 bg-zhu-soft/40 px-3 py-2.5"
+            <p
+              className="mt-2 text-xs leading-relaxed text-ink-2"
               data-year-coverage="miss"
               role="status"
             >
-              <p className="text-xs leading-relaxed text-ink-2">
-                样本库尚未索引{' '}
-                <span className="font-medium tabular-nums text-ink">{yearNum}</span>{' '}
-                年——仍可排盘看十二宫，但十三维解读会提示「未覆盖」。
-              </p>
-              <p className="mt-1 text-2xs leading-relaxed text-ink-3">
-                已建索引：
-                {indexedYears.length <= 16
-                  ? indexedYears.join(' / ')
-                  : `${indexedYears[0]}–${indexedYears[indexedYears.length - 1]}（共 ${indexedYears.length} 年）`}
-                。{' '}
-                <a
-                  href="#coverage"
-                  className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                >
-                  查看覆盖说明
-                </a>
-              </p>
-            </div>
+              这一年暂时没有解读 —— 仍可排盘看十二宫。
+            </p>
           )}
         </div>
 
@@ -365,7 +293,7 @@ export default function BirthForm({
               {form.shichen === 0 && (
                 <div className="mt-3 rounded-lg border border-lineSoft bg-paper p-3">
                   <p className="mb-2 text-xs text-ink-2">
-                    子时横跨两日，请确认归属：
+                    子时跨零点，你出生在哪一段？
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {(
@@ -397,67 +325,33 @@ export default function BirthForm({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="sr-only" htmlFor="zi-clock-hour">
-                  时
-                </label>
-                <select
-                  id="zi-clock-hour"
-                  name="clockHour"
-                  className="field-input"
-                  value={form.clockHour}
-                  onChange={(e) => handleClockChange(e.target.value, form.clockMinute)}
-                >
-                  {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                    <option key={h} value={h}>
-                      {String(h).padStart(2, '0')} 时
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="sr-only" htmlFor="zi-clock-minute">
-                  分
-                </label>
-                <select
-                  id="zi-clock-minute"
-                  name="clockMinute"
-                  className="field-input"
-                  value={form.clockMinute}
-                  onChange={(e) => handleClockChange(form.clockHour, e.target.value)}
-                >
-                  {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                    <option key={m} value={m}>
-                      {String(m).padStart(2, '0')} 分
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="sr-only" htmlFor="zi-clock">
+                出生钟点
+              </label>
+              <input
+                id="zi-clock"
+                type="time"
+                className="field-input"
+                value={`${String(Number(form.clockHour) || 0).padStart(2, '0')}:${String(Number(form.clockMinute) || 0).padStart(2, '0')}`}
+                onChange={(e) => {
+                  const m = /^(\d{1,2}):(\d{2})/.exec(e.target.value);
+                  if (m) handleClockChange(String(Number(m[1])), m[2]);
+                }}
+              />
+              <input type="hidden" name="clockHour" value={form.clockHour} />
+              <input type="hidden" name="clockMinute" value={form.clockMinute} />
             </div>
           )}
 
-          {/* 口径提示 */}
-          <div className="mt-3 rounded-lg border border-lineSoft bg-paper px-3.5 py-3">
-            <p className="text-2xs tracking-wide2 text-ink-3">当前口径</p>
-            {resolved.ok && resolved.resolved ? (
-              <>
-                <p className="mt-1 text-xs leading-relaxed text-ink-2">
-                  {resolved.resolved.note}
-                </p>
-                <p className="mt-1 text-2xs leading-relaxed text-ink-3">
-                  排盘日 {formatDate(resolved.resolved.year, resolved.resolved.month, resolved.resolved.day)}
-                  {' · '}{SHICHEN_NAMES[resolved.resolved.hour]}时（{SHICHEN_RANGES[resolved.resolved.hour]}）
-                  {resolved.resolved.lateZi && ' · 晚子时已顺延'}
-                </p>
-              </>
-            ) : (
-              <p className="mt-1 text-xs text-ink-3">填写出生日期后显示排盘口径。</p>
-            )}
-            <p className="mt-2 border-t border-lineSoft pt-2 text-2xs leading-relaxed text-ink-3">
-              {timeModeHint}
+          {/* 排盘口径：一行人话，只在信息完整时显示 */}
+          {resolved.ok && resolved.resolved && (
+            <p className="mt-3 text-2xs leading-relaxed text-ink-3" role="status">
+              将按 {resolved.resolved.year} 年 {resolved.resolved.month} 月{' '}
+              {resolved.resolved.day} 日 {SHICHEN_NAMES[resolved.resolved.hour]}时 排盘
+              {resolved.resolved.lateZi && '（晚子时，已顺延到次日）'}
             </p>
-          </div>
+          )}
         </div>
 
         {/* 性别 */}

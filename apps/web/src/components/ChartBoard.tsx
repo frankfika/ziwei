@@ -70,12 +70,12 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
   return (
     <div>
       <div className="hidden md:block">
-        <div className="overflow-x-auto pb-1">
+        <div className="overflow-x-auto">
           <div
             className="grid min-w-[46rem] gap-px rounded-xl border border-line bg-line"
             style={{
               gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gridTemplateRows: 'repeat(4, minmax(10.5rem, auto))',
+              gridTemplateRows: 'repeat(4, minmax(8.5rem, auto))',
             }}
           >
             {palaces.map((palace) => {
@@ -112,7 +112,15 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             </div>
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-2" aria-live="polite">
+        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5" aria-live="polite">
+          <span className="chip border-hua-lu/30 bg-hua-lu/10 text-hua-lu">禄</span>
+          <span className="chip border-hua-quan/30 bg-hua-quan/10 text-hua-quan">权</span>
+          <span className="chip border-hua-ke/30 bg-hua-ke/10 text-hua-ke">科</span>
+          <span className="chip border-hua-ji/30 bg-hua-ji/10 text-hua-ji">忌</span>
+          <span className="text-2xs text-ink-3">四化</span>
+          <span className="h-3 w-px bg-line" />
+          <span className="text-2xs text-ink-3">庙旺为暖色，陷落为浅色</span>
+          <span className="h-3 w-px bg-line" />
           <p className="text-center text-2xs text-ink-3">
             {selectedPalace
               ? `已选择${selectedPalace.name}，高亮宫位为三方四正。`
@@ -357,7 +365,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-2xs text-ink-3">
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-2xs text-ink-3 md:hidden">
         <span className="chip border-hua-lu/30 bg-hua-lu/10 text-hua-lu">禄</span>
         <span className="chip border-hua-quan/30 bg-hua-quan/10 text-hua-quan">权</span>
         <span className="chip border-hua-ke/30 bg-hua-ke/10 text-hua-ke">科</span>
@@ -365,8 +373,6 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
         <span className="text-ink-3">四化</span>
         <span className="h-3 w-px bg-line" />
         <span>庙旺为暖色，陷落为浅色</span>
-        <span className="h-3 w-px bg-line hidden md:inline" />
-        <span className="hidden md:inline">点击宫位可查看三方四正</span>
       </div>
     </div>
   );

@@ -38,18 +38,28 @@ export default async function HomePage({
           盘面由确定性排盘引擎算出，解读正文逐条检索自开源解读数据集 —— 不做推算，也不做补写。
         </p>
         {errorText && (
-          <p className="mt-5 rounded-lg border border-zhu/25 bg-zhu-soft/50 px-4 py-3 text-sm text-ink-2">
+          <div
+            className="mt-5 rounded-lg border border-zhu/25 bg-zhu-soft/50 px-4 py-3 text-sm text-ink-2"
+            role="alert"
+            tabIndex={-1}
+          >
             {errorText}
-          </p>
+          </div>
         )}
       </section>
 
       <BirthForm indexedYears={years} />
 
       {/* 覆盖情况 */}
-      <section className="mt-10 rounded-xl border border-lineSoft bg-surface px-5 py-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-2">
-          <span className="tracking-wide2 text-ink-3">当前样本库</span>
+      <section
+        id="coverage"
+        className="mt-10 scroll-mt-6 rounded-xl border border-lineSoft bg-surface px-5 py-4"
+        aria-labelledby="coverage-title"
+      >
+        <h2 id="coverage-title" className="text-xs font-medium tracking-wide2 text-ink-3">
+          当前样本库
+        </h2>
+        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-2">
           <span>
             已建索引年份：
             <span className="tabular-nums text-ink">

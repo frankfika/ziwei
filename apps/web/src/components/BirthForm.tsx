@@ -25,7 +25,12 @@ const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i);
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn-primary" disabled={pending}>
+    <button
+      type="submit"
+      className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={pending}
+      aria-describedby={pending ? 'chart-submit-status' : undefined}
+    >
       {pending ? '排盘中…' : '排 盘'}
     </button>
   );
@@ -102,9 +107,12 @@ export default function BirthForm({
       ? '时辰下拉与解读数据集严格对齐：排盘日即你填写的公历出生日，时辰序号 0–11。'
       : '钟点会先换算成「排盘日 + 时辰序号」再检索数据集，23:00 后自动按晚子时顺延到次日。';
 
+  const hasDateError =
+    form.year === '' || form.month === '' || form.day === '';
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-      <form action={handleSubmit} className="panel p-6 sm:p-8">
+      <form action={handleSubmit} className="panel p-6 sm:p-8" noValidate>
         {/* 姓名 */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-name">
@@ -125,8 +133,15 @@ export default function BirthForm({
 
         {/* 出生日期 */}
         <div className="mb-7">
-          <span className="field-label">出生日期（公历）</span>
-          <div className="grid grid-cols-3 gap-3">
+          <span className="field-label" id="birth-date-label">
+            出生日期（公历）
+          </span>
+          <div
+            className="grid grid-cols-3 gap-3"
+            role="group"
+            aria-labelledby="birth-date-label"
+            aria-describedby={hasDateError ? 'birth-date-error' : undefined}
+          >
             <div>
               <label className="sr-only" htmlFor="zi-year">
                 年
@@ -136,6 +151,7 @@ export default function BirthForm({
                 name="year"
                 className="field-input"
                 value={form.year}
+                aria-invalid={hasDateError || undefined}
                 onChange={(e) => patch({ year: e.target.value })}
               >
                 <option value="">年</option>
@@ -155,6 +171,7 @@ export default function BirthForm({
                 name="month"
                 className="field-input"
                 value={form.month}
+                aria-invalid={hasDateError || undefined}
                 onChange={(e) => patch({ month: e.target.value })}
               >
                 <option value="">月</option>
@@ -174,6 +191,7 @@ export default function BirthForm({
                 name="day"
                 className="field-input"
                 value={form.day}
+                aria-invalid={hasDateError || undefined}
                 onChange={(e) => patch({ day: e.target.value })}
               >
                 <option value="">日</option>
@@ -186,10 +204,20 @@ export default function BirthForm({
             </div>
           </div>
           {resolved.ok === false && (
-            <p className="mt-2 text-xs text-zhu">{resolved.error}</p>
+            <p
+              id="birth-date-error"
+              className="mt-2 text-xs text-zhu"
+              role="alert"
+            >
+              {resolved.error}
+            </p>
           )}
           {yearNotCovered && (
-            <p className="mt-2 text-xs leading-relaxed text-ink-3" data-year-coverage="miss">
+            <p
+              className="mt-2 text-xs leading-relaxed text-ink-3"
+              data-year-coverage="miss"
+              role="status"
+            >
               样本库尚未索引 {yearNum}{' '}
               年——仍可排盘看十二宫，但十三维解读会提示「未覆盖」。已建索引：
               {indexedYears.length <= 16
@@ -202,9 +230,15 @@ export default function BirthForm({
 
         {/* 时辰 */}
         <div className="mb-7">
-          <span className="field-label">出生时辰</span>
+          <span className="field-label" id="birth-time-label">
+            出生时辰
+          </span>
 
-          <div className="mb-3 inline-flex rounded-lg border border-line bg-paper p-1">
+          <div
+            className="mb-3 inline-flex rounded-lg border border-line bg-paper p-1"
+            role="group"
+            aria-labelledby="birth-time-label"
+          >
             {(
               [
                 { key: 'shichen', label: '按时辰' },
@@ -216,8 +250,9 @@ export default function BirthForm({
                 <button
                   key={tab.key}
                   type="button"
+                  aria-pressed={active}
                   onClick={tab.key === 'clock' ? switchToClock : switchToShichen}
-                  className={`rounded-md px-4 py-1.5 text-xs tracking-wide transition-colors ${
+                  className={`rounded-md px-4 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(36,33,29,0.08)]'
                       : 'text-ink-2 hover:text-ink'
@@ -268,8 +303,9 @@ export default function BirthForm({
                         <button
                           key={opt.key}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => patch({ ziVariant: opt.key })}
-                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                             active
                               ? 'border-zhu bg-zhu-soft text-ink'
                               : 'border-line bg-surface text-ink-2 hover:border-ink-3'
@@ -351,17 +387,24 @@ export default function BirthForm({
 
         {/* 性别 */}
         <div className="mb-8">
-          <span className="field-label">性别</span>
+          <span className="field-label" id="gender-label">
+            性别
+          </span>
           <input type="hidden" name="gender" value={form.gender} />
-          <div className="grid grid-cols-2 gap-3">
+          <div
+            className="grid grid-cols-2 gap-3"
+            role="group"
+            aria-labelledby="gender-label"
+          >
             {(['male', 'female'] as const).map((g) => {
               const active = form.gender === g;
               return (
                 <button
                   key={g}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => patch({ gender: g })}
-                  className={`rounded-lg border px-4 py-2.5 text-sm transition-colors ${
+                  className={`rounded-lg border px-4 py-2.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'border-zhu bg-zhu-soft text-ink'
                       : 'border-line bg-surface text-ink-2 hover:border-ink-3'
@@ -375,15 +418,24 @@ export default function BirthForm({
         </div>
 
         <SubmitButton />
+        <p
+          id="chart-submit-status"
+          className="mt-3 min-h-5 text-2xs text-ink-3"
+          aria-live="polite"
+        >
+          提交后将按当前口径生成命盘与数据集解读。
+        </p>
       </form>
 
       {/* 最近排盘 */}
       <aside className="panel p-5">
         <h2 className="mb-3 text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
         {history.length === 0 ? (
-          <p className="text-2xs leading-relaxed text-ink-3">
-            排过的盘会保存在本机浏览器里，方便下次直接打开。
-          </p>
+          <div className="rounded-lg border border-dashed border-line bg-paper px-3 py-4">
+            <p className="text-2xs leading-relaxed text-ink-3">
+              暂无历史记录。完成一次排盘后，可在这里快速重新打开。
+            </p>
+          </div>
         ) : (
           <ul className="space-y-2">
             {history.map((entry) => (
@@ -392,7 +444,7 @@ export default function BirthForm({
                   <button
                     type="button"
                     onClick={() => onPickHistory(entry.form)}
-                    className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-left transition-colors hover:border-ink-3"
+                    className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
                     <span className="block truncate text-xs text-ink">{entry.label}</span>
                     <span className="mt-0.5 block text-2xs text-ink-3">
@@ -407,7 +459,7 @@ export default function BirthForm({
                     type="button"
                     aria-label="删除记录"
                     onClick={() => remove(entry.id)}
-                    className="mt-1 rounded px-1 text-2xs text-ink-3 transition-colors hover:text-zhu"
+                    className="mt-1 rounded px-2 py-1 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
                     ×
                   </button>

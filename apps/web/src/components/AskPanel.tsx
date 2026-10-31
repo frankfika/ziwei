@@ -11,7 +11,7 @@
  *    不自己编措辞。
  */
 
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { askChart, type AskActionResult } from '@/app/ask-action';
 import Markdown from './Markdown';
 
@@ -37,6 +37,11 @@ const PRESETS = [
   '财运方面，原文给了哪些倾向？',
 ];
 
+type LocalError = {
+  message: string;
+  retryQuestion: string;
+};
+
 export default function AskPanel({
   year,
   month,
@@ -50,12 +55,20 @@ export default function AskPanel({
 }: AskPanelProps) {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<AskActionResult | null>(null);
+  const [localError, setLocalError] = useState<LocalError | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
+  const resultId = useId();
 
   function submit(q: string) {
     const text = q.trim();
-    if (!text) return;
+    if (!text || pending || !providerConfigured) return;
+
     setQuestion(text);
+    setResult(null);
+    setLocalError(null);
+    setExpanded(true);
+
     const fd = new FormData();
     fd.set('question', text);
     fd.set('year', String(year));
@@ -65,8 +78,15 @@ export default function AskPanel({
     fd.set('gender', gender);
 
     startTransition(async () => {
-      const r = await askChart(fd);
-      setResult(r);
+      try {
+        const r = await askChart(fd);
+        setResult(r);
+      } catch {
+        setLocalError({
+          message: '追问请求失败，可能是网络波动或服务暂时不可用。请稍后重试。',
+          retryQuestion: text,
+        });
+      }
     });
   }
 
@@ -83,17 +103,37 @@ export default function AskPanel({
   })();
 
   return (
-    <div className="mt-14">
-      <div className="mb-5 flex items-baseline justify-between border-b border-line pb-3">
-        <h2 className="font-serif text-sm tracking-[0.2em] text-ink">命盘追问</h2>
-        <p className="text-2xs text-ink-3">依据引擎盘面 + 数据集原文</p>
+    <div className="mt-14" id="ask-panel">
+      <div className="mb-5 border-b border-line pb-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          aria-controls="ask-panel-content"
+          className="flex w-full items-center justify-between gap-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-zhu"
+        >
+          <span>
+            <span className="block font-serif text-sm tracking-[0.2em] text-ink">命盘追问</span>
+            <span className="mt-1 block text-2xs text-ink-3">
+              依据引擎盘面 + 数据集原文
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full border border-line px-3 py-1 text-2xs text-ink-2">
+            {expanded ? '收起' : '展开'}
+          </span>
+        </button>
       </div>
 
-      <div className="panel p-5 sm:p-6">
+      <div
+        id="ask-panel-content"
+        hidden={!expanded}
+        className="panel p-5 sm:p-6"
+      >
         {!providerConfigured && (
           <div
             className="mb-5 rounded-lg border border-line bg-paper px-4 py-3"
             data-ask-provider="not-configured"
+            role="status"
           >
             <p className="text-xs leading-relaxed text-ink-2">
               {providerMessage ??
@@ -117,6 +157,7 @@ export default function AskPanel({
           rows={3}
           placeholder="例如：这份命盘在职业方向上有什么特点？"
           className="field-input resize-y leading-relaxed"
+          disabled={pending}
         />
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -126,7 +167,7 @@ export default function AskPanel({
               type="button"
               onClick={() => submit(p)}
               disabled={pending || !providerConfigured}
-              className="rounded-full border border-line px-3 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:opacity-50"
+              className="rounded-full border border-line px-3 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               {p}
             </button>
@@ -137,7 +178,7 @@ export default function AskPanel({
           type="button"
           onClick={() => submit(question)}
           disabled={pending || !question.trim() || !providerConfigured}
-          className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45"
+          className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           {pending
             ? '正在查证…'
@@ -146,87 +187,140 @@ export default function AskPanel({
               : '请先配置追问模型'}
         </button>
 
-        {result && (
-          <div
-            className="mt-6 border-t border-line pt-5"
-            data-ask-state={result.status}
-          >
-            {result.status === 'ok' && (
-              <>
-                <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-3">
-                  <span>模型 {result.model ?? result.provider}</span>
-                  {result.usage?.totalTokens && (
-                    <>
-                      <span>·</span>
-                      <span className="tabular-nums">
-                        {result.usage.totalTokens} tokens
-                      </span>
-                    </>
-                  )}
-                  {result.citedDimensions.length > 0 && (
-                    <>
-                      <span>·</span>
-                      <span>引用维度：{result.citedDimensions.join('、')}</span>
-                    </>
-                  )}
-                </div>
+        <div id={resultId} aria-live="polite" aria-busy={pending}>
+          {pending && (
+            <div
+              className="mt-6 flex items-center gap-3 rounded-lg border border-line bg-paper px-4 py-3"
+              role="status"
+            >
+              <span
+                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu"
+                aria-hidden="true"
+              />
+              <p className="text-xs text-ink-2">
+                正在核对盘面并检索数据集原文，通常需要几秒…
+              </p>
+            </div>
+          )}
 
-                <div
-                  className="text-sm leading-[1.95] text-ink-2"
-                  data-ask-answer=""
-                >
-                  <Markdown text={result.answer} />
-                </div>
+          {localError && (
+            <div
+              className="mt-6 rounded-lg border border-zhu/25 bg-zhu-soft/40 px-4 py-3"
+              data-ask-state="error"
+              role="alert"
+            >
+              <p className="text-xs leading-relaxed text-ink-2">{localError.message}</p>
+              <button
+                type="button"
+                onClick={() => submit(localError.retryQuestion)}
+                disabled={pending}
+                className="mt-3 rounded-lg border border-zhu/30 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                重试
+              </button>
+            </div>
+          )}
 
-                {suspects.length > 0 ? (
-                  <div
-                    className="mt-5 rounded-lg border border-zhu/30 bg-zhu-soft/50 px-4 py-3"
-                    data-ask-verification="warn"
-                  >
-                    <p className="text-xs font-medium text-zhu">
-                      ⚠ 机械自检：以下内容不在你的盘面中，请谨慎参考
-                    </p>
-                    <ul className="mt-1.5 space-y-0.5 text-2xs text-ink-2">
-                      {suspects.map((s) => (
-                        <li key={s}>· {s}</li>
-                      ))}
-                    </ul>
+          {result && (
+            <div
+              className="mt-6 border-t border-line pt-5"
+              data-ask-state={result.status}
+            >
+              {result.status === 'ok' && (
+                <>
+                  <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-3">
+                    <span>模型 {result.model ?? result.provider}</span>
+                    {result.usage?.totalTokens && (
+                      <>
+                        <span>·</span>
+                        <span className="tabular-nums">
+                          {result.usage.totalTokens} tokens
+                        </span>
+                      </>
+                    )}
+                    {result.citedDimensions.length > 0 && (
+                      <>
+                        <span>·</span>
+                        <span>引用维度：{result.citedDimensions.join('、')}</span>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <p
-                    className="mt-5 text-2xs text-ink-3"
-                    data-ask-verification="clean"
+
+                  <div
+                    className="text-sm leading-[1.95] text-ink-2"
+                    data-ask-answer=""
                   >
-                    ✓ 机械自检：未发现盘面外的星曜 / 宫位
-                  </p>
-                )}
-              </>
-            )}
+                    <Markdown text={result.answer} />
+                  </div>
 
-            {result.status === 'not-covered' && (
-              <div className="rounded-lg border border-line bg-paper px-4 py-3">
-                <p className="text-xs text-ink-2">{result.message}</p>
-              </div>
-            )}
+                  {suspects.length > 0 ? (
+                    <div
+                      className="mt-5 rounded-lg border border-zhu/30 bg-zhu-soft/50 px-4 py-3"
+                      data-ask-verification="warn"
+                      role="alert"
+                    >
+                      <p className="text-xs font-medium text-zhu">
+                        ⚠ 机械自检：以下内容不在你的盘面中，请谨慎参考
+                      </p>
+                      <ul className="mt-1.5 space-y-0.5 text-2xs text-ink-2">
+                        {suspects.map((s) => (
+                          <li key={s}>· {s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p
+                      className="mt-5 text-2xs text-ink-3"
+                      data-ask-verification="clean"
+                    >
+                      ✓ 机械自检：未发现盘面外的星曜 / 宫位
+                    </p>
+                  )}
+                </>
+              )}
 
-            {result.status === 'not-configured' && (
-              <div className="rounded-lg border border-line bg-paper px-4 py-3">
-                <p className="text-xs text-ink-2">{result.message}</p>
-                {result.missing.length > 0 && (
-                  <p className="mt-2 text-2xs text-ink-3">
-                    需要设置：{result.missing.join('、')}
-                  </p>
-                )}
-              </div>
-            )}
+              {result.status === 'not-covered' && (
+                <div
+                  className="rounded-lg border border-line bg-paper px-4 py-3"
+                  role="status"
+                >
+                  <p className="text-xs text-ink-2">{result.message}</p>
+                </div>
+              )}
 
-            {result.status === 'error' && (
-              <div className="rounded-lg border border-zhu/25 bg-zhu-soft/40 px-4 py-3">
-                <p className="text-xs text-ink-2">{result.message}</p>
-              </div>
-            )}
-          </div>
-        )}
+              {result.status === 'not-configured' && (
+                <div
+                  className="rounded-lg border border-line bg-paper px-4 py-3"
+                  role="status"
+                >
+                  <p className="text-xs text-ink-2">{result.message}</p>
+                  {result.missing.length > 0 && (
+                    <p className="mt-2 text-2xs text-ink-3">
+                      需要设置：{result.missing.join('、')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {result.status === 'error' && (
+                <div
+                  className="rounded-lg border border-zhu/25 bg-zhu-soft/40 px-4 py-3"
+                  role="alert"
+                >
+                  <p className="text-xs text-ink-2">{result.message}</p>
+                  <button
+                    type="button"
+                    onClick={() => submit(question)}
+                    disabled={pending}
+                    className="mt-3 rounded-lg border border-zhu/30 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  >
+                    重试
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <p className="mt-3 text-2xs leading-relaxed text-ink-3">

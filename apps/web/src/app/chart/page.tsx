@@ -24,13 +24,23 @@ function invalid(message: string) {
     <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
       <div className="panel mx-auto max-w-lg p-8 text-center">
         <h1 className="font-serif text-lg tracking-wide text-ink">无法排盘</h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink-2">{message}</p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324]"
-        >
-          回到输入页
-        </Link>
+        <p className="mt-3 text-sm leading-relaxed text-ink-2" role="alert">
+          {message}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            href="/"
+            className="inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            回到输入页
+          </Link>
+          <Link
+            href="/about"
+            className="inline-flex items-center rounded-lg border border-line bg-surface px-5 py-2.5 text-sm text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            查看口径说明
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -129,7 +139,10 @@ export default async function ChartPage({
 
       {/* 晚子时提示 */}
       {lateFlag && (
-        <div className="mb-8 rounded-xl border border-zhu/25 bg-zhu-soft/50 px-5 py-4">
+        <div
+          className="mb-8 rounded-xl border border-zhu/25 bg-zhu-soft/50 px-5 py-4"
+          role="status"
+        >
           <p className="text-sm leading-relaxed text-ink-2">
             <span className="font-medium text-zhu">已按晚子时规则调整：</span>
             输入的出生日期 {birthDateRaw || '—'} 属晚子时（23:00–23:59），
@@ -201,13 +214,13 @@ export default async function ChartPage({
       <div className="mt-10 flex flex-wrap gap-3">
         <Link
           href="/"
-          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3"
+          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           重新排盘
         </Link>
         <Link
           href="/about"
-          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3"
+          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           口径说明
         </Link>

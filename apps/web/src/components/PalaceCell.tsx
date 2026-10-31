@@ -128,7 +128,7 @@ export default function PalaceCell({
       onClick={() => onSelect(palace.branch)}
       aria-pressed={selected}
       aria-label={ariaLabel}
-      className={`group relative flex h-full w-full flex-col items-start gap-1.5 p-3 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${highlight}`}
+      className={`group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1.5 p-3 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${highlight}`}
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">

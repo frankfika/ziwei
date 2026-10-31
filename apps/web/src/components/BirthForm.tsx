@@ -485,7 +485,7 @@ export default function BirthForm({
 
       {/* Mobile sticky submit — outside panel padding; still owns form via form= */}
       {resolved.ok && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 md:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 print:hidden md:hidden">
           <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
             <div className="mx-auto w-full max-w-6xl">
               <SubmitButton canSubmit pending={formPending} form="birth-form" />

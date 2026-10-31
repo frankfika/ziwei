@@ -59,3 +59,19 @@
     @apply inline-flex items-center rounded-full border px-2 py-0.5 text-2xs leading-none;
   }
 }
+
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #24211d;
+  }
+
+  /* Prefer print:hidden on chrome; keep CSS fallbacks for paper/break. */
+  #chart-board button,
+  #chart-board li,
+  #chart-board .rounded-xl {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

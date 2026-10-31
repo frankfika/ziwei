@@ -176,11 +176,22 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-2xs text-ink-3" aria-live="polite">
-          {selectedPalace
-            ? `已选择${selectedPalace.name}，高亮宫位为三方四正；再次点击可取消。`
-            : '点击宫位可查看三方四正。'}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2" aria-live="polite">
+          <p className="text-center text-2xs text-ink-3">
+            {selectedPalace
+              ? `已选择${selectedPalace.name}，高亮宫位为三方四正。`
+              : '点击宫位可查看三方四正。'}
+          </p>
+          {selectedPalace ? (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              取消选择
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="md:hidden">
@@ -290,7 +301,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                       type="button"
                       onClick={() => toggleSelected(palace.branch)}
                       aria-current={isSelf ? 'true' : undefined}
-                      className={`rounded-full border px-2.5 py-1 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                      className={`inline-flex min-h-9 items-center rounded-full border px-2.5 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                         isSelf
                           ? 'border-zhu bg-zhu-soft text-ink'
                           : 'border-line bg-surface text-ink-2'
@@ -328,7 +339,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                     mobileTriggerRef.current = event.currentTarget;
                     toggleSelected(palace.branch);
                   }}
-                  className={`w-full rounded-xl border px-3.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  className={`w-full break-inside-avoid rounded-xl border px-3.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'border-zhu bg-zhu-soft/60'
                       : inSan
@@ -387,7 +398,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             <button
               type="button"
               onClick={() => changeMobileFilter('all')}
-              className="mt-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               显示全部
             </button>

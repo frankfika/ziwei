@@ -117,7 +117,7 @@ export default function AskPanel({
   })();
 
   return (
-    <div className="mt-14" id="ask-panel">
+    <div className="mt-14 print:hidden" id="ask-panel">
       <div className="mb-5 border-b border-line pb-3">
         <button
           type="button"
@@ -132,7 +132,7 @@ export default function AskPanel({
               依据引擎盘面 + 数据集原文
             </span>
           </span>
-          <span className="shrink-0 rounded-full border border-line px-3 py-1 text-2xs text-ink-2">
+          <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-line px-3 py-1 text-2xs text-ink-2">
             {expanded ? '收起' : '展开'}
           </span>
         </button>

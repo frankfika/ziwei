@@ -25,7 +25,7 @@ export default function NavLinks() {
             key={item.href}
             href={item.href}
             aria-current={current ? 'page' : undefined}
-            className={`rounded-md px-3 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+            className={`inline-flex min-h-9 items-center rounded-md px-3 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
               current
                 ? 'bg-paper text-ink'
                 : 'text-ink-2 hover:bg-paper hover:text-ink'

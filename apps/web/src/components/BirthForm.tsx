@@ -51,8 +51,9 @@ function SubmitButton({
     <button
       type="submit"
       form={form}
-      className={`btn-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${className ?? ''}`}
-      disabled={pending || !canSubmit}
+      className={`btn-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${!canSubmit && !pending ? 'cursor-not-allowed opacity-50' : ''} ${className ?? ''}`}
+      disabled={pending}
+      aria-disabled={!canSubmit || undefined}
       aria-describedby="chart-submit-status"
     >
       {pending ? '排盘中…' : canSubmit ? '排 盘' : disabledLabel}
@@ -68,6 +69,7 @@ export default function BirthForm({
 }) {
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
   const [formPending, setFormPending] = useState(false);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const { history, save, remove, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
@@ -123,8 +125,12 @@ export default function BirthForm({
 
   /** 提交：先记入本地历史，再由 Server Action 用引擎口径算出排盘日并跳转 */
   const handleSubmit = async (formData: FormData) => {
-    if (!resolved.ok) return;
+    if (!resolved.ok) {
+      setAttemptedSubmit(true);
+      return;
+    }
 
+    setAttemptedSubmit(false);
     save(form);
     await startChart(formData);
   };
@@ -185,7 +191,7 @@ export default function BirthForm({
             className="grid grid-cols-3 gap-3"
             role="group"
             aria-labelledby="birth-date-label"
-            aria-describedby={hasDateError ? 'birth-date-error' : undefined}
+            aria-describedby={attemptedSubmit && !resolved.ok ? 'birth-date-error' : undefined}
           >
             <div>
               <label className="sr-only" htmlFor="zi-year">
@@ -196,7 +202,7 @@ export default function BirthForm({
                 name="year"
                 className="field-input"
                 value={form.year}
-                aria-invalid={form.year === '' || dateValueInvalid || undefined}
+                aria-invalid={attemptedSubmit && (form.year === '' || dateValueInvalid) ? true : undefined}
                 onChange={(e) => patch({ year: e.target.value })}
               >
                 <option value="">年</option>
@@ -224,7 +230,7 @@ export default function BirthForm({
                 name="month"
                 className="field-input"
                 value={form.month}
-                aria-invalid={form.month === '' || dateValueInvalid || undefined}
+                aria-invalid={attemptedSubmit && (form.month === '' || dateValueInvalid) ? true : undefined}
                 onChange={(e) => patch({ month: e.target.value })}
               >
                 <option value="">月</option>
@@ -244,7 +250,7 @@ export default function BirthForm({
                 name="day"
                 className="field-input"
                 value={form.day}
-                aria-invalid={form.day === '' || dateValueInvalid || undefined}
+                aria-invalid={attemptedSubmit && (form.day === '' || dateValueInvalid) ? true : undefined}
                 onChange={(e) => patch({ day: e.target.value })}
               >
                 <option value="">日</option>
@@ -256,7 +262,7 @@ export default function BirthForm({
               </select>
             </div>
           </div>
-          {resolved.ok === false && (
+          {attemptedSubmit && resolved.ok === false && (
             <p
               id="birth-date-error"
               className="mt-2 text-xs text-zhu"
@@ -372,7 +378,7 @@ export default function BirthForm({
                           type="button"
                           aria-pressed={active}
                           onClick={() => patch({ ziVariant: opt.key })}
-                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                          className={`inline-flex min-h-11 flex-col justify-center rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                             active
                               ? 'border-zhu bg-zhu-soft text-ink'
                               : 'border-line bg-surface text-ink-2 hover:border-ink-3'
@@ -499,7 +505,7 @@ export default function BirthForm({
         <p
           id="chart-submit-status"
           className={`mt-3 min-h-5 text-2xs text-ink-3${resolved.ok ? ' max-md:sr-only' : ''}`}
-          aria-live="polite"
+          aria-live={attemptedSubmit && !resolved.ok ? 'polite' : undefined}
         >
           {submitHint}
         </p>
@@ -528,7 +534,7 @@ export default function BirthForm({
                   clear();
                 }
               }}
-              className="rounded px-2 py-1 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               清空
             </button>
@@ -548,7 +554,7 @@ export default function BirthForm({
                   <button
                     type="button"
                     onClick={() => onPickHistory(entry.form)}
-                    className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                    className="flex min-h-11 flex-1 flex-col justify-center rounded-lg border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
                     <span className="block truncate text-xs text-ink">{entry.label}</span>
                     <span className="mt-0.5 block text-2xs text-ink-3">
@@ -563,7 +569,7 @@ export default function BirthForm({
                     type="button"
                     aria-label="删除记录"
                     onClick={() => remove(entry.id)}
-                    className="mt-1 rounded px-2 py-1 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                    className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
                     ×
                   </button>

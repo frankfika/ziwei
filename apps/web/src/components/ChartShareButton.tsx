@@ -79,7 +79,7 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
   const linkLabel = copied === 'link' ? '已复制链接' : '复制本页链接';
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3">
+    <div className="mt-4 flex flex-wrap items-center gap-3 print:hidden">
       <button
         type="button"
         onClick={onCopySummary}

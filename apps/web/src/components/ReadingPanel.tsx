@@ -62,6 +62,12 @@ export default function ReadingPanel({
 
   if (!current) return null;
   const panel = current;
+  const activeIndex = dimensions.findIndex((d) => d.key === panel.key);
+  const prevDim = activeIndex > 0 ? dimensions[activeIndex - 1] : null;
+  const nextDim =
+    activeIndex >= 0 && activeIndex < dimensions.length - 1
+      ? dimensions[activeIndex + 1]
+      : null;
 
   function focusDimension(index: number) {
     const next = dimensions[(index + dimensions.length) % dimensions.length];
@@ -194,14 +200,34 @@ export default function ReadingPanel({
               </p>
             </div>
           )}
-          <p className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
-            <a
-              href="#reading-dimensions"
-              className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              回到维度列表
-            </a>
-          </p>
+          <div className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={!prevDim}
+                onClick={() => prevDim && setActive(prevDim.key)}
+                className="inline-flex min-h-9 flex-1 items-center justify-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:flex-none"
+              >
+                {prevDim ? `上一维 · ${prevDim.label}` : '已是第一维'}
+              </button>
+              <button
+                type="button"
+                disabled={!nextDim}
+                onClick={() => nextDim && setActive(nextDim.key)}
+                className="inline-flex min-h-9 flex-1 items-center justify-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:flex-none"
+              >
+                {nextDim ? `下一维 · ${nextDim.label}` : '已是最后一维'}
+              </button>
+            </div>
+            <p className="mt-3">
+              <a
+                href="#reading-dimensions"
+                className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                回到维度列表
+              </a>
+            </p>
+          </div>
         </article>
       </div>
     </div>

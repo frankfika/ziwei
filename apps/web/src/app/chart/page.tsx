@@ -166,7 +166,7 @@ export default async function ChartPage({
         {reading.status === 'ok' && (
           <a
             href="#ask-panel"
-            className="shrink-0 inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            className="shrink-0 inline-flex min-h-9 items-center rounded-lg border border-zhu/25 bg-zhu-soft/40 px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-zhu/50 hover:bg-zhu-soft hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
             追问
           </a>

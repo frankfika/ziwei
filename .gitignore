@@ -1,5 +1,12 @@
 # 数据集：大文件不进 git
-data/
+#
+# 必须写成 `/data/`（锚定仓库根），不能写 `data/`。
+# gitignore 里 `data/` 会匹配**任意层级**的 data 目录 —— 早期版本就是
+# 因为这样把 `packages/chart-engine/src/classics/data/` 里的三个古籍源码
+# 常量（古籍赋/全集/全书原文，引擎排盘要用）一起忽略了，
+# 本地 typecheck 因为文件在磁盘上而通过，CI 克隆后却报
+# "Cannot find module './data/gusuifu'" —— 红灯是这么来的。
+/data/
 
 node_modules/
 .next/

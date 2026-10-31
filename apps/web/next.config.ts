@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@ziwei/core', '@ziwei/chart-engine', '@ziwei/reading-index'],
   // monorepo：把产物追踪根指向仓库根，避免 .next 找不到 workspace 依赖
   outputFileTracingRoot: path.resolve(process.cwd(), '..', '..'),
+  // Playwright / curl 常用 127.0.0.1，避免 Next 16 默认拦跨域 HMR/开发资源
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
 };
 
 export default nextConfig;

@@ -175,7 +175,9 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 }`}
               >
                 {chip.label}
-                <span className="ml-1 text-ink-3">{chip.palace.name}</span>
+                <span className="ml-1 text-ink-3">
+                  {chip.palace.stemName}·{chip.palace.branchName}
+                </span>
               </button>
             );
           })}

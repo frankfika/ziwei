@@ -13,15 +13,15 @@ export function sanFangBranches(branch: number): number[] {
   return [branch, (branch + 6) % 12, (branch + 4) % 12, (branch + 8) % 12];
 }
 
-const SIHUA_CLASS: Record<string, string> = {
+export const SIHUA_CLASS: Record<string, string> = {
   禄: 'text-hua-lu border-hua-lu/30 bg-hua-lu/10',
   权: 'text-hua-quan border-hua-quan/30 bg-hua-quan/10',
   科: 'text-hua-ke border-hua-ke/30 bg-hua-ke/10',
   忌: 'text-hua-ji border-hua-ji/30 bg-hua-ji/10',
 };
 
-/** 庙旺利得平不陷 → 文字层次 */
-function brightnessClass(b?: string): string {
+/** 庙旺利得平不陷 → 文字层次（移动端紧凑宫格也复用） */
+export function brightnessClass(b?: string): string {
   switch (b) {
     case '庙':
     case '旺':

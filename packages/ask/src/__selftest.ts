@@ -168,11 +168,11 @@ const prompt = buildAskPrompt({
   ok('注入了命盘事实（十二宫 + 命主/身主）', prompt.user.includes('十二宫：'));
   ok(
     '注入了硬约束（禁止发明星曜/宫位）',
-    prompt.system.includes('不得提及') && prompt.system.includes('原文未写'),
+    prompt.system.includes('不得提及') && prompt.system.includes('材料里没有写'),
   );
   ok(
     '注入了「只依据材料」与「不做医疗/投资/法律建议」约束',
-    prompt.system.includes('原文未写') && prompt.system.includes('医疗'),
+    prompt.system.includes('材料里没有写') && prompt.system.includes('医疗'),
   );
   ok('注入了「不得自称占卜大师」约束', prompt.system.includes('占卜大师'));
   okWithData(
@@ -195,6 +195,67 @@ const prompt = buildAskPrompt({
       : true),
   );
   ok('buildAskPrompt 不产生网络请求', fetchCalls() === 0, `fetchCalls=${fetchCalls()}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+section('2b. buildAskPrompt：对话上文注入与预算');
+
+{
+  const withTurns = buildAskPrompt({
+    birth: BIRTH,
+    question: '那财运方面呢？',
+    chartSummary: summary,
+    dimensions,
+    turns: [
+      { question: '我的感情运怎么样？', answer: '感情上原文提到配偶开朗细腻，建议晚婚。（来源：感情）' },
+      { question: '事业方向？', answer: '适合文职、教职或大机构。'.repeat(200) }, // 超长回答应被截断
+    ],
+    maxContextChars: 8000,
+  });
+  ok('注入了对话上文块', withTurns.user.includes('【对话上文】'));
+  ok(
+    '上文包含此前问答',
+    withTurns.user.includes('我的感情运怎么样？') && withTurns.user.includes('建议晚婚'),
+  );
+  ok(
+    '超长上文回答被截断（≤500 字）',
+    !withTurns.user.includes('适合文职、教职或大机构。'.repeat(200)),
+  );
+  ok(
+    `上文计入上下文预算（${withTurns.contextChars} ≤ ${withTurns.maxContextChars}）`,
+    withTurns.contextChars <= withTurns.maxContextChars,
+  );
+  ok(
+    '上文只作为语境的硬约束已进入 system',
+    withTurns.system.includes('对话上文') && withTurns.system.includes('不是可引用材料'),
+  );
+  ok(
+    '最新问题在 prompt 末尾（模型注意力）',
+    withTurns.user.lastIndexOf('【用户问题】') > withTurns.user.indexOf('【对话上文】'),
+  );
+
+  const noTurns = buildAskPrompt({
+    birth: BIRTH,
+    question: '财运如何？',
+    chartSummary: summary,
+    dimensions,
+  });
+  ok('不传 turns 时无对话上文块（向后兼容）', !noTurns.user.includes('【对话上文】'));
+
+  const manyTurns = buildAskPrompt({
+    birth: BIRTH,
+    question: '健康呢？',
+    chartSummary: summary,
+    dimensions,
+    turns: Array.from({ length: 12 }, (_, i) => ({
+      question: `第${i + 1}问`,
+      answer: `第${i + 1}答`,
+    })),
+  });
+  ok(
+    '上文最多带最近 6 轮',
+    manyTurns.user.includes('第12问') && !manyTurns.user.includes('第6问'),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════

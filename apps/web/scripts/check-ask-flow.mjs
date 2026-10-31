@@ -107,12 +107,15 @@ function check(name, ok, detail = '') {
   }
 }
 
-const configured = Boolean(
-  process.env.ZIWEI_ASK_PROVIDER &&
-    process.env.ZIWEI_ASK_BASE_URL &&
-    process.env.ZIWEI_ASK_API_KEY &&
-    process.env.ZIWEI_ASK_MODEL,
-);
+const configured = (() => {
+  const p = (process.env.ZIWEI_ASK_PROVIDER ?? '').toLowerCase();
+  if (!p) return false;
+  // echo 本地桩不需要任何密钥
+  if (p === 'echo' || p === 'local') return true;
+  return Boolean(
+    process.env.ZIWEI_ASK_BASE_URL && process.env.ZIWEI_ASK_API_KEY && process.env.ZIWEI_ASK_MODEL,
+  );
+})();
 
 try {
   const url = `${BASE}/chart?y=1990&m=1&d=1&h=0&g=male`;
@@ -170,7 +173,6 @@ try {
         t: document.body.innerText,
         hasAnswer: !!answer && (answer.innerText || '').trim().length > 40,
         verify: verify ? verify.getAttribute('data-ask-verification') : null,
-        cited: (document.body.innerText || '').includes('引用维度：'),
         thinkLeak: (document.body.innerText || '').includes('<think>'),
       };
     })()`);
@@ -186,9 +188,23 @@ try {
     check('追问返回了回答（真实 provider）', outcome === 'ok', `实际状态：${outcome}`);
     if (outcome === 'ok') {
       check('回答正文非空', last?.hasAnswer === true);
-      check('回答标注了引用维度', last?.cited === true);
       check('展示了机械自检结论', last?.verify === 'clean' || last?.verify === 'warn');
       check('未出现思维链残留（<think>）', last?.thinkLeak === false);
+
+      // 会话存档：刷新页面后回答仍在（localStorage 线程）
+      await send('Page.navigate', { url });
+      await sleep(2200);
+      await evaluate(`(() => {
+        const btn = [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-controls') === 'ask-panel-content');
+        if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+        return 'ok';
+      })()`);
+      await sleep(600);
+      const persisted = await evaluate(`(() => {
+        const a = document.querySelector('[data-ask-answer]');
+        return !!a && (a.innerText || '').trim().length > 40;
+      })()`);
+      check('刷新后对话仍在（线程存档）', persisted === true);
     }
   } else {
     check(

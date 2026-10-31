@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { startChart } from '@/app/actions';
-import { useHistory } from '@/lib/history';
+import { chartUrl, useHistory } from '@/lib/history';
 import {
   BirthFormState,
   EMPTY_FORM,
@@ -71,7 +71,7 @@ export default function BirthForm({
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
   const [formPending, setFormPending] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-  const { history, save, remove, clear } = useHistory();
+  const { history, save, remove, rename, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
   const yearNotCovered =
@@ -138,8 +138,8 @@ export default function BirthForm({
 
   const timeModeHint =
     form.timeMode === 'shichen'
-      ? '时辰下拉与解读数据集严格对齐：排盘日即你填写的公历出生日，时辰序号 0–11。'
-      : '钟点会先换算成「排盘日 + 时辰序号」再检索数据集，23:00 后自动按晚子时顺延到次日。';
+      ? '时辰按传统十二时辰划分，排盘日就是你填写的公历出生日。'
+      : '直接填出生钟点即可；23:00 后属晚子时，会按传统规则顺延到次日排盘。';
 
   const missingDateParts: string[] = [];
   if (form.year === '') missingDateParts.push('年');
@@ -447,8 +447,7 @@ export default function BirthForm({
                 </p>
                 <p className="mt-1 text-2xs leading-relaxed text-ink-3">
                   排盘日 {formatDate(resolved.resolved.year, resolved.resolved.month, resolved.resolved.day)}
-                  {' · '}时辰序号 {resolved.resolved.hour}（
-                  {SHICHEN_NAMES[resolved.resolved.hour]}时 {SHICHEN_RANGES[resolved.resolved.hour]}）
+                  {' · '}{SHICHEN_NAMES[resolved.resolved.hour]}时（{SHICHEN_RANGES[resolved.resolved.hour]}）
                   {resolved.resolved.lateZi && ' · 晚子时已顺延'}
                 </p>
               </>
@@ -525,15 +524,20 @@ export default function BirthForm({
         </div>
       )}
 
-      {/* 最近排盘 */}
+      {/* 我的命盘 */}
       <aside className="panel p-5" aria-labelledby="history-heading">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
+          <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">
+            我的命盘
+            {history.length > 0 && (
+              <span className="ml-2 font-normal text-ink-3 tabular-nums">{history.length} 张</span>
+            )}
+          </h2>
           {history.length > 0 && (
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('清空全部最近排盘记录？')) {
+                if (window.confirm('清空全部已存命盘？')) {
                   clear();
                 }
               }}
@@ -546,39 +550,73 @@ export default function BirthForm({
         {history.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line bg-paper px-3 py-4">
             <p className="text-2xs leading-relaxed text-ink-3">
-              暂无历史记录。完成一次排盘后，可在这里快速重新打开。
+              排过的盘会自动存在这里（只存在本机），家人朋友的盘随时点开回看、继续追问。
             </p>
           </div>
         ) : (
-          <ul className="space-y-2">
-            {history.map((entry) => (
-              <li key={entry.id}>
-                <div className="group flex items-start gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onPickHistory(entry.form)}
-                    className="flex min-h-11 flex-1 flex-col justify-center rounded-lg border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                  >
-                    <span className="block truncate text-xs text-ink">{entry.label}</span>
-                    <span className="mt-0.5 block text-2xs text-ink-3">
-                      {entry.form.timeMode === 'clock'
-                        ? `钟点 ${formatClock(Number(entry.form.clockHour), Number(entry.form.clockMinute))}`
-                        : `${SHICHEN_NAMES[entry.form.shichen]}时`}
-                      {' · '}
-                      {GENDER_LABEL[entry.form.gender]}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="删除记录"
-                    onClick={() => remove(entry.id)}
-                    className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                  >
-                    ×
-                  </button>
-                </div>
-              </li>
-            ))}
+          <ul className="max-h-[28rem] space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+            {history.map((entry) => {
+              const url = chartUrl(entry.form);
+              return (
+                <li key={entry.id}>
+                  <div className="group flex items-start gap-2">
+                    <a
+                      href={url ?? '#'}
+                      onClick={(e) => {
+                        if (!url) {
+                          e.preventDefault();
+                          onPickHistory(entry.form);
+                        }
+                      }}
+                      className="flex min-h-11 flex-1 flex-col justify-center rounded-lg border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                    >
+                      <span className="block truncate text-xs text-ink">{entry.label}</span>
+                      <span className="mt-0.5 block text-2xs text-ink-3">
+                        {entry.form.year}年{entry.form.month}月{entry.form.day}日
+                        {' · '}
+                        {entry.form.timeMode === 'clock'
+                          ? `${formatClock(Number(entry.form.clockHour), Number(entry.form.clockMinute))}`
+                          : `${SHICHEN_NAMES[entry.form.shichen]}时`}
+                        {' · '}
+                        {GENDER_LABEL[entry.form.gender]}
+                      </span>
+                    </a>
+                    <div className="flex shrink-0 flex-col">
+                      <button
+                        type="button"
+                        aria-label={`回填「${entry.label}」到表单`}
+                        title="回填到表单修改"
+                        onClick={() => onPickHistory(entry.form)}
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        填
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`重命名「${entry.label}」`}
+                        title="重命名"
+                        onClick={() => {
+                          const next = window.prompt('给这张盘起个名字（如「妈妈的盘」）', entry.label);
+                          if (next !== null) rename(entry.id, next);
+                        }}
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        名
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`删除「${entry.label}」`}
+                        title="删除"
+                        onClick={() => remove(entry.id)}
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </aside>

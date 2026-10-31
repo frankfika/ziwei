@@ -8,11 +8,9 @@ import Link from 'next/link';
 export default function NotCoveredNotice({
   message,
   availableYears,
-  lookupKey,
 }: {
   message: string;
   availableYears: number[];
-  lookupKey: string;
 }) {
   const yearSummary = (() => {
     if (!availableYears.length) return '（无）';
@@ -30,7 +28,7 @@ export default function NotCoveredNotice({
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-zhu" aria-hidden="true" />
         <h2 id="not-covered-title" className="text-sm font-medium tracking-wide text-ink">
-          样本库未覆盖该生辰
+          这个生辰暂时没有解读
         </h2>
       </div>
 
@@ -41,19 +39,12 @@ export default function NotCoveredNotice({
         {message}
       </p>
 
-      <dl className="mt-5 grid gap-x-6 gap-y-2 border-t border-zhu/15 pt-4 text-xs sm:grid-cols-2">
-        <div className="flex gap-2">
-          <dt className="shrink-0 text-ink-3">检索键</dt>
-          <dd className="min-w-0 break-all font-mono text-ink-2">{lookupKey}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="shrink-0 text-ink-3">已建索引年份</dt>
-          <dd className="min-w-0 text-ink-2">{yearSummary}</dd>
-        </div>
-      </dl>
+      <p className="mt-5 border-t border-zhu/15 pt-4 text-xs leading-relaxed text-ink-2">
+        目前可解读的出生年份：{yearSummary}
+      </p>
 
-      <p className="mt-4 text-xs leading-relaxed text-ink-3">
-        本工具不会用模型生成的内容填补空白：命盘由确定性引擎排出，解读只来自已建索引的数据集原文。
+      <p className="mt-3 text-xs leading-relaxed text-ink-3">
+        命盘照常排出；解读只采用已有材料，没有覆盖的年份不会用编造的内容填补。
       </p>
 
       <div className="mt-5 flex flex-wrap gap-3">
@@ -61,7 +52,7 @@ export default function NotCoveredNotice({
           href="/"
           className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
-          换一个已覆盖的年份重试
+          换一个年份重试
         </Link>
         <Link
           href="/#coverage"

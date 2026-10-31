@@ -108,18 +108,12 @@ export default function ReadingPanel({
           <p className="text-2xs leading-relaxed text-ink-3">
             {citationNotice.mode === 'full' ? (
               <>
-                当前为<b className="text-ink-2">完整展示</b>模式：本文本含
-                <b className="text-ink-2"> {citationNotice.totalCitations} </b>
-                处受限引文片段（《天纪》原话及其出处标注）。这些引文属受限授权范围
-                （CC BY-NC-SA，不可商用），
-                <b className="text-ink-2">对外商业分发前须开启引文降级</b>
-                （环境变量 <code className="text-ink-2">ZIWEI_CITATION_MODE=inline</code>）。
+                解读中含《天纪》引文 {citationNotice.totalCitations} 处，授权范围仅限非商业用途。
+                商用或对外分发前需切换为引文降级，详见「关于与口径」。
               </>
             ) : (
               <>
-                当前为<b className="text-ink-2">引文降级</b>模式：
-                原文 {citationNotice.totalCitations} 处受限引文片段已处理，
-                涉及 {citationNotice.redactedDims} 个维度。
+                解读中的《天纪》引文已做降级处理（{citationNotice.totalCitations} 处）。
               </>
             )}
           </p>
@@ -185,7 +179,7 @@ export default function ReadingPanel({
               {current.label}
             </h3>
             <span className="text-2xs text-ink-3">
-              {current.chars.toLocaleString('zh-CN')} 字 · 原文来自开源解读数据集
+              {current.chars.toLocaleString('zh-CN')} 字
             </span>
           </div>
           {current.text.trim() ? (

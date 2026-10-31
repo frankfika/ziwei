@@ -35,8 +35,8 @@ export default async function HomePage({
           排一张紫微命盘
         </h1>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">
-          输入公历出生日期与时辰，得到十二宫命盘与十三维解读。
-          盘面由确定性排盘引擎算出，解读正文逐条检索自开源解读数据集 —— 不做推算，也不做补写。
+          输入公历出生日期和时辰，排出你的紫微命盘，并从性格、感情、事业等十三个方面解读。
+          解读逐条有据可依；没有依据的地方宁可直说，也不编造。
         </p>
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </section>
@@ -50,7 +50,7 @@ export default async function HomePage({
         aria-labelledby="coverage-title"
       >
         <h2 id="coverage-title" className="text-xs font-medium tracking-wide2 text-ink-3">
-          当前样本库
+          解读覆盖范围
         </h2>
         {years.length === 0 ? (
           <div
@@ -58,10 +58,10 @@ export default async function HomePage({
             role="status"
           >
             <p className="text-xs leading-relaxed text-ink-2">
-              样本库尚未建索引。仍可排盘查看十二宫，但十三维解读会提示「未覆盖」。
+              解读材料还在准备中。仍可排盘查看十二宫，解读会提示暂未覆盖。
             </p>
             <p className="mt-1.5 text-2xs leading-relaxed text-ink-3">
-              建好索引后，这里会列出已覆盖年份与记录数。口径细节见{' '}
+              准备好后，这里会列出可解读的年份范围。细节见{' '}
               <Link
                 href="/about"
                 className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
@@ -73,29 +73,15 @@ export default async function HomePage({
           </div>
         ) : (
           <>
-            <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-2">
-              <span>
-                已建索引年份：
-                <span className="tabular-nums text-ink">
-                  {years.length <= 12
-                    ? years.join(' / ')
-                    : `${years[0]}–${years[years.length - 1]}（共 ${years.length} 年）`}
-                </span>
-              </span>
-              <span>
-                记录数：
-                <span className="tabular-nums text-ink">
-                  {coverage.totalRecords.toLocaleString('zh-CN')}
-                </span>
-              </span>
-              <span>
-                维度：
-                <span className="tabular-nums text-ink">13 维</span>
-              </span>
-            </div>
+            <p className="mt-2 text-xs leading-relaxed text-ink-2">
+              目前覆盖{' '}
+              <span className="tabular-nums text-ink">
+                {years[0]}–{years[years.length - 1]}
+              </span>{' '}
+              年出生的解读。不在范围内的生辰会如实提示，不会用编造的内容替代。
+            </p>
             <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-              未建索引的年份会如实提示「样本库未覆盖」，不会用生成内容替代。
-              口径细节见{' '}
+              细节见{' '}
               <Link
                 href="/about"
                 className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"

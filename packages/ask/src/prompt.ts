@@ -20,6 +20,12 @@ export interface PromptDimension {
   chars?: number;
 }
 
+/** 本会话中此前的一轮问答（用于让模型理解追问语境，不作为引用材料）。 */
+export interface AskTurn {
+  question: string;
+  answer: string;
+}
+
 export interface BuildAskPromptInput {
   /** 用户生辰 */
   birth: Birth;
@@ -29,6 +35,8 @@ export interface BuildAskPromptInput {
   chartSummary: string;
   /** 检索到的解读维度原文 */
   dimensions: PromptDimension[];
+  /** 本会话此前的问答（时间正序）；超出上限的较早轮次会被丢弃 */
+  turns?: AskTurn[];
   /** 注入材料的上下文预算（字符数）。默认 8000 */
   maxContextChars?: number;
 }
@@ -73,6 +81,33 @@ const PER_DIMENSION_CAP = 3000;
 
 /** 预算里预留给标题/标注/问句的余量。 */
 const LABEL_RESERVE = 400;
+
+/** 对话上文：最多带入的轮数，以及整个上文块的字符上限。 */
+const MAX_HISTORY_TURNS = 6;
+const HISTORY_BLOCK_CAP = 2400;
+/** 上文中单条问答的截断长度（问题 / 回答）。 */
+const HISTORY_QUESTION_CAP = 200;
+const HISTORY_ANSWER_CAP = 500;
+
+/**
+ * 把此前的问答渲染成【对话上文】块。
+ * 取最近 MAX_HISTORY_TURNS 轮，逐条截断；整体超限时从最旧的轮次开始丢。
+ */
+function buildHistoryBlock(turns: AskTurn[]): string {
+  const recent = turns.filter((t) => t.question?.trim() && t.answer?.trim()).slice(-MAX_HISTORY_TURNS);
+  const lines: string[] = [];
+  let total = 0;
+  // 从最新往回装，装不下就停 —— 保住最近的语境
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const q = recent[i].question.trim().slice(0, HISTORY_QUESTION_CAP);
+    const a = recent[i].answer.trim().slice(0, HISTORY_ANSWER_CAP);
+    const entry = `问：${q}\n答：${a}`;
+    if (total + entry.length > HISTORY_BLOCK_CAP) break;
+    lines.unshift(entry);
+    total += entry.length;
+  }
+  return lines.join('\n\n');
+}
 
 /**
  * 维度关键词表 —— 问题命中即优先注入该维原文。
@@ -121,13 +156,15 @@ export const ASK_SYSTEM_PROMPT = [
   '',
   '必须遵守的硬约束（不可违反）：',
   '1. 【命盘事实】是盘面事实的唯一来源。只允许使用其中明确出现的星曜、宫位、四化。材料里没有的星曜或宫位，一律不得提及。',
-  '2. 【解读原文节选】是解读的唯一来源。引用解读时必须标注来源维度名，例如「（来源：感情）」。',
-  '3. 不确定就说不确定：材料没有写明的内容，一律明确回答「原文未写」或「盘面未显示」，不得推测、不得补全、不得用你自身的紫微斗数知识填空。',
+  '2. 【解读原文节选】是解读的唯一来源。把原文的意思用自己的话讲清楚，不要照抄大段原文。',
+  '3. 不确定就说不确定：材料没有写明的内容，直接说「这部分材料里没有写」，不得推测、不得补全、不得用你自身的紫微斗数知识填空。',
   '4. 不得预测或建议医疗、法律、投资、财务的具体结果。涉及此类问题时，只说明命理材料中的一般倾向，并声明不构成建议。',
   '5. 不得自称占卜大师、不得声称能够预测命运、不得使用「必然」「注定」「一定会」这类断言。',
-  '6. 用简体中文回答。先给直接结论，再给出所依据的原文，最后标注引用了哪些维度。',
-  '7. 若用户的问题超出材料范围，第一句就说明「该问题在本盘材料中没有依据」，不要先给猜测再解释。',
-  '8. 你只依据给定材料解读这张具体的命盘，不得把结论推广到用户没问的其它命盘。',
+  '6. 用简体中文、大白话回答，像命理师当面跟人聊：先给直接结论，再用一两句说依据。星曜、宫位等术语第一次出现时，顺手用白话解释一句（比如「官禄宫，就是管事业的宫位」）。',
+  '7. 回答里不要出现「来源：XX」「数据集」「原文节选」「检索」这类内部说法 —— 用户只关心结论和分析。',
+  '8. 若用户的问题超出材料范围，第一句就说明「这部分材料里没有写」，不要先给猜测再解释。',
+  '9. 你只依据给定材料解读这张具体的命盘，不得把结论推广到用户没问的其它命盘。',
+  '10. 若提供了【对话上文】，它只用于理解用户当前问题的语境（例如「那财运呢」指的是同一张盘）；上文中的表述不是可引用材料，回答仍只能依据【命盘事实】与【解读原文节选】。',
 ].join('\n');
 
 interface ScoredDimension {
@@ -213,10 +250,14 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     question,
     chartSummary,
     dimensions,
+    turns,
     maxContextChars = DEFAULT_MAX_CONTEXT_CHARS,
   } = input;
 
   const q = (question ?? '').trim();
+
+  // 对话上文（在预算前先算出来，占用同一份上下文预算）
+  const historyBlock = turns && turns.length > 0 ? buildHistoryBlock(turns) : '';
 
   // ① 打分并排序
   const scored: ScoredDimension[] = dimensions.map((d) => scoreDimension(d, q));
@@ -249,9 +290,10 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
 
   // ③ 预算分配
   const summaryChars = (chartSummary ?? '').length;
+  const historyChars = historyBlock.length;
   const snippetBudget = Math.max(
     0,
-    maxContextChars - summaryChars - LABEL_RESERVE,
+    maxContextChars - summaryChars - historyChars - LABEL_RESERVE,
   );
   const perDim = picked.length
     ? Math.max(600, Math.floor(snippetBudget / picked.length))
@@ -295,9 +337,6 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     `时辰序号 ${birth.hour}（${birth.gender === 'male' ? '男' : '女'}）`;
 
   const user = [
-    '【用户问题】',
-    q,
-    '',
     '【命盘事实】（由确定性排盘引擎生成，是盘面事实的唯一来源；生辰：' +
       birthLine +
       '）',
@@ -306,18 +345,28 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     '【解读原文节选】（来自「紫微斗数开源解读数据集 v4.0」（CC BY 4.0，作者：王多鱼AI）；' +
       '以下为按问题相关性选取的节选，可能已被截断）',
     ...(blocks.length > 0 ? blocks : ['（本次未检索到可引用的解读原文：所有内容必须回答「原文未写」。）']),
+    ...(historyBlock
+      ? [
+          '',
+          '【对话上文】（本轮追问此前已问过的问题与回答；仅供理解语境，不是可引用材料）',
+          historyBlock,
+        ]
+      : []),
+    '',
+    '【用户问题】',
+    q,
     '',
     '【回答要求】',
     '- 只使用上面【命盘事实】与【解读原文节选】中出现的信息。',
-    '- 引用原文时用「（来源：维度名）」标注。',
-    '- 材料未覆盖的部分，明确写「原文未写」，不要猜测。',
+    '- 用大白话把依据讲清楚，不要照抄大段原文，不要写「来源：XX」之类的标注。',
+    '- 材料未覆盖的部分，明确说「这部分材料里没有写」，不要猜测。',
   ].join('\n');
 
   return {
     system: ASK_SYSTEM_PROMPT,
     user,
     selected,
-    contextChars: summaryChars + selected.reduce((s, d) => s + d.includedChars, 0),
+    contextChars: summaryChars + historyChars + selected.reduce((s, d) => s + d.includedChars, 0),
     maxContextChars,
   };
 }

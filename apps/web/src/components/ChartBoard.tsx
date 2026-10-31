@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChartPalace } from '@ziwei/chart-engine';
-import PalaceCell, { GRID_POS, sanFangBranches } from './PalaceCell';
+import PalaceCell, { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS } from './PalaceCell';
 import CenterPanel, { type ChartCenterInfo } from './CenterPanel';
 import { preferredScrollBehavior } from '@/lib/motion';
 
@@ -11,28 +11,8 @@ interface ChartBoardProps {
   center: ChartCenterInfo;
 }
 
-type MobileFilter = 'all' | 'ming-shen' | 'da-xian' | 'has-major';
-
-function majorStarsLine(palace: ChartPalace): string {
-  if (palace.majorStars.length === 0) return '（无主星）';
-  return palace.majorStars.join('、');
-}
-
-/** Compact aux line when majors are sparse — top lucky / sha / minor names. */
-function auxStarsLine(palace: ChartPalace): string | null {
-  if (palace.majorStars.length > 1) return null;
-  const parts = [
-    ...palace.luckyStars.slice(0, 3),
-    ...palace.shaStars.slice(0, 2),
-    ...palace.minorStars.slice(0, 2),
-  ].slice(0, 4);
-  if (parts.length === 0) return null;
-  return parts.join(' · ');
-}
-
 export default function ChartBoard({ palaces, center }: ChartBoardProps) {
   const [selected, setSelected] = useState<number | null>(null);
-  const [mobileFilter, setMobileFilter] = useState<MobileFilter>('all');
   const mobileDetailRef = useRef<HTMLDivElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -48,19 +28,6 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     () => palaces.find((p) => p.isCurrentDaXian) ?? null,
     [palaces],
   );
-
-  const filteredPalaces = useMemo(() => {
-    switch (mobileFilter) {
-      case 'ming-shen':
-        return palaces.filter((p) => p.isMingGong || p.isShenGong);
-      case 'da-xian':
-        return palaces.filter((p) => p.isCurrentDaXian);
-      case 'has-major':
-        return palaces.filter((p) => p.majorStars.length > 0);
-      default:
-        return palaces;
-    }
-  }, [palaces, mobileFilter]);
 
   useEffect(() => {
     if (selectedPalace && window.matchMedia('(max-width: 767px)').matches) {
@@ -94,42 +61,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     window.requestAnimationFrame(() => mobileTriggerRef.current?.focus());
   };
 
-  const changeMobileFilter = (filter: MobileFilter) => {
-    setMobileFilter(filter);
-
-    if (selected === null) return;
-
-    const stillVisible = palaces.some((palace) => {
-      if (palace.branch !== selected) return false;
-
-      switch (filter) {
-        case 'ming-shen':
-          return palace.isMingGong || palace.isShenGong;
-        case 'da-xian':
-          return palace.isCurrentDaXian;
-        case 'has-major':
-          return palace.majorStars.length > 0;
-        default:
-          return true;
-      }
-    });
-
-    if (!stillVisible) {
-      setSelected(null);
-    }
-  };
-
   const jumpChips: Array<{ key: string; label: string; palace: ChartPalace | null }> = [
     { key: 'ming', label: '命宫', palace: mingPalace },
     { key: 'shen', label: '身宫', palace: shenPalace },
     { key: 'daxian', label: '当前大限', palace: currentDaXian },
-  ];
-
-  const filters: Array<{ key: MobileFilter; label: string }> = [
-    { key: 'all', label: '全部' },
-    { key: 'ming-shen', label: '命·身' },
-    { key: 'da-xian', label: '当前大限' },
-    { key: 'has-major', label: '有主星' },
   ];
 
   return (
@@ -197,8 +132,134 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
       </div>
 
       <div className="md:hidden">
-        <div className="mb-4 overflow-hidden rounded-xl border border-line bg-surface">
-          <CenterPanel palaces={palaces} info={center} />
+        {/* 紧凑四四方阵 —— 手机上的「盘」本体 */}
+        <div
+          className="mb-3 grid gap-px overflow-hidden rounded-xl border border-line bg-line"
+          style={{
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateRows: 'repeat(4, minmax(5.25rem, auto))',
+          }}
+          role="group"
+          aria-label="十二宫命盘"
+        >
+          {palaces.map((palace) => {
+            const [row, col] = GRID_POS[palace.branch];
+            const active = selected === palace.branch;
+            const inSan = !!sanFang && sanFang.has(palace.branch) && !active;
+            const major = palace.stars.filter((s) => s.type === 'major');
+
+            return (
+              <button
+                key={palace.branch}
+                type="button"
+                style={{ gridRow: row, gridColumn: col }}
+                onClick={(event) => {
+                  mobileTriggerRef.current = event.currentTarget;
+                  toggleSelected(palace.branch);
+                }}
+                aria-pressed={active}
+                aria-label={[
+                  palace.name,
+                  `主星${major.map((s) => s.name).join('、') || '空宫'}`,
+                  palace.isMingGong ? '命宫' : null,
+                  palace.isShenGong ? '身宫' : null,
+                  active ? '已选中' : null,
+                  inSan ? '三方四正关联' : null,
+                ]
+                  .filter(Boolean)
+                  .join('，')}
+                className={`flex min-h-[5.25rem] flex-col items-start gap-0.5 p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${
+                  active
+                    ? 'bg-zhu-soft/70 ring-1 ring-inset ring-zhu/40'
+                    : inSan
+                      ? 'bg-zhu-soft/25'
+                      : 'bg-surface'
+                }`}
+              >
+                <span className="flex w-full items-baseline justify-between gap-1">
+                  <span
+                    className={`text-[10px] font-medium leading-tight ${
+                      palace.isMingGong
+                        ? 'text-zhu'
+                        : palace.isShenGong
+                          ? 'text-hua-quan'
+                          : 'text-ink-2'
+                    }`}
+                  >
+                    {palace.name}
+                  </span>
+                  <span className="font-mono text-[9px] leading-tight text-ink-3">
+                    {palace.stemName}
+                    {palace.branchName}
+                  </span>
+                </span>
+                <span className="flex w-full flex-1 flex-col justify-center gap-px">
+                  {major.length === 0 ? (
+                    <span className="text-[10px] text-ink-3">空宫</span>
+                  ) : (
+                    major.map((star) => (
+                      <span
+                        key={star.name}
+                        className="flex items-baseline gap-0.5 leading-tight"
+                      >
+                        <span
+                          className={`text-[13px] font-semibold ${brightnessClass(star.brightnessRaw)}`}
+                        >
+                          {star.name}
+                        </span>
+                        {star.siHua && (
+                          <span
+                            className={`rounded border px-0.5 text-[9px] leading-tight ${SIHUA_CLASS[star.siHua] ?? 'border-line text-ink-3'}`}
+                          >
+                            {star.siHua}
+                          </span>
+                        )}
+                      </span>
+                    ))
+                  )}
+                </span>
+                <span className="flex w-full items-baseline justify-between gap-1">
+                  {palace.daXianAge ? (
+                    <span
+                      className={`font-mono text-[9px] tabular-nums ${
+                        palace.isCurrentDaXian ? 'text-zhu' : 'text-ink-3'
+                      }`}
+                    >
+                      {palace.daXianAge[0]}–{palace.daXianAge[1]}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  {(palace.isMingGong || palace.isShenGong) && (
+                    <span className="text-[9px] font-medium text-zhu">
+                      {palace.isMingGong ? '命' : ''}
+                      {palace.isShenGong ? '身' : ''}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* 中宫：局数 / 命主身主 / 虚岁 */}
+          <div
+            style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
+            className="flex flex-col items-center justify-center gap-1 bg-surface p-2 text-center"
+          >
+            <span className="font-serif text-xs font-medium tracking-[0.2em] text-ink">
+              {center.wuxingJuName}
+            </span>
+            {(center.mingZhu || center.shenZhu) && (
+              <span className="text-[10px] leading-tight text-ink-2">
+                {center.mingZhu ? `命主 ${center.mingZhu}` : ''}
+                {center.mingZhu && center.shenZhu ? ' · ' : ''}
+                {center.shenZhu ? `身主 ${center.shenZhu}` : ''}
+              </span>
+            )}
+            <span className="text-[10px] leading-tight text-ink-3">
+              {center.yinYangGender ? `${center.yinYangGender} · ` : ''}虚岁 {center.currentAge} 岁
+            </span>
+          </div>
         </div>
 
         <div className="mb-3 flex flex-wrap gap-2" aria-label="重点宫位">
@@ -223,39 +284,6 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 <span className="ml-1 text-ink-3">
                   {chip.palace.stemName}·{chip.palace.branchName}
                 </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-medium text-ink">十二宫</h2>
-          <p className="text-2xs text-ink-3" aria-live="polite">
-            {selectedPalace ? `已选 ${selectedPalace.name}` : '点选查看详情'}
-          </p>
-        </div>
-
-        <div
-          className="mb-3 -mx-1 flex gap-1 overflow-x-auto overscroll-x-contain px-1 pb-1 touch-pan-x"
-          role="tablist"
-          aria-label="宫位筛选"
-        >
-          {filters.map((f) => {
-            const active = mobileFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => changeMobileFilter(f.key)}
-                className={`shrink-0 inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-                  active
-                    ? 'border-zhu/40 bg-zhu-soft text-ink'
-                    : 'border-line bg-surface text-ink-2'
-                }`}
-              >
-                {f.label}
               </button>
             );
           })}
@@ -319,94 +347,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
           </div>
         )}
 
-        <ul className="space-y-2" aria-label="十二宫列表">
-          {filteredPalaces.map((palace) => {
-            const active = selected === palace.branch;
-            const inSan = !!sanFang && sanFang.has(palace.branch) && !active;
-            const relation = active
-              ? '当前已选'
-              : inSan
-                ? '三方四正关联宫位'
-                : '';
-            const aux = auxStarsLine(palace);
-
-            return (
-              <li key={palace.branch}>
-                <button
-                  ref={active ? mobileTriggerRef : undefined}
-                  type="button"
-                  aria-pressed={active}
-                  aria-expanded={active}
-                  aria-label={`${palace.name}${relation ? `，${relation}` : ''}`}
-                  onClick={(event) => {
-                    mobileTriggerRef.current = event.currentTarget;
-                    toggleSelected(palace.branch);
-                  }}
-                  className={`w-full break-inside-avoid rounded-xl border px-3.5 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-                    active
-                      ? 'border-zhu bg-zhu-soft/60'
-                      : inSan
-                        ? 'border-zhu/20 bg-zhu-soft/20'
-                        : 'border-line bg-surface'
-                  }`}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium text-ink">
-                      {palace.name}
-                      {palace.isMingGong ? (
-                        <span className="ml-1 text-2xs font-normal text-zhu">命</span>
-                      ) : null}
-                      {palace.isShenGong ? (
-                        <span className="ml-1 text-2xs font-normal text-zhu">身</span>
-                      ) : null}
-                      {palace.isCurrentDaXian ? (
-                        <span className="ml-1 text-2xs font-normal text-zhu">限</span>
-                      ) : null}
-                      {active ? (
-                        <span className="ml-1 text-2xs font-normal text-zhu">已选</span>
-                      ) : null}
-                      {inSan ? (
-                        <span className="ml-1 text-2xs font-normal text-zhu">三方四正</span>
-                      ) : null}
-                    </span>
-                    <span className="text-2xs tabular-nums text-ink-2">
-                      {palace.stemName}
-                      {' · '}
-                      {palace.branchName}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink">
-                    {majorStarsLine(palace)}
-                  </p>
-                  {aux && (
-                    <p className="mt-0.5 text-2xs leading-relaxed text-ink-3">
-                      {aux}
-                    </p>
-                  )}
-                  {palace.daXianAge && (
-                    <p className="mt-0.5 text-2xs text-ink-3">
-                      大限 {palace.daXianAge[0]}–{palace.daXianAge[1]}
-                      {palace.isCurrentDaXian ? ' · 当前' : ''}
-                    </p>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        {filteredPalaces.length === 0 && (
-          <div className="rounded-lg border border-line bg-paper px-3 py-4 text-center">
-            <p className="text-2xs text-ink-3">当前筛选下没有宫位。</p>
-            <button
-              type="button"
-              onClick={() => changeMobileFilter('all')}
-              className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              显示全部
-            </button>
-          </div>
-        )}
+        {/* 中宫详细信息 */}
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          <CenterPanel palaces={palaces} info={center} />
+        </div>
 
         <p className="mt-3 text-center text-2xs leading-relaxed text-ink-3">
           点选宫位展开详情；浅色高亮为三方四正

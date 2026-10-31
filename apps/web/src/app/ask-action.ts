@@ -17,7 +17,38 @@ import {
   AskService,
   AskProviderNotConfiguredError,
   AskProviderError,
+  type AskTurn,
 } from '@ziwei/ask';
+
+/** 单条问题长度上限（字符） */
+const MAX_QUESTION_CHARS = 500;
+/** 带入提示词的对话上文轮数 / 单条截断（与 prompt.ts 的内部上限一致） */
+const MAX_TURNS = 6;
+const TURN_QUESTION_CAP = 200;
+const TURN_ANSWER_CAP = 500;
+
+/** 解析前端带上来的对话上文；脏数据一律丢弃，绝不让它撑爆提示词 */
+function parseTurns(raw: string): AskTurn[] {
+  if (!raw) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v
+      .filter(
+        (t): t is { question: string; answer: string } =>
+          !!t &&
+          typeof (t as { question?: unknown }).question === 'string' &&
+          typeof (t as { answer?: unknown }).answer === 'string',
+      )
+      .slice(-MAX_TURNS)
+      .map((t) => ({
+        question: t.question.slice(0, TURN_QUESTION_CAP),
+        answer: t.answer.slice(0, TURN_ANSWER_CAP),
+      }));
+  } catch {
+    return [];
+  }
+}
 
 /** 机械自检结果（结构化传给前端展示） */
 export interface AskVerification {
@@ -68,6 +99,12 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
   if (!question) {
     return { status: 'error', message: '请先写下你的问题。' };
   }
+  if (question.length > MAX_QUESTION_CHARS) {
+    return {
+      status: 'error',
+      message: `问题太长了，请控制在 ${MAX_QUESTION_CHARS} 字以内。`,
+    };
+  }
   if (
     !Number.isInteger(year) ||
     !Number.isInteger(month) ||
@@ -81,7 +118,12 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
 
   try {
     const service = new AskService();
-    const result = await service.ask({ year, month, day, hour, gender }, question);
+    const turns = parseTurns(str(formData, 'turns'));
+    const result = await service.ask(
+      { year, month, day, hour, gender },
+      question,
+      turns,
+    );
 
     if (result.status === 'not-covered') {
       return { status: 'not-covered', message: result.message };

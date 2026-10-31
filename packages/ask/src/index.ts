@@ -8,6 +8,7 @@ export {
   PALACE_TO_DIMENSION,
 } from './prompt';
 export type {
+  AskTurn,
   BuildAskPromptInput,
   BuiltPrompt,
   PromptDimension,

@@ -132,8 +132,7 @@ export default async function ChartPage({
         </h1>
         <p className="mt-3 text-xs leading-relaxed text-ink-2">
           排盘日 <span className="tabular-nums">{chartDate}</span>
-          {' · '}时辰序号 <span className="tabular-nums">{hour}</span>（
-          {SHICHEN_NAMES[hour]}时 {SHICHEN_RANGES[hour]}）
+          {' · '}{SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
           {' · '}未做真太阳时校正
         </p>
         <ChartShareButton
@@ -231,7 +230,6 @@ export default async function ChartPage({
           <NotCoveredNotice
             message={reading.message}
             availableYears={reading.availableYears}
-            lookupKey={reading.key}
           />
         )}
       </section>
@@ -259,8 +257,6 @@ export default async function ChartPage({
             gender={gender}
             available={reading.status === 'ok'}
             providerConfigured={provider.ok}
-            providerMessage={provider.message}
-            providerMissing={provider.missing}
           />
         );
       })()}

@@ -29,11 +29,15 @@ export default function ReadingPanel({
   const [active, setActive] = useState(dimensions[0]?.key ?? '');
   const current = dimensions.find((d) => d.key === active) ?? dimensions[0];
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const articleRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const el = tabRefs.current[active];
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      articleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [active]);
 
   if (!current) return null;
@@ -106,7 +110,7 @@ export default function ReadingPanel({
           })}
         </nav>
 
-        <article className="min-w-0">
+        <article ref={articleRef} className="min-w-0 scroll-mt-28">
           <div className="mb-4 flex items-baseline gap-2">
             <h3 className="font-serif text-base font-semibold tracking-wide text-ink">
               {current.label}

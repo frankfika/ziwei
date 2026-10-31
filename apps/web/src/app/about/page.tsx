@@ -43,9 +43,8 @@ export default async function AboutPage() {
           关于与口径
         </h1>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">
-          紫微助手是一个最小可用的紫微斗数排盘工具：负责把生辰排成十二宫命盘，
-          并把对应的十三维解读检索出来。排盘是确定性计算，解读是数据集原文检索 ——
-          两个环节都不经过大模型。
+          紫微助手把公历生辰排成十二宫命盘，并检索对应的十三维解读。
+          排盘是确定性计算，解读是数据集原文检索——两个环节都不经过大模型推算。
         </p>
       </header>
 
@@ -92,7 +91,11 @@ export default async function AboutPage() {
           <p>
             当前样本库已建索引年份：
             <span className="tabular-nums text-ink">
-              {years.length ? years.join(' / ') : '（无）'}
+              {years.length === 0
+                ? '（无）'
+                : years.length <= 12
+                  ? years.join(' / ')
+                  : `${years[0]}–${years[years.length - 1]}（共 ${years.length} 年）`}
             </span>
             ，共{' '}
             <span className="tabular-nums text-ink">

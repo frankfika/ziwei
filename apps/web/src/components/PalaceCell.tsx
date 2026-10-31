@@ -107,7 +107,7 @@ export default function PalaceCell({
   const highlight = selected
     ? 'bg-zhu-soft/60 ring-1 ring-inset ring-zhu/40'
     : inSanFang
-      ? 'bg-paper'
+      ? 'bg-zhu-soft/25 ring-1 ring-inset ring-zhu/15'
       : 'bg-surface';
 
   const majorSummary = major.map((s) => s.name).join('、') || '空宫';

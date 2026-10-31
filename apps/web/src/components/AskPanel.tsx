@@ -196,10 +196,17 @@ export default function AskPanel({
           id="ask-question"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              submit(question);
+            }
+          }}
           rows={3}
           placeholder="例如：这份命盘在职业方向上有什么特点？"
           className="field-input resize-y leading-relaxed"
           disabled={pending}
+          aria-describedby="ask-submit-hint"
         />
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -220,6 +227,8 @@ export default function AskPanel({
           type="button"
           onClick={() => submit(question)}
           disabled={pending || !question.trim() || !providerConfigured}
+          aria-busy={pending || undefined}
+          aria-describedby="ask-submit-hint"
           className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           {pending
@@ -228,6 +237,15 @@ export default function AskPanel({
               ? '追问'
               : '请先配置追问模型'}
         </button>
+        <p id="ask-submit-hint" className="mt-2 text-2xs text-ink-3">
+          {pending
+            ? '查证进行中，请稍候。'
+            : !providerConfigured
+              ? '配置模型后即可提交追问。'
+              : !question.trim()
+                ? '输入问题或点选推荐后提交。也可 ⌘/Ctrl + Enter。'
+                : '提交后将依据本盘与数据集原文作答。也可 ⌘/Ctrl + Enter。'}
+        </p>
 
         <div id={resultId} aria-live="polite" aria-busy={pending}>
           {!pending && !result && !localError && (

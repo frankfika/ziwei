@@ -54,6 +54,7 @@ function SubmitButton({
       className={`btn-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${!canSubmit && !pending ? 'cursor-not-allowed opacity-50' : ''} ${className ?? ''}`}
       disabled={pending}
       aria-disabled={!canSubmit || undefined}
+      aria-busy={pending || undefined}
       aria-describedby="chart-submit-status"
     >
       {pending ? '排盘中…' : canSubmit ? '排 盘' : disabledLabel}
@@ -174,7 +175,9 @@ export default function BirthForm({
             name="name"
             type="text"
             maxLength={24}
-            autoComplete="off"
+            autoComplete="nickname"
+            autoCapitalize="words"
+            spellCheck={false}
             placeholder="仅用于显示，不影响排盘"
             className="field-input"
             value={form.name}
@@ -523,9 +526,9 @@ export default function BirthForm({
       )}
 
       {/* 最近排盘 */}
-      <aside className="panel p-5">
+      <aside className="panel p-5" aria-labelledby="history-heading">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
+          <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
           {history.length > 0 && (
             <button
               type="button"

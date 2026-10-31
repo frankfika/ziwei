@@ -236,7 +236,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
         </div>
 
         <div
-          className="mb-3 flex gap-1 overflow-x-auto pb-1"
+          className="mb-3 -mx-1 flex gap-1 overflow-x-auto overscroll-x-contain px-1 pb-1 touch-pan-x"
           role="tablist"
           aria-label="宫位筛选"
         >
@@ -265,7 +265,8 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
           <div
             ref={mobileDetailRef}
             id="mobile-palace-detail"
-            className="mb-3 scroll-mt-16 overflow-hidden rounded-xl border border-zhu/30 bg-surface shadow-[0_8px_24px_rgba(36,33,29,0.08)]"
+            className="mb-3 max-h-[min(70vh,36rem)] scroll-mt-16 overflow-y-auto overscroll-contain rounded-xl border border-zhu/30 bg-surface shadow-[0_8px_24px_rgba(36,33,29,0.08)]"
+            role="region"
             aria-label={`${selectedPalace.name}宫位详情`}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
@@ -374,7 +375,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                       {palace.branchName}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-ink-2">
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink">
                     {majorStarsLine(palace)}
                   </p>
                   {aux && (

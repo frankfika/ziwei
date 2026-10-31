@@ -17,7 +17,8 @@
       scroll-behavior: auto;
     }
 
-    .animate-spin {
+    .animate-spin,
+    .animate-pulse {
       animation: none !important;
     }
   }
@@ -51,6 +52,10 @@
     @apply min-h-11 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink
       outline-none transition-colors duration-150
       focus:border-zhu focus:ring-2 focus:ring-zhu/15;
+  }
+
+  .field-input[aria-invalid='true'] {
+    @apply border-zhu/50 bg-zhu-soft/30 focus:border-zhu focus:ring-zhu/25;
   }
 
   .btn-primary {

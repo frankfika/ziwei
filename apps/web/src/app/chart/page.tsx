@@ -193,6 +193,17 @@ export default async function ChartPage({
         )}
       </section>
 
+      {reading.status === 'ok' && (
+        <div className="mt-8 mb-2 flex justify-center md:justify-start">
+          <a
+            href="#ask-panel"
+            className="rounded-full border border-line bg-surface px-4 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink"
+          >
+            对本盘有疑问？展开命盘追问
+          </a>
+        </div>
+      )}
+
       {/* 追问 */}
       {(() => {
         const provider = describeProviderEnv();

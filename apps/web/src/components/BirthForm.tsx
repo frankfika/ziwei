@@ -155,11 +155,19 @@ export default function BirthForm({
                 onChange={(e) => patch({ year: e.target.value })}
               >
                 <option value="">年</option>
-                {YEARS.map((y) => (
-                  <option key={y} value={y}>
-                    {y} 年
-                  </option>
-                ))}
+                {Array.from({ length: 21 }, (_, i) => 1900 + i * 10).map((start) => {
+                  const end = Math.min(start + 9, 2100);
+                  return (
+                    <optgroup key={start} label={`${start}–${end}`}>
+                      {YEARS.filter((y) => y >= start && y <= end).map((y) => (
+                        <option key={y} value={y}>
+                          {y} 年
+                          {indexedSet.has(y) ? '' : ' · 未索引'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
             </div>
             <div>

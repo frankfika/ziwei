@@ -36,7 +36,7 @@ export function SiteFooter() {
             <Link href="/" className="transition-colors hover:text-ink">
               重新排盘
             </Link>
-            <span className="md:mt-2 md:text-ink-3">紫微助手 · MVP</span>
+            <span className="md:mt-2 md:text-ink-3">紫微助手</span>
           </div>
         </div>
       </div>

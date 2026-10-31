@@ -169,7 +169,114 @@ docker compose -f deploy/docker-compose.yml run --rm ziwei \
 
 ---
 
-## 8. 已知边界
+## 8. 实战部署记录（2026-10-31 · 腾讯云 Lighthouse）
+
+这台机器上真跑过一遍，踩到的坑比上面写的都具体。按顺序记：
+
+### 8.1 架构不匹配：`exec format error`
+
+本机是 Apple Silicon（arm64），服务器是 x86_64。本地 build 出来的镜像传过去直接
+`exec format error` —— 镜像本身没坏，是 CPU 指令集不对。
+
+三种解法，按推荐顺序：
+
+| 做法 | 命令 | 何时用 |
+|---|---|---|
+| **服务器原生 build**（推荐） | 传源码过去 `docker build` | 服务器能拉到基础镜像时。最快，无模拟损耗 |
+| 本地交叉编译 | `docker buildx build --platform linux/amd64` | 服务器不能 build 且你有耐心等 QEMU 模拟 |
+| 只传基础镜像，服务器 build | 见下 | 服务器拉不到 Docker Hub 时 |
+
+第三种的具体做法（本次实战用的）：
+
+```bash
+# 本机：拉 amd64 版基础镜像并传过去
+docker pull --platform linux/amd64 node:22-slim
+docker save node:22-slim | gzip -6 > node22-amd64.tar.gz
+scp node22-amd64.tar.gz user@server:/opt/app/
+# 服务器：载入后 Dockerfile 里的 FROM node:22-slim 会命中本地镜像，不再联网拉
+gunzip -c node22-amd64.tar.gz | docker load
+docker build -f deploy/Dockerfile -t ziwei-assistant:latest .
+```
+
+### 8.2 服务器连不上 GitHub / Docker Hub
+
+国内服务器常见。实测：`github.com` 超时、`registry-1.docker.io` 超时，
+但 `registry.npmjs.org` 通（1.4s）、`mirrors.aliyun.com` 通（0.17s）。
+
+所以**数据集和基础镜像都要从本机传**，不能指望服务器自己下。
+好消息是 zst 压缩包只有 2MB/年 —— 5 年数据打包才 9.6MB，传输几乎不花时间：
+
+```bash
+# 本机
+tar -czf data.tar.gz -C data/zst year-1990.jsonl.zst year-2000.jsonl.zst
+scp data.tar.gz user@server:/opt/app/
+# 服务器：用镜像里的 zstd 解压（--long=27 必须带）
+docker run --rm -v ziwei-data:/app/data -v /opt/app/zst:/zst:ro \
+  ziwei-assistant:latest sh -c 'zstd -d --long=27 -o /app/data/raw/year-1990.jsonl /zst/year-1990.jsonl.zst'
+```
+
+### 8.3 `apt-get update` 长时间挂起
+
+容器里 `apt-get install zstd curl` 会在 `apt-get update` 卡住（实测 5 分钟无进展，
+`load average` 掉到 0.06 —— 不是在干活，是卡死）。
+
+`Dockerfile` 已加可换源参数：
+
+```bash
+docker build -f deploy/Dockerfile \
+  --build-arg DEBIAN_MIRROR=mirrors.aliyun.com \
+  -t ziwei-assistant:latest .
+```
+
+### 8.4 腾讯云境内服务器：未备案域名会被强制拦截
+
+用 `nip.io` 这类泛解析域名反代过去，访问会 302 到
+`https://dnspod.qcloud.com/static/webblock.html?d=...` —— 这是腾讯云对
+**未备案域名**解析到境内 IP 的强制拦截，跟 nginx 配没配无关。
+
+**IP 直连不受影响**（备案只针对域名）。所以：
+
+- ✅ 直接用 `http://<服务器IP>:<已放行端口>`
+- ❌ 想用域名 → 域名必须已备案，且安全组放行对应端口
+
+### 8.5 查安全组规则（Lighthouse API）
+
+实例 ID 是 `lhins-` 开头（不是 CVM 的 `ins-`）。规则接口返回字段是
+`FirewallRuleSet`，不是 `FirewallRules`；网段字段是 `CidrBlock`。
+
+腾讯云 TC3 签名的派生链是 **`HMAC("TC3"+secretKey, date)`**，不是 AWS 风格的
+`sha256(date/service)`；credential scope 是 **三段** `{date}/{service}/tc3_request`
+（不含 region）。这两处写错会分别得到 `SignatureFailure` 和
+`Credential scope size not valid`。
+
+### 8.6 磁盘：build 缓存会吃满盘
+
+服务器 40GB 盘上已有其它业务，build 缓存一度把可用空间吃到 **96MB（100% 满）**，
+会连带 MySQL / PostgreSQL 写入失败。**build 完必须清**：
+
+```bash
+docker builder prune -af      # 回收 build 缓存（不影响运行中的容器/镜像/卷）
+df -h /                       # 确认可用空间
+```
+
+### 8.7 本次落地配置
+
+| 项 | 值 |
+|---|---|
+| 服务器 | 49.234.25.35（腾讯云 Lighthouse，ap-shanghai，x86_64） |
+| 对外地址 | `http://49.234.25.35:3000`（安全组 TCP 3000 已放行） |
+| 容器 | `ziwei-assistant`，`restart: unless-stopped` |
+| 镜像 | 服务器原生 build，1.13GB |
+| 数据 | 1990 / 1995 / 2000 / 2010 / 2020 五年，共 43,848 条（卷 `ziwei-data`） |
+| 内存占用 | 74MB |
+| 磁盘占用 | 镜像 1.13GB + 数据 3.5GB + 索引 ≈ 4.7GB |
+| 追问 provider | 未配置（面板会提示未配置，不联网） |
+
+未铺的年份访问时会明确显示「样本库未覆盖该生辰」—— 不静默、不假装有数据。
+
+---
+
+## 9. 已知边界
 
 - **数据不在镜像里**。53GB 数据必须挂到 `/app/data`；不挂时容器会明确报错退出，
   不会静默给你一个空的样本库。
@@ -178,13 +285,13 @@ docker compose -f deploy/docker-compose.yml run --rm ziwei \
   **能跑优先**。
 - **不做真太阳时 / 夏令时校正**。数据集本身没做，校正会让检索键错位。
 - **数据许可 CC BY 4.0，须署名**。署名已内置在页脚与 `/about` 页，容器化不改变这一点。
-- **倪师《天纪》引文**在数据集中密度很高（98.9% 的维度文本含引文）。
+- **倪师《天纪》引文**在数据集中密度很高（79% 的维度文本含受限引文片段）。
   商业化前须按 [`docs/LEGAL_NOTES.md`](LEGAL_NOTES.md) 处理。
 - **本工具仅供文化兴趣与学习之用，不构成任何医疗、法律、投资或人生决策建议。**
 
 ---
 
-## 9. 署名
+## 10. 署名
 
 ```
 本项目使用了「紫微斗数开源解读数据集 v4.0」（674,976 张命盘 × 13 维）

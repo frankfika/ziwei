@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from './Markdown';
 
 export interface ReadingDimensionData {
@@ -28,6 +28,13 @@ export default function ReadingPanel({
 }) {
   const [active, setActive] = useState(dimensions[0]?.key ?? '');
   const current = dimensions.find((d) => d.key === active) ?? dimensions[0];
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    const el = tabRefs.current[active];
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [active]);
 
   if (!current) return null;
 
@@ -64,10 +71,10 @@ export default function ReadingPanel({
       )}
 
       <div className="grid gap-6 lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:gap-9">
-        {/* 维度切换：移动端横向滚动，桌面端竖排 */}
+        {/* 维度切换：移动端横向滚动并吸顶，桌面端竖排 */}
         <nav
           aria-label="解读维度"
-          className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0"
+          className="sticky top-14 z-30 -mx-1 flex gap-1 overflow-x-auto bg-paper/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
         >
           {dimensions.map((d) => {
             const isActive = d.key === current.key;
@@ -75,8 +82,11 @@ export default function ReadingPanel({
               <button
                 key={d.key}
                 type="button"
+                ref={(el) => {
+                  tabRefs.current[d.key] = el;
+                }}
                 onClick={() => setActive(d.key)}
-                aria-current={isActive}
+                aria-current={isActive ? 'true' : undefined}
                 className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-left transition-colors duration-150 lg:w-full ${
                   isActive
                     ? 'border-zhu/40 bg-zhu-soft text-ink'

@@ -61,6 +61,7 @@ export default function ReadingPanel({
   }
 
   if (!current) return null;
+  const panel = current;
 
   function focusDimension(index: number) {
     const next = dimensions[(index + dimensions.length) % dimensions.length];
@@ -72,11 +73,11 @@ export default function ReadingPanel({
   function onTabListKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      const idx = dimensions.findIndex((d) => d.key === current.key);
+      const idx = dimensions.findIndex((d) => d.key === panel.key);
       focusDimension(idx + 1);
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      const idx = dimensions.findIndex((d) => d.key === current.key);
+      const idx = dimensions.findIndex((d) => d.key === panel.key);
       focusDimension(idx - 1);
     } else if (event.key === 'Home') {
       event.preventDefault();

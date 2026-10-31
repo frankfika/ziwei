@@ -17,6 +17,7 @@ import {
   resolveForm,
   shichenToClock,
 } from '@/lib/birth';
+import { preferredScrollBehavior } from '@/lib/motion';
 
 export type { BirthFormState };
 
@@ -93,7 +94,7 @@ export default function BirthForm({
 
   const onPickHistory = (entry: BirthFormState) => {
     setForm({ ...EMPTY_FORM, ...entry });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
   };
 
   /** 提交：先记入本地历史，再由 Server Action 用引擎口径算出排盘日并跳转 */
@@ -114,7 +115,11 @@ export default function BirthForm({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-      <form action={handleSubmit} className="panel p-6 sm:p-8" noValidate>
+      <form
+        action={handleSubmit}
+        className={`panel p-6 sm:p-8${resolved.ok ? ' pb-28 md:pb-8' : ''}`}
+        noValidate
+      >
         {/* 姓名 */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-name">
@@ -223,18 +228,30 @@ export default function BirthForm({
             </p>
           )}
           {yearNotCovered && (
-            <p
-              className="mt-2 text-xs leading-relaxed text-ink-3"
+            <div
+              className="mt-2 rounded-lg border border-zhu/20 bg-zhu-soft/40 px-3 py-2.5"
               data-year-coverage="miss"
               role="status"
             >
-              样本库尚未索引 {yearNum}{' '}
-              年——仍可排盘看十二宫，但十三维解读会提示「未覆盖」。已建索引：
-              {indexedYears.length <= 16
-                ? indexedYears.join(' / ')
-                : `${indexedYears[0]}–${indexedYears[indexedYears.length - 1]}（共 ${indexedYears.length} 年）`}
-              。
-            </p>
+              <p className="text-xs leading-relaxed text-ink-2">
+                样本库尚未索引{' '}
+                <span className="font-medium tabular-nums text-ink">{yearNum}</span>{' '}
+                年——仍可排盘看十二宫，但十三维解读会提示「未覆盖」。
+              </p>
+              <p className="mt-1 text-2xs leading-relaxed text-ink-3">
+                已建索引：
+                {indexedYears.length <= 16
+                  ? indexedYears.join(' / ')
+                  : `${indexedYears[0]}–${indexedYears[indexedYears.length - 1]}（共 ${indexedYears.length} 年）`}
+                。{' '}
+                <a
+                  href="#coverage"
+                  className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  查看覆盖说明
+                </a>
+              </p>
+            </div>
           )}
         </div>
 
@@ -427,16 +444,28 @@ export default function BirthForm({
           </div>
         </div>
 
-        <SubmitButton canSubmit={resolved.ok} />
+        <div className={resolved.ok ? 'hidden md:block' : undefined}>
+          <SubmitButton canSubmit={resolved.ok} />
+        </div>
         <p
           id="chart-submit-status"
-          className="mt-3 min-h-5 text-2xs text-ink-3"
+          className={`mt-3 min-h-5 text-2xs text-ink-3${resolved.ok ? ' max-md:sr-only' : ''}`}
           aria-live="polite"
         >
           {resolved.ok
             ? '提交后将按当前口径生成命盘与数据集解读。'
             : '请先填写有效的出生日期。'}
         </p>
+
+        {resolved.ok && (
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 md:hidden">
+            <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+              <div className="mx-auto w-full max-w-6xl">
+                <SubmitButton canSubmit />
+              </div>
+            </div>
+          </div>
+        )}
       </form>
 
       {/* 最近排盘 */}

@@ -12,6 +12,12 @@
     scroll-behavior: smooth;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-paper text-ink font-sans antialiased;
     font-feature-settings: 'kern' 1;

@@ -137,6 +137,32 @@ export default async function ChartPage({
         </p>
       </header>
 
+      <nav
+        className="sticky top-14 z-30 -mx-5 mb-8 flex gap-1 overflow-x-auto border-b border-line bg-paper/95 px-5 py-2 backdrop-blur sm:-mx-8 sm:px-8 md:hidden"
+        aria-label="命盘章节"
+      >
+        <a
+          href="#chart-board"
+          className="shrink-0 rounded-lg px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          命盘
+        </a>
+        <a
+          href="#reading"
+          className="shrink-0 rounded-lg px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          解读
+        </a>
+        {reading.status === 'ok' && (
+          <a
+            href="#ask-panel"
+            className="shrink-0 rounded-lg px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            追问
+          </a>
+        )}
+      </nav>
+
       {/* 晚子时提示 */}
       {lateFlag && (
         <div
@@ -153,12 +179,12 @@ export default async function ChartPage({
       )}
 
       {/* 命盘 */}
-      <section aria-label="十二宫命盘" className="mb-14">
+      <section id="chart-board" aria-label="十二宫命盘" className="mb-14 scroll-mt-28">
         <ChartBoard palaces={chart.palaces} center={center} />
       </section>
 
       {/* 解读 */}
-      <section aria-label="十三维解读">
+      <section id="reading" aria-label="十三维解读" className="scroll-mt-28">
         {reading.status === 'ok' ? (
           (() => {
             const mode = resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
@@ -197,7 +223,7 @@ export default async function ChartPage({
         <div className="mt-8 mb-2 flex justify-center md:justify-start">
           <a
             href="#ask-panel"
-            className="rounded-full border border-line bg-surface px-4 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink"
+            className="rounded-full border border-line bg-surface px-4 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
             对本盘有疑问？展开命盘追问
           </a>

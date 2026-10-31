@@ -1,6 +1,11 @@
 export default function ChartLoading() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14" aria-busy="true" aria-live="polite">
+    <div
+      className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14"
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+    >
       <div className="mb-8 border-b border-line pb-6">
         <div className="h-3 w-24 animate-pulse rounded bg-lineSoft" />
         <div className="mt-3 h-8 w-72 max-w-full animate-pulse rounded bg-lineSoft" />

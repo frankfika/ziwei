@@ -71,6 +71,19 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     }
   }, [selectedPalace]);
 
+  useEffect(() => {
+    if (selected === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      event.preventDefault();
+      setSelected(null);
+      window.requestAnimationFrame(() => mobileTriggerRef.current?.focus());
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
+
   const toggleSelected = (branch: number) => {
     setSelected((prev) => (prev === branch ? null : branch));
   };
@@ -183,7 +196,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
               <button
                 key={chip.key}
                 type="button"
-                onClick={() => toggleSelected(chip.palace!.branch)}
+                onClick={(event) => {
+                  mobileTriggerRef.current = event.currentTarget;
+                  toggleSelected(chip.palace!.branch);
+                }}
                 className={`rounded-full border px-3 py-1 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                   active
                     ? 'border-zhu bg-zhu-soft text-ink'
@@ -308,7 +324,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                   aria-pressed={active}
                   aria-expanded={active}
                   aria-label={`${palace.name}${relation ? `，${relation}` : ''}`}
-                  onClick={() => toggleSelected(palace.branch)}
+                  onClick={(event) => {
+                    mobileTriggerRef.current = event.currentTarget;
+                    toggleSelected(palace.branch);
+                  }}
                   className={`w-full rounded-xl border px-3.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'border-zhu bg-zhu-soft/60'

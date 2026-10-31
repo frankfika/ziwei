@@ -236,7 +236,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 role="tab"
                 aria-selected={active}
                 onClick={() => changeMobileFilter(f.key)}
-                className={`shrink-0 rounded-lg border px-3 py-1.5 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                className={`shrink-0 inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                   active
                     ? 'border-zhu/40 bg-zhu-soft text-ink'
                     : 'border-line bg-surface text-ink-2'

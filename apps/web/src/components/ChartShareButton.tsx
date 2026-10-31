@@ -13,6 +13,8 @@ export interface ChartShareButtonProps {
   chartDate: string;
 }
 
+type CopyKind = 'summary' | 'link' | null;
+
 function buildSummary({
   name,
   year,
@@ -33,7 +35,7 @@ function buildSummary({
 }
 
 export default function ChartShareButton(props: ChartShareButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<CopyKind>(null);
   const [failed, setFailed] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -43,36 +45,54 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
     };
   }, []);
 
-  const onCopy = async () => {
-    const text = buildSummary(props);
+  const copyText = async (text: string, kind: Exclude<CopyKind, null>) => {
     setFailed(false);
     try {
       if (!navigator.clipboard?.writeText) {
         throw new Error('clipboard unavailable');
       }
       await navigator.clipboard.writeText(text);
-      setCopied(true);
+      setCopied(kind);
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 2000);
+      timerRef.current = setTimeout(() => setCopied(null), 2000);
     } catch {
       setFailed(true);
-      setCopied(false);
+      setCopied(null);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setFailed(false), 2500);
     }
   };
 
+  const onCopySummary = () => copyText(buildSummary(props), 'summary');
+  const onCopyLink = () => copyText(window.location.href, 'link');
+
+  const liveMessage =
+    copied === 'summary'
+      ? '已复制摘要'
+      : copied === 'link'
+        ? '已复制链接'
+        : failed
+          ? '复制未成功，请手动选中标题复制'
+          : '';
+
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <button
         type="button"
-        onClick={onCopy}
+        onClick={onCopySummary}
         className="rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
       >
         复制生辰摘要
       </button>
+      <button
+        type="button"
+        onClick={onCopyLink}
+        className="rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+      >
+        复制本页链接
+      </button>
       <span className="min-h-4 text-2xs text-ink-3" aria-live="polite">
-        {copied ? '已复制' : failed ? '复制未成功，请手动选中标题复制' : ''}
+        {liveMessage}
       </span>
     </div>
   );

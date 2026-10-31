@@ -65,7 +65,7 @@ export default function BirthForm({
 }) {
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
   const [formPending, setFormPending] = useState(false);
-  const { history, save, remove } = useHistory();
+  const { history, save, remove, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
   const yearNotCovered =
@@ -496,7 +496,22 @@ export default function BirthForm({
 
       {/* 最近排盘 */}
       <aside className="panel p-5">
-        <h2 className="mb-3 text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-medium tracking-wide2 text-ink-2">最近排盘</h2>
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('清空全部最近排盘记录？')) {
+                  clear();
+                }
+              }}
+              className="rounded px-2 py-1 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              清空
+            </button>
+          )}
+        </div>
         {history.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line bg-paper px-3 py-4">
             <p className="text-2xs leading-relaxed text-ink-3">

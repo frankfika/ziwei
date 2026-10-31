@@ -145,7 +145,7 @@ export default function AskPanel({
                 type="button"
                 onClick={() => submit(p)}
                 disabled={pending || !providerConfigured}
-                className="max-w-full truncate rounded-full border border-line bg-surface px-3 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="max-w-full truncate rounded-full border border-line bg-surface px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {p}
               </button>

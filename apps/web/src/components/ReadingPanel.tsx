@@ -123,10 +123,11 @@ export default function ReadingPanel({
       <div className="grid gap-6 lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:gap-9">
         {/* 维度切换：移动端横向滚动并吸顶，桌面端竖排 */}
         <nav
+          id="reading-dimensions"
           role="tablist"
           aria-label="解读维度"
           onKeyDown={onTabListKeyDown}
-          className="sticky top-14 z-30 -mx-1 flex gap-1 overflow-x-auto bg-paper/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
+          className="sticky top-14 z-30 -mx-1 flex gap-1 overflow-x-auto bg-paper/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none scroll-mt-14"
         >
           {dimensions.map((d) => {
             const isActive = d.key === current.key;
@@ -175,6 +176,14 @@ export default function ReadingPanel({
             </span>
           </div>
           <Markdown text={current.text} />
+          <p className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
+            <a
+              href="#reading-dimensions"
+              className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              回到维度列表
+            </a>
+          </p>
         </article>
       </div>
     </div>

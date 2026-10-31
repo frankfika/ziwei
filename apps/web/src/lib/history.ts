@@ -94,5 +94,10 @@ export function useHistory() {
     setHistory(updated);
   }, []);
 
-  return { history, save, remove };
+  const clear = useCallback(() => {
+    writeStore([]);
+    setHistory([]);
+  }, []);
+
+  return { history, save, remove, clear };
 }

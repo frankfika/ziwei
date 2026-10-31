@@ -44,7 +44,7 @@ export default async function HomePage({
         )}
       </section>
 
-      <BirthForm />
+      <BirthForm indexedYears={years} />
 
       {/* 覆盖情况 */}
       <section className="mt-10 rounded-xl border border-lineSoft bg-surface px-5 py-4">
@@ -53,7 +53,11 @@ export default async function HomePage({
           <span>
             已建索引年份：
             <span className="tabular-nums text-ink">
-              {years.length ? years.join(' / ') : '（无）'}
+              {years.length === 0
+                ? '（无）'
+                : years.length <= 12
+                  ? years.join(' / ')
+                  : `${years[0]}–${years[years.length - 1]}（共 ${years.length} 年）`}
             </span>
           </span>
           <span>

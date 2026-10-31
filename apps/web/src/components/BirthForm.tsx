@@ -31,9 +31,21 @@ function SubmitButton() {
   );
 }
 
-export default function BirthForm() {
+export default function BirthForm({
+  indexedYears = [],
+}: {
+  /** 服务端已建索引的年份；未覆盖时在选年处软提示 */
+  indexedYears?: number[];
+}) {
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
   const { history, save, remove } = useHistory();
+  const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
+  const yearNum = Number(form.year);
+  const yearNotCovered =
+    form.year !== '' &&
+    Number.isInteger(yearNum) &&
+    indexedYears.length > 0 &&
+    !indexedSet.has(yearNum);
 
   const maxDay = useMemo(() => daysInMonth(Number(form.year), Number(form.month)), [
     form.year,
@@ -175,6 +187,16 @@ export default function BirthForm() {
           </div>
           {resolved.ok === false && (
             <p className="mt-2 text-xs text-zhu">{resolved.error}</p>
+          )}
+          {yearNotCovered && (
+            <p className="mt-2 text-xs leading-relaxed text-ink-3" data-year-coverage="miss">
+              样本库尚未索引 {yearNum}{' '}
+              年——仍可排盘看十二宫，但十三维解读会提示「未覆盖」。已建索引：
+              {indexedYears.length <= 16
+                ? indexedYears.join(' / ')
+                : `${indexedYears[0]}–${indexedYears[indexedYears.length - 1]}（共 ${indexedYears.length} 年）`}
+              。
+            </p>
           )}
         </div>
 

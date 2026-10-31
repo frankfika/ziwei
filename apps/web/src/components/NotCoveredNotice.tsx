@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 /**
  * 样本库未覆盖时的提示。
  *
@@ -12,6 +14,13 @@ export default function NotCoveredNotice({
   availableYears: number[];
   lookupKey: string;
 }) {
+  const yearSummary = (() => {
+    if (!availableYears.length) return '（无）';
+    const sorted = [...availableYears].sort((a, b) => a - b);
+    if (sorted.length <= 12) return sorted.join(' / ');
+    return `${sorted[0]}–${sorted[sorted.length - 1]}（共 ${sorted.length} 年）`;
+  })();
+
   return (
     <div className="rounded-xl border border-zhu/25 bg-zhu-soft/50 p-6 sm:p-7">
       <div className="flex items-center gap-2">
@@ -24,19 +33,24 @@ export default function NotCoveredNotice({
       <dl className="mt-5 grid gap-x-6 gap-y-2 border-t border-zhu/15 pt-4 text-xs sm:grid-cols-2">
         <div className="flex gap-2">
           <dt className="shrink-0 text-ink-3">检索键</dt>
-          <dd className="font-mono text-ink-2">{lookupKey}</dd>
+          <dd className="break-all font-mono text-ink-2">{lookupKey}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="shrink-0 text-ink-3">已建索引年份</dt>
-          <dd className="text-ink-2">
-            {availableYears.length ? availableYears.join(' / ') : '（无）'}
-          </dd>
+          <dd className="text-ink-2">{yearSummary}</dd>
         </div>
       </dl>
 
       <p className="mt-4 text-xs leading-relaxed text-ink-3">
         本工具不会用模型生成的内容填补空白：命盘由确定性引擎排出，解读只来自已建索引的数据集原文。
       </p>
+
+      <Link
+        href="/"
+        className="mt-5 inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324]"
+      >
+        换一个已覆盖的年份重试
+      </Link>
     </div>
   );
 }

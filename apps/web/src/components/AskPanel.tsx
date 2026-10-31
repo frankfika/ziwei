@@ -21,8 +21,14 @@ export interface AskPanelProps {
   day: number;
   hour: number;
   gender: 'male' | 'female';
-  /** 样本库未覆盖时为 true —— 此时不展示追问入口 */
+  /** 样本库未覆盖时为 false —— 此时不展示追问入口 */
   available: boolean;
+  /** provider 是否已配置；未配置时仍展示入口，但先给软提示 */
+  providerConfigured?: boolean;
+  /** describeProviderEnv().message，可直接展示 */
+  providerMessage?: string;
+  /** 缺失的环境变量名 */
+  providerMissing?: string[];
 }
 
 const PRESETS = [
@@ -38,6 +44,9 @@ export default function AskPanel({
   hour,
   gender,
   available,
+  providerConfigured = true,
+  providerMessage,
+  providerMissing = [],
 }: AskPanelProps) {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<AskActionResult | null>(null);
@@ -81,6 +90,23 @@ export default function AskPanel({
       </div>
 
       <div className="panel p-5 sm:p-6">
+        {!providerConfigured && (
+          <div
+            className="mb-5 rounded-lg border border-line bg-paper px-4 py-3"
+            data-ask-provider="not-configured"
+          >
+            <p className="text-xs leading-relaxed text-ink-2">
+              {providerMessage ??
+                '追问层尚未配置模型 provider。排盘与数据集解读不受影响；配置环境变量后即可追问。'}
+            </p>
+            {providerMissing.length > 0 && (
+              <p className="mt-1.5 text-2xs text-ink-3">
+                需要设置：{providerMissing.join('、')}
+              </p>
+            )}
+          </div>
+        )}
+
         <label htmlFor="ask-question" className="field-label">
           你的问题
         </label>
@@ -99,7 +125,7 @@ export default function AskPanel({
               key={p}
               type="button"
               onClick={() => submit(p)}
-              disabled={pending}
+              disabled={pending || !providerConfigured}
               className="rounded-full border border-line px-3 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:opacity-50"
             >
               {p}
@@ -110,10 +136,14 @@ export default function AskPanel({
         <button
           type="button"
           onClick={() => submit(question)}
-          disabled={pending || !question.trim()}
+          disabled={pending || !question.trim() || !providerConfigured}
           className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {pending ? '正在查证…' : '追问'}
+          {pending
+            ? '正在查证…'
+            : providerConfigured
+              ? '追问'
+              : '请先配置追问模型'}
         </button>
 
         {result && (

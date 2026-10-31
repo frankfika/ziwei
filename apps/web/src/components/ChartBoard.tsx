@@ -75,10 +75,11 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     if (selected === null) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (!window.matchMedia('(max-width: 767px)').matches) return;
       event.preventDefault();
       setSelected(null);
-      window.requestAnimationFrame(() => mobileTriggerRef.current?.focus());
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        window.requestAnimationFrame(() => mobileTriggerRef.current?.focus());
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -186,6 +187,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             <button
               type="button"
               onClick={() => setSelected(null)}
+              aria-label="取消宫位选择"
               className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               取消选择

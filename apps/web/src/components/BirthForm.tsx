@@ -303,7 +303,7 @@ export default function BirthForm({
                   type="button"
                   aria-pressed={active}
                   onClick={tab.key === 'clock' ? switchToClock : switchToShichen}
-                  className={`rounded-md px-4 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  className={`inline-flex min-h-9 items-center rounded-md px-4 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(36,33,29,0.08)]'
                       : 'text-ink-2 hover:text-ink'
@@ -455,7 +455,7 @@ export default function BirthForm({
                   type="button"
                   aria-pressed={active}
                   onClick={() => patch({ gender: g })}
-                  className={`rounded-lg border px-4 py-2.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  className={`inline-flex min-h-11 items-center justify-center rounded-lg border px-4 py-2.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'border-zhu bg-zhu-soft text-ink'
                       : 'border-line bg-surface text-ink-2 hover:border-ink-3'
@@ -485,7 +485,7 @@ export default function BirthForm({
 
       {/* Mobile sticky submit — outside panel padding; still owns form via form= */}
       {resolved.ok && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 print:hidden md:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 print:hidden md:hidden" aria-busy={formPending || undefined}>
           <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
             <div className="mx-auto w-full max-w-6xl">
               <SubmitButton canSubmit pending={formPending} form="birth-form" />

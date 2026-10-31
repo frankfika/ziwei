@@ -16,6 +16,10 @@
     html {
       scroll-behavior: auto;
     }
+
+    .animate-spin {
+      animation: none !important;
+    }
   }
 
   body {
@@ -44,7 +48,7 @@
   }
 
   .field-input {
-    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink
+    @apply min-h-11 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink
       outline-none transition-colors duration-150
       focus:border-zhu focus:ring-2 focus:ring-zhu/15;
   }
@@ -73,5 +77,10 @@
   #chart-board .rounded-xl {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  #ask-panel,
+  #mobile-palace-detail {
+    display: none !important;
   }
 }

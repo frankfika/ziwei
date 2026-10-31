@@ -132,7 +132,7 @@ export default function AskPanel({
               依据引擎盘面 + 数据集原文
             </span>
           </span>
-          <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-line px-3 py-1 text-2xs text-ink-2">
+          <span className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-line px-3 py-1.5 text-2xs text-ink-2">
             {expanded ? '收起' : '展开'}
           </span>
         </button>
@@ -225,7 +225,7 @@ export default function AskPanel({
               role="status"
             >
               <span
-                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu"
+                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
                 aria-hidden="true"
               />
               <p className="text-xs text-ink-2">

@@ -174,6 +174,7 @@ export default async function ChartPage({
         <a
           href="#main-content"
           className="ml-auto shrink-0 inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          title="回到页面顶部"
         >
           回顶部
         </a>
@@ -267,13 +268,13 @@ export default async function ChartPage({
       <div className="mt-10 flex flex-wrap gap-3">
         <Link
           href="/"
-          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           重新排盘
         </Link>
         <Link
           href="/about"
-          className="inline-flex items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           口径说明
         </Link>

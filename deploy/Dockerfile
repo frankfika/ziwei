@@ -76,9 +76,24 @@ ENV NODE_ENV=production \
 
 # zstd：解压数据集（上游用了长窗口压缩，必须 --long=27，见 docs/DATA.md）
 # curl：下载数据集（scripts/download_data.sh）+ 容器健康检查
-RUN apt-get update \
- && apt-get install -y --no-install-recommends zstd curl ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+#
+# DEBIAN_MIRROR：可选的 Debian 源镜像。国内服务器直连 deb.debian.org
+# 常常在 apt-get update 阶段长时间挂起（实测卡死 5 分钟无进展），
+# 换阿里云源只要 0.2s：
+#   docker build -f deploy/Dockerfile \
+#     --build-arg DEBIAN_MIRROR=mirrors.aliyun.com \
+#     -t ziwei-assistant:latest .
+ARG DEBIAN_MIRROR=""
+RUN set -eux; \
+    if [ -n "${DEBIAN_MIRROR}" ]; then \
+      for f in /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list; do \
+        [ -f "$f" ] || continue; \
+        sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" "$f"; \
+      done; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends zstd curl ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules /app/node_modules
 

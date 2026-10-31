@@ -64,6 +64,31 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     window.requestAnimationFrame(() => mobileTriggerRef.current?.focus());
   };
 
+  const changeMobileFilter = (filter: MobileFilter) => {
+    setMobileFilter(filter);
+
+    if (selected === null) return;
+
+    const stillVisible = palaces.some((palace) => {
+      if (palace.branch !== selected) return false;
+
+      switch (filter) {
+        case 'ming-shen':
+          return palace.isMingGong || palace.isShenGong;
+        case 'da-xian':
+          return palace.isCurrentDaXian;
+        case 'has-major':
+          return palace.majorStars.length > 0;
+        default:
+          return true;
+      }
+    });
+
+    if (!stillVisible) {
+      setSelected(null);
+    }
+  };
+
   const jumpChips: Array<{ key: string; label: string; palace: ChartPalace | null }> = [
     { key: 'ming', label: '命宫', palace: mingPalace },
     { key: 'shen', label: '身宫', palace: shenPalace },
@@ -176,7 +201,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setMobileFilter(f.key)}
+                onClick={() => changeMobileFilter(f.key)}
                 className={`shrink-0 rounded-lg border px-3 py-1.5 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                   active
                     ? 'border-zhu/40 bg-zhu-soft text-ink'
@@ -195,6 +220,12 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             id="mobile-palace-detail"
             className="mb-3 scroll-mt-16 overflow-hidden rounded-xl border border-zhu/30 bg-surface shadow-[0_8px_24px_rgba(36,33,29,0.08)]"
             aria-label={`${selectedPalace.name}宫位详情`}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeMobileDetail();
+              }
+            }}
           >
             <div className="flex items-center justify-between border-b border-line bg-paper px-3.5 py-2">
               <p className="text-xs font-medium text-ink">{selectedPalace.name} · 宫位详情</p>

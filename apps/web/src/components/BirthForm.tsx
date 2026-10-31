@@ -22,16 +22,16 @@ export type { BirthFormState };
 
 const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i);
 
-function SubmitButton() {
+function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-      disabled={pending}
-      aria-describedby={pending ? 'chart-submit-status' : undefined}
+      disabled={pending || !canSubmit}
+      aria-describedby="chart-submit-status"
     >
-      {pending ? '排盘中…' : '排 盘'}
+      {pending ? '排盘中…' : canSubmit ? '排 盘' : '请先填完整生辰'}
     </button>
   );
 }
@@ -98,7 +98,9 @@ export default function BirthForm({
 
   /** 提交：先记入本地历史，再由 Server Action 用引擎口径算出排盘日并跳转 */
   const handleSubmit = async (formData: FormData) => {
-    if (resolved.ok) save(form);
+    if (!resolved.ok) return;
+
+    save(form);
     await startChart(formData);
   };
 
@@ -425,13 +427,15 @@ export default function BirthForm({
           </div>
         </div>
 
-        <SubmitButton />
+        <SubmitButton canSubmit={resolved.ok} />
         <p
           id="chart-submit-status"
           className="mt-3 min-h-5 text-2xs text-ink-3"
           aria-live="polite"
         >
-          提交后将按当前口径生成命盘与数据集解读。
+          {resolved.ok
+            ? '提交后将按当前口径生成命盘与数据集解读。'
+            : '请先填写有效的出生日期。'}
         </p>
       </form>
 

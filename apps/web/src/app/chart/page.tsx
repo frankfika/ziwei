@@ -3,6 +3,7 @@ import ChartBoard from '@/components/ChartBoard';
 import ReadingPanel from '@/components/ReadingPanel';
 import NotCoveredNotice from '@/components/NotCoveredNotice';
 import AskPanel from '@/components/AskPanel';
+import ChartShareButton from '@/components/ChartShareButton';
 import { describeProviderEnv } from '@ziwei/ask';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
@@ -135,6 +136,15 @@ export default async function ChartPage({
           {SHICHEN_NAMES[hour]}时 {SHICHEN_RANGES[hour]}）
           {' · '}未做真太阳时校正
         </p>
+        <ChartShareButton
+          {...(name ? { name } : {})}
+          year={year}
+          month={month}
+          day={day}
+          hour={hour}
+          gender={gender}
+          chartDate={chartDate}
+        />
       </header>
 
       <nav

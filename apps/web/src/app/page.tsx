@@ -52,36 +52,60 @@ export default async function HomePage({
         <h2 id="coverage-title" className="text-xs font-medium tracking-wide2 text-ink-3">
           当前样本库
         </h2>
-        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-2">
-          <span>
-            已建索引年份：
-            <span className="tabular-nums text-ink">
-              {years.length === 0
-                ? '（无）'
-                : years.length <= 12
-                  ? years.join(' / ')
-                  : `${years[0]}–${years[years.length - 1]}（共 ${years.length} 年）`}
-            </span>
-          </span>
-          <span>
-            记录数：
-            <span className="tabular-nums text-ink">
-              {coverage.totalRecords.toLocaleString('zh-CN')}
-            </span>
-          </span>
-          <span>
-            维度：
-            <span className="tabular-nums text-ink">13 维</span>
-          </span>
-        </div>
-        <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-          未建索引的年份会如实提示「样本库未覆盖」，不会用生成内容替代。
-          口径细节见{' '}
-          <Link href="/about" className="text-zhu underline underline-offset-2">
-            关于与口径
-          </Link>
-          。
-        </p>
+        {years.length === 0 ? (
+          <div
+            className="mt-3 rounded-lg border border-dashed border-line bg-paper px-3.5 py-3"
+            role="status"
+          >
+            <p className="text-xs leading-relaxed text-ink-2">
+              样本库尚未建索引。仍可排盘查看十二宫，但十三维解读会提示「未覆盖」。
+            </p>
+            <p className="mt-1.5 text-2xs leading-relaxed text-ink-3">
+              建好索引后，这里会列出已覆盖年份与记录数。口径细节见{' '}
+              <Link
+                href="/about"
+                className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                关于与口径
+              </Link>
+              。
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-2">
+              <span>
+                已建索引年份：
+                <span className="tabular-nums text-ink">
+                  {years.length <= 12
+                    ? years.join(' / ')
+                    : `${years[0]}–${years[years.length - 1]}（共 ${years.length} 年）`}
+                </span>
+              </span>
+              <span>
+                记录数：
+                <span className="tabular-nums text-ink">
+                  {coverage.totalRecords.toLocaleString('zh-CN')}
+                </span>
+              </span>
+              <span>
+                维度：
+                <span className="tabular-nums text-ink">13 维</span>
+              </span>
+            </div>
+            <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+              未建索引的年份会如实提示「样本库未覆盖」，不会用生成内容替代。
+              口径细节见{' '}
+              <Link
+                href="/about"
+                className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                关于与口径
+              </Link>
+              。
+            </p>
+          </>
+        )}
       </section>
     </div>
   );

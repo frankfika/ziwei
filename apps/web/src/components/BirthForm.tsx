@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { startChart } from '@/app/actions';
 import { useHistory } from '@/lib/history';
@@ -23,12 +23,32 @@ export type { BirthFormState };
 
 const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i);
 
-function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
+/** Reports form pending to parent so an external sticky submit can mirror it. */
+function FormPendingSync({ onPending }: { onPending: (pending: boolean) => void }) {
   const { pending } = useFormStatus();
+  useEffect(() => {
+    onPending(pending);
+  }, [pending, onPending]);
+  return null;
+}
+
+function SubmitButton({
+  canSubmit,
+  pending,
+  form,
+  className,
+}: {
+  canSubmit: boolean;
+  pending: boolean;
+  /** Associate with a form when rendered outside it (sticky bar). */
+  form?: string;
+  className?: string;
+}) {
   return (
     <button
       type="submit"
-      className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+      form={form}
+      className={`btn-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${className ?? ''}`}
       disabled={pending || !canSubmit}
       aria-describedby="chart-submit-status"
     >
@@ -44,6 +64,7 @@ export default function BirthForm({
   indexedYears?: number[];
 }) {
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
+  const [formPending, setFormPending] = useState(false);
   const { history, save, remove } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
@@ -116,10 +137,13 @@ export default function BirthForm({
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
       <form
+        id="birth-form"
         action={handleSubmit}
-        className={`panel p-6 sm:p-8${resolved.ok ? ' pb-28 md:pb-8' : ''}`}
+        className={`panel p-6 sm:p-8${resolved.ok ? ' pb-24 md:pb-8' : ''}`}
         noValidate
       >
+        <FormPendingSync onPending={setFormPending} />
+
         {/* 姓名 */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-name">
@@ -444,8 +468,9 @@ export default function BirthForm({
           </div>
         </div>
 
+        {/* Desktop submit — hidden on mobile so only sticky bar is tabbable */}
         <div className={resolved.ok ? 'hidden md:block' : undefined}>
-          <SubmitButton canSubmit={resolved.ok} />
+          <SubmitButton canSubmit={resolved.ok} pending={formPending} />
         </div>
         <p
           id="chart-submit-status"
@@ -456,17 +481,18 @@ export default function BirthForm({
             ? '提交后将按当前口径生成命盘与数据集解读。'
             : '请先填写有效的出生日期。'}
         </p>
+      </form>
 
-        {resolved.ok && (
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 md:hidden">
-            <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-              <div className="mx-auto w-full max-w-6xl">
-                <SubmitButton canSubmit />
-              </div>
+      {/* Mobile sticky submit — outside panel padding; still owns form via form= */}
+      {resolved.ok && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 md:hidden">
+          <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+            <div className="mx-auto w-full max-w-6xl">
+              <SubmitButton canSubmit pending={formPending} form="birth-form" />
             </div>
           </div>
-        )}
-      </form>
+        </div>
+      )}
 
       {/* 最近排盘 */}
       <aside className="panel p-5">

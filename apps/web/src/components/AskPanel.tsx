@@ -137,9 +137,20 @@ export default function AskPanel({
           </span>
         </button>
         {!expanded && (
-          <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-            可追问例如：{PRESETS[0]}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-2xs text-ink-3">试试：</span>
+            {PRESETS.slice(0, 2).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => submit(p)}
+                disabled={pending || !providerConfigured}
+                className="max-w-full truncate rounded-full border border-line bg-surface px-3 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

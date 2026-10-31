@@ -110,12 +110,25 @@ export default function PalaceCell({
       ? 'bg-paper'
       : 'bg-surface';
 
+  const majorSummary = major.map((s) => s.name).join('、') || '空宫';
+  const ariaLabel = [
+    palace.name,
+    `主星${majorSummary}`,
+    palace.isMingGong ? '命宫' : null,
+    palace.isShenGong ? '身宫' : null,
+    selected ? '已选中' : null,
+    inSanFang ? '三方四正关联' : null,
+  ]
+    .filter(Boolean)
+    .join('，');
+
   return (
     <button
       type="button"
       onClick={() => onSelect(palace.branch)}
       aria-pressed={selected}
-      className={`group relative flex h-full w-full flex-col items-start gap-1.5 p-3 text-left transition-colors duration-150 ${highlight}`}
+      aria-label={ariaLabel}
+      className={`group relative flex h-full w-full flex-col items-start gap-1.5 p-3 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${highlight}`}
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">

@@ -200,7 +200,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                   mobileTriggerRef.current = event.currentTarget;
                   toggleSelected(chip.palace!.branch);
                 }}
-                className={`rounded-full border px-3 py-1 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                className={`inline-flex min-h-9 items-center rounded-full border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                   active
                     ? 'border-zhu bg-zhu-soft text-ink'
                     : 'border-line bg-surface text-ink-2'
@@ -266,7 +266,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
               <button
                 type="button"
                 onClick={closeMobileDetail}
-                className="rounded-md px-2 py-1 text-2xs text-ink-2 transition-colors hover:bg-lineSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="inline-flex min-h-9 items-center rounded-md px-3 py-2 text-2xs text-ink-2 transition-colors hover:bg-lineSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 收起详情
               </button>

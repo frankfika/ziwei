@@ -17,11 +17,15 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # v4 用的 Node 20 runtime 已被 GitHub 弃用（会强制跑在 Node 24 上并报警告），
+      # v5 起是 Node 24 runtime。
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
+      # 装 Node 20：与 package.json 的 engines 下限一致，
+      # 故意用最低支持版本跑，守住「别把 engines 偷偷抬上去」。
       - name: 装 Node（20 LTS）
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -40,3 +44,13 @@ jobs:
       # 金标准快照在 tests/golden/*.json，已进 git，所以不依赖任何数据文件。
       - name: 回归测试
         run: npm test
+
+      # 引文降级自测：检测与降级逻辑是许可硬化的关键路径，
+      # 「降级不得引入新的括号破损 / 不得残留受限标记」这些不变量必须每次 push 都验。
+      # 无数据集时真实数据那部分会明确 skip，其余断言照跑。
+      - name: 引文降级自测
+        run: npm run citation:selftest
+
+      # 追问模块自测：零网络，只验 provider 抽象、提示词构造与防编造检查。
+      - name: 追问模块自测
+        run: npm run ask:selftest

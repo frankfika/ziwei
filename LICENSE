@@ -1,0 +1,36 @@
+MIT License
+
+Copyright (c) 2026 Fang Chen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+本仓库代码以 MIT 许可发布，但**数据集与引擎的许可另有约束，随分发形态一并适用**：
+
+- 解读数据集「紫微斗数开源解读数据集 v4.0」—— CC BY 4.0，作者：王多鱼AI。
+  数据集**不包含在本仓库内**，需自行下载（见 `docs/DATA.md`）。
+  署名文案见 `ATTRIBUTION.md` 第 1 节，**不得删改**。
+  数据集文本中引用的倪海厦《天纪》原话**不在该授权范围内**
+  （属 CC BY-NC-SA 4.0，不可商用），详见 `docs/LEGAL_NOTES.md`。
+- 排盘引擎（`packages/chart-engine/src/engine/`）—— 上游 MIT，作者：王多鱼AI。
+  原始许可全文见 `packages/chart-engine/UPSTREAM_LICENSE`；
+  参考拷贝见 `vendor/upstream-reference/LICENSE`。
+
+本工具仅供文化兴趣与学习之用，不构成任何医疗、法律、投资或人生决策建议。

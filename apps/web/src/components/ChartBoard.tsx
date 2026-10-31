@@ -341,7 +341,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                     mobileTriggerRef.current = event.currentTarget;
                     toggleSelected(palace.branch);
                   }}
-                  className={`w-full break-inside-avoid rounded-xl border px-3.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  className={`w-full break-inside-avoid rounded-xl border px-3.5 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     active
                       ? 'border-zhu bg-zhu-soft/60'
                       : inSan
@@ -368,7 +368,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                         <span className="ml-1 text-2xs font-normal text-zhu">三方四正</span>
                       ) : null}
                     </span>
-                    <span className="text-2xs tabular-nums text-ink-3">
+                    <span className="text-2xs tabular-nums text-ink-2">
                       {palace.stemName}
                       {' · '}
                       {palace.branchName}

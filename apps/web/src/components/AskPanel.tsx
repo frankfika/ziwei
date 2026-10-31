@@ -138,18 +138,29 @@ export default function AskPanel({
         </button>
         {!expanded && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-2xs text-ink-3">试试：</span>
+            <span className="text-2xs font-medium text-ink-2">推荐追问：</span>
             {PRESETS.slice(0, 2).map((p) => (
               <button
                 key={p}
                 type="button"
                 onClick={() => submit(p)}
                 disabled={pending || !providerConfigured}
-                className="max-w-full truncate rounded-full border border-line bg-surface px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="max-w-full truncate rounded-full border border-zhu/25 bg-zhu-soft/40 px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-zhu/50 hover:bg-zhu-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {p}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setExpanded(true);
+                window.requestAnimationFrame(() => textareaRef.current?.focus());
+              }}
+              aria-label="展开更多推荐追问"
+              className="inline-flex min-h-9 items-center rounded-full border border-dashed border-line px-3 py-2 text-2xs text-ink-3 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              更多推荐
+            </button>
           </div>
         )}
       </div>
@@ -219,6 +230,16 @@ export default function AskPanel({
         </button>
 
         <div id={resultId} aria-live="polite" aria-busy={pending}>
+          {!pending && !result && !localError && (
+            <div
+              className="mt-6 rounded-lg border border-dashed border-line bg-paper px-4 py-4"
+              role="status"
+            >
+              <p className="text-xs leading-relaxed text-ink-3">
+                尚未追问。点选上方推荐问题，或自行输入后提交；回答会标注所引用的原文维度。
+              </p>
+            </div>
+          )}
           {pending && (
             <div
               className="mt-6 flex items-center gap-3 rounded-lg border border-line bg-paper px-4 py-3"

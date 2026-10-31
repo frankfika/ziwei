@@ -13,11 +13,15 @@ export default function ErrorAlert({ children }: { children: React.ReactNode }) 
   return (
     <div
       ref={ref}
-      className="mt-5 rounded-lg border border-zhu/25 bg-zhu-soft/50 px-4 py-3 text-sm text-ink-2"
+      className="mt-5 rounded-lg border border-zhu/25 bg-zhu-soft/50 px-4 py-3.5"
       role="alert"
       tabIndex={-1}
     >
-      {children}
+      <p className="text-xs font-medium tracking-wide text-zhu">无法完成排盘</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{children}</p>
+      <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+        请核对下方表单中的出生日期与时辰后重试。
+      </p>
     </div>
   );
 }

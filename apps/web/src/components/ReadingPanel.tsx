@@ -127,7 +127,7 @@ export default function ReadingPanel({
           role="tablist"
           aria-label="解读维度"
           onKeyDown={onTabListKeyDown}
-          className="sticky top-14 z-30 -mx-1 flex gap-1 overflow-x-auto bg-paper/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none scroll-mt-14"
+          className="sticky top-14 z-30 -mx-1 flex gap-1 overflow-x-auto overscroll-x-contain border-b border-line/80 bg-paper/95 px-1 py-2 backdrop-blur touch-pan-x lg:static lg:mx-0 lg:flex-col lg:overflow-visible lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none scroll-mt-14"
         >
           {dimensions.map((d) => {
             const isActive = d.key === current.key;
@@ -142,7 +142,9 @@ export default function ReadingPanel({
                   tabRefs.current[d.key] = el;
                 }}
                 onClick={() => setActive(d.key)}
-                className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu lg:w-full ${
+                aria-controls="reading-panel-active"
+                id={`reading-tab-${d.key}`}
+                className={`inline-flex min-h-9 shrink-0 items-baseline gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu lg:w-full ${
                   isActive
                     ? 'border-zhu/40 bg-zhu-soft text-ink'
                     : 'border-transparent text-ink-2 hover:border-line hover:bg-surface'
@@ -164,18 +166,31 @@ export default function ReadingPanel({
         <article
           ref={articleRef}
           role="tabpanel"
-          id={`reading-panel-${current.key}`}
-          className="min-w-0 scroll-mt-28"
+          id="reading-panel-active"
+          aria-labelledby={`reading-tab-${current.key}`}
+          tabIndex={0}
+          className="min-w-0 scroll-mt-28 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
-          <div className="mb-4 flex items-baseline gap-2">
-            <h3 className="font-serif text-base font-semibold tracking-wide text-ink">
+          <div className="mb-4 flex flex-wrap items-baseline gap-2">
+            <h3 className="font-serif text-base font-semibold tracking-wide text-ink sm:text-lg">
               {current.label}
             </h3>
             <span className="text-2xs text-ink-3">
               {current.chars.toLocaleString('zh-CN')} 字 · 原文来自开源解读数据集
             </span>
           </div>
-          <Markdown text={current.text} />
+          {current.text.trim() ? (
+            <Markdown text={current.text} />
+          ) : (
+            <div
+              className="rounded-lg border border-dashed border-line bg-paper px-4 py-6 text-center"
+              role="status"
+            >
+              <p className="text-xs leading-relaxed text-ink-3">
+                该维度暂无正文可展示（可能已被引文降级清空）。可切换其他维度继续阅读。
+              </p>
+            </div>
+          )}
           <p className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
             <a
               href="#reading-dimensions"

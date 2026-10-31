@@ -63,7 +63,7 @@ export default function Markdown({ text }: { text: string }) {
           }
           case 'paragraph':
             return (
-              <p key={i} className="my-3 text-[15px] leading-[1.95] tracking-[0.01em]">
+              <p key={i} className="my-3 text-[15px] leading-[1.95] tracking-[0.01em] sm:text-base">
                 {block.lines.map((line, j) => (
                   <span key={j}>
                     {j > 0 && <br />}
@@ -76,7 +76,7 @@ export default function Markdown({ text }: { text: string }) {
             return (
               <ul key={i} className="my-3 space-y-1.5">
                 {block.items.map((item, j) => (
-                  <li key={j} className="flex gap-2 text-[15px] leading-[1.9]">
+                  <li key={j} className="flex gap-2 text-[15px] leading-[1.9] sm:text-base">
                     <span className="mt-[0.72em] h-1 w-1 shrink-0 rounded-full bg-ink-3/60" />
                     <span className="min-w-0">{renderInline(item)}</span>
                   </li>

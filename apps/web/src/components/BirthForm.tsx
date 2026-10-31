@@ -37,12 +37,15 @@ function SubmitButton({
   pending,
   form,
   className,
+  disabledLabel = '请先填完整生辰',
 }: {
   canSubmit: boolean;
   pending: boolean;
   /** Associate with a form when rendered outside it (sticky bar). */
   form?: string;
   className?: string;
+  /** Shown when submit is blocked (incomplete / invalid date). */
+  disabledLabel?: string;
 }) {
   return (
     <button
@@ -52,7 +55,7 @@ function SubmitButton({
       disabled={pending || !canSubmit}
       aria-describedby="chart-submit-status"
     >
-      {pending ? '排盘中…' : canSubmit ? '排 盘' : '请先填完整生辰'}
+      {pending ? '排盘中…' : canSubmit ? '排 盘' : disabledLabel}
     </button>
   );
 }
@@ -131,8 +134,18 @@ export default function BirthForm({
       ? '时辰下拉与解读数据集严格对齐：排盘日即你填写的公历出生日，时辰序号 0–11。'
       : '钟点会先换算成「排盘日 + 时辰序号」再检索数据集，23:00 后自动按晚子时顺延到次日。';
 
-  const hasDateError =
-    form.year === '' || form.month === '' || form.day === '';
+  const missingDateParts: string[] = [];
+  if (form.year === '') missingDateParts.push('年');
+  if (form.month === '') missingDateParts.push('月');
+  if (form.day === '') missingDateParts.push('日');
+  const hasDateError = missingDateParts.length > 0;
+  const submitHint = resolved.ok
+    ? '提交后将按当前口径生成命盘与数据集解读。'
+    : hasDateError
+      ? `请先选择出生${missingDateParts.join('、')}，再排盘。`
+      : resolved.error
+        ? resolved.error
+        : '请先填写有效的出生日期。';
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
@@ -182,7 +195,7 @@ export default function BirthForm({
                 name="year"
                 className="field-input"
                 value={form.year}
-                aria-invalid={hasDateError || undefined}
+                aria-invalid={form.year === '' || undefined}
                 onChange={(e) => patch({ year: e.target.value })}
               >
                 <option value="">年</option>
@@ -210,7 +223,7 @@ export default function BirthForm({
                 name="month"
                 className="field-input"
                 value={form.month}
-                aria-invalid={hasDateError || undefined}
+                aria-invalid={form.month === '' || undefined}
                 onChange={(e) => patch({ month: e.target.value })}
               >
                 <option value="">月</option>
@@ -230,7 +243,7 @@ export default function BirthForm({
                 name="day"
                 className="field-input"
                 value={form.day}
-                aria-invalid={hasDateError || undefined}
+                aria-invalid={form.day === '' || undefined}
                 onChange={(e) => patch({ day: e.target.value })}
               >
                 <option value="">日</option>
@@ -248,7 +261,9 @@ export default function BirthForm({
               className="mt-2 text-xs text-zhu"
               role="alert"
             >
-              {resolved.error}
+              {hasDateError
+                ? `还差：${missingDateParts.join('、')}。请选择完整的公历出生日期。`
+                : resolved.error}
             </p>
           )}
           {yearNotCovered && (
@@ -470,16 +485,22 @@ export default function BirthForm({
 
         {/* Desktop submit — hidden on mobile so only sticky bar is tabbable */}
         <div className={resolved.ok ? 'hidden md:block' : undefined}>
-          <SubmitButton canSubmit={resolved.ok} pending={formPending} />
+          <SubmitButton
+            canSubmit={resolved.ok}
+            pending={formPending}
+            disabledLabel={
+              hasDateError
+                ? `请先选择${missingDateParts.join('、')}`
+                : '请修正出生日期'
+            }
+          />
         </div>
         <p
           id="chart-submit-status"
           className={`mt-3 min-h-5 text-2xs text-ink-3${resolved.ok ? ' max-md:sr-only' : ''}`}
           aria-live="polite"
         >
-          {resolved.ok
-            ? '提交后将按当前口径生成命盘与数据集解读。'
-            : '请先填写有效的出生日期。'}
+          {submitHint}
         </p>
       </form>
 

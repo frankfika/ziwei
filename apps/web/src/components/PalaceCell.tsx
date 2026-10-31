@@ -144,7 +144,7 @@ export default function PalaceCell({
           >
             {palace.name}
           </span>
-          <span className="font-mono text-2xs text-ink-3">
+          <span className="font-mono text-2xs text-ink-2">
             {palace.stemName}
             {palace.branchName}
           </span>
@@ -164,7 +164,7 @@ export default function PalaceCell({
       {/* 主星 */}
       <div className="flex w-full flex-col gap-0.5">
         {major.length === 0 ? (
-          <span className="text-[13px] text-ink-3">空宫</span>
+          <span className="text-[13px] text-ink-2">空宫</span>
         ) : (
           major.map((star) => (
             <div key={star.name} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">

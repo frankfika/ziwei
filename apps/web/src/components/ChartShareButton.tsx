@@ -75,23 +75,46 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
           ? '复制未成功，请手动选中标题复制'
           : '';
 
+  const summaryLabel = copied === 'summary' ? '已复制摘要' : '复制生辰摘要';
+  const linkLabel = copied === 'link' ? '已复制链接' : '复制本页链接';
+
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={onCopySummary}
-        className="rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        aria-label={summaryLabel}
+        className={`inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+          copied === 'summary'
+            ? 'border-zhu/40 bg-zhu-soft text-ink'
+            : 'border-line bg-surface text-ink-2 hover:border-ink-3 hover:text-ink'
+        }`}
       >
-        复制生辰摘要
+        {summaryLabel}
       </button>
       <button
         type="button"
         onClick={onCopyLink}
-        className="rounded-lg border border-line bg-surface px-3 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        aria-label={linkLabel}
+        className={`inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+          copied === 'link'
+            ? 'border-zhu/40 bg-zhu-soft text-ink'
+            : 'border-line bg-surface text-ink-2 hover:border-ink-3 hover:text-ink'
+        }`}
       >
-        复制本页链接
+        {linkLabel}
       </button>
-      <span className="min-h-4 text-2xs text-ink-3" aria-live="polite">
+      <span
+        className={`inline-flex min-h-9 items-center rounded-lg px-2 text-2xs ${
+          failed
+            ? 'bg-zhu-soft/60 text-zhu'
+            : copied
+              ? 'text-ink'
+              : 'text-ink-3'
+        }`}
+        role={failed ? 'alert' : 'status'}
+        aria-live={failed ? 'assertive' : 'polite'}
+      >
         {liveMessage}
       </span>
     </div>

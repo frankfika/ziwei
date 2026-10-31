@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 
 /**
@@ -15,15 +15,23 @@ export default function Error({
   error: unknown;
   retry: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     console.error(error);
   }, [error]);
 
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
+
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
       <div
+        ref={panelRef}
         className="panel mx-auto max-w-lg border-zhu/25 p-6 sm:p-8"
         role="alert"
+        tabIndex={-1}
       >
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ERROR</p>
         <h1 className="font-serif text-xl font-semibold tracking-[0.12em] text-ink">

@@ -142,6 +142,9 @@ export default function ChartBoard({
             const active = selected === palace.branch;
             const inSan = !!sanFang && sanFang.has(palace.branch) && !active;
             const major = palace.stars.filter((s) => s.type === 'major');
+            const minor = palace.stars.filter((s) => s.type === 'minor');
+            const lucky = palace.stars.filter((s) => s.type === 'lucky');
+            const sha = palace.stars.filter((s) => s.type === 'sha');
             // palace-breathe / sanfang-fade：class 增删才重播 keyframes，
             // 所以呼吸与淡入只在「状态刚变」时各播一次
             const stateClass = active
@@ -237,6 +240,23 @@ export default function ChartBoard({
                       );
                     })
                   )}
+                  {/* 辅星 / 吉星 / 煞星：直接列在盘上，不藏进详情 */}
+                  {[...minor, ...lucky].map((star) => (
+                    <span
+                      key={star.name}
+                      className="text-[10px] leading-tight text-ink-2"
+                    >
+                      {star.name}
+                    </span>
+                  ))}
+                  {sha.map((star) => (
+                    <span
+                      key={star.name}
+                      className="text-[10px] leading-tight text-ink-3"
+                    >
+                      {star.name}
+                    </span>
+                  ))}
                 </span>
 
                 <span className="flex w-full shrink-0 items-baseline justify-between gap-1">

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChartPalace } from '@ziwei/chart-engine';
-import PalaceCell, { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS } from './PalaceCell';
-import CenterPanel, { type ChartCenterInfo } from './CenterPanel';
+import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
+import PalaceCell, { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS, liuNianSiHuaOf } from './PalaceCell';
+import CenterPanel, { type BoardLayer, type ChartCenterInfo, type CurrentDaXianInfo } from './CenterPanel';
 import { DURATION, motionStyle } from '@/lib/motion';
 
 interface ChartBoardProps {
@@ -13,6 +13,12 @@ interface ChartBoardProps {
   onNavigateTab?: (tab: 'reading' | 'ask') => void;
   /** 宫位详情 sheet 里「就此追问」本宫 */
   onAskPalace?: (palaceName: string) => void;
+  /** 今年流年（引擎 liuNianLayer 输出） */
+  liunian?: ChartLiuNian | null;
+  /** 当前大限摘要 */
+  daXianInfo?: CurrentDaXianInfo | null;
+  /** 「就这步运追问」 */
+  onAskTime?: (time: 'liunian' | 'daxian') => void;
 }
 
 /** 四化图例（桌面一行 / 移动端 sheet 顶部共用） */
@@ -25,8 +31,18 @@ const SIHUA_LEGEND = (
   </>
 );
 
-export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace }: ChartBoardProps) {
+export default function ChartBoard({
+  palaces,
+  center,
+  onNavigateTab,
+  onAskPalace,
+  liunian = null,
+  daXianInfo = null,
+  onAskTime,
+}: ChartBoardProps) {
   const [selected, setSelected] = useState<number | null>(null);
+  /** 时间轴叠加层：本命 / 大限 / 流年 */
+  const [layer, setLayer] = useState<BoardLayer>('natal');
   /** 移动端：中宫详情 sheet */
   const [centerOpen, setCenterOpen] = useState(false);
   /** 关闭动画进行中（sheet 暂不卸载） */
@@ -99,6 +115,11 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
         toggleSelected(branch);
       }}
       {...(onNavigateTab ? { onNavigateTab } : {})}
+      layer={layer}
+      onLayerChange={setLayer}
+      liunian={liunian}
+      currentDaXian={daXianInfo}
+      {...(onAskTime ? { onAskTime } : {})}
     />
   );
 
@@ -128,6 +149,15 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
               : inSan
                 ? 'is-sanfang sanfang-fade'
                 : '';
+            // 时间轴叠加层：流年命宫鎏金描边 / 大限命宫淡紫底
+            const layerMark = [
+              layer === 'liunian' && liunian && palace.branch === liunian.mingBranch
+                ? 'is-liunian-ming'
+                : '',
+              layer === 'daxian' && palace.isCurrentDaXian ? 'is-daxian-palace' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
 
 
             return (
@@ -150,7 +180,7 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
                 ]
                   .filter(Boolean)
                   .join('，')}
-                className={`palace-cell ${stateClass} flex min-h-0 flex-col items-start gap-0.5 overflow-hidden p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu`}
+                className={`palace-cell ${stateClass} ${layerMark} flex min-h-0 flex-col items-start gap-0.5 overflow-hidden p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu`}
               >
                 <span className="flex w-full shrink-0 items-baseline justify-between gap-1">
                   <span
@@ -175,25 +205,37 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
                   {major.length === 0 ? (
                     <span className="text-[10px] text-ink-3">空宫</span>
                   ) : (
-                    major.map((star) => (
-                      <span
-                        key={star.name}
-                        className="flex items-baseline gap-0.5 leading-tight"
-                      >
+                    major.map((star) => {
+                      const lnMark =
+                        layer === 'liunian' ? liuNianSiHuaOf(star.name, liunian) : null;
+                      return (
                         <span
-                          className={`text-[12px] font-semibold ${brightnessClass(star.brightnessRaw)}`}
+                          key={star.name}
+                          className="flex items-baseline gap-0.5 leading-tight"
                         >
-                          {star.name}
-                        </span>
-                        {star.siHua && (
                           <span
-                            className={`chip-sihua px-1 text-[9px] leading-none ${SIHUA_CLASS[star.siHua] ?? 'border-line text-ink-3'}`}
+                            className={`text-[12px] font-semibold ${brightnessClass(star.brightnessRaw)}`}
                           >
-                            {star.siHua}
+                            {star.name}
                           </span>
-                        )}
-                      </span>
-                    ))
+                          {star.siHua && (
+                            <span
+                              className={`chip-sihua px-1 text-[9px] leading-none ${SIHUA_CLASS[star.siHua] ?? 'border-line text-ink-3'}`}
+                            >
+                              {star.siHua}
+                            </span>
+                          )}
+                          {lnMark && (
+                            <span
+                              className={`chip-sihua px-1 text-[9px] leading-none ${SIHUA_CLASS[lnMark.slice(1)] ?? 'border-line text-ink-3'}`}
+                              title={`流年四化：${lnMark}`}
+                            >
+                              {lnMark}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })
                   )}
                 </span>
 
@@ -365,6 +407,14 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
               const [row, col] = GRID_POS[palace.branch];
               const active = selected === palace.branch;
               const inSan = !!sanFang && sanFang.has(palace.branch) && !active;
+              const layerMark = [
+                layer === 'liunian' && liunian && palace.branch === liunian.mingBranch
+                  ? 'is-liunian-ming'
+                  : '',
+                layer === 'daxian' && palace.isCurrentDaXian ? 'is-daxian-palace' : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
 
               return (
                 <div
@@ -377,6 +427,8 @@ export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace
                     selected={active}
                     inSanFang={inSan}
                     onSelect={() => toggleSelected(palace.branch)}
+                    liunian={layer === 'liunian' ? liunian : null}
+                    layerMark={layerMark}
                   />
                   {active && (
                     <p className="sr-only" role="status">

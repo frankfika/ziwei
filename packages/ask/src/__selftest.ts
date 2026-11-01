@@ -241,6 +241,25 @@ section('2c. buildAskPrompt：页内焦点（focus）置顶注入');
     '未知焦点被忽略、走关键词命中',
     unknown.selected.some((d) => d.key === 'love' && d.matched),
   );
+
+  // 运限事实（流年/大限）作为独立块注入，且计入预算
+  const withNote = buildAskPrompt({
+    birth: BIRTH,
+    question: '今年流年如何？',
+    chartSummary: summary,
+    dimensions,
+    focus: { time: 'liunian', targetYear: 2026 },
+    fortuneNote: '2026 丙午年：流年命宫在子宫。\n流年四化：化禄 天同、化权 天机、化科 文昌、化忌 廉贞。',
+    maxContextChars: 8000,
+  });
+  ok(
+    '运限事实独立成块注入',
+    withNote.user.includes('【运限事实】') && withNote.user.includes('流年命宫在子宫'),
+  );
+  ok(
+    `运限事实计入上下文预算（${withNote.contextChars} ≤ ${withNote.maxContextChars}）`,
+    withNote.contextChars <= withNote.maxContextChars,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════

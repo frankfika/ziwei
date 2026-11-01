@@ -1,4 +1,17 @@
-import type { ChartPalace, ChartStar } from '@ziwei/chart-engine';
+import type { ChartLiuNian, ChartPalace, ChartStar } from '@ziwei/chart-engine';
+
+/** 某星在本命盘的流年四化标记（流禄/流权/流科/流忌），无则 null */
+export function liuNianSiHuaOf(
+  starName: string,
+  liunian: ChartLiuNian | null | undefined,
+): string | null {
+  if (!liunian) return null;
+  if (liunian.siHua.lu === starName) return '流禄';
+  if (liunian.siHua.quan === starName) return '流权';
+  if (liunian.siHua.ke === starName) return '流科';
+  if (liunian.siHua.ji === starName) return '流忌';
+  return null;
+}
 
 /** 地支索引 → 盘面网格坐标（1-based）：四四方阵 + 中宫 */
 export const GRID_POS: Record<number, [number, number]> = {
@@ -96,6 +109,9 @@ interface PalaceCellProps {
   onSelect: (branch: number) => void;
   /** 'board' = 盘面宫格；'sheet' = 宫位详情 sheet（隐藏重复的命/身宫 chip） */
   variant?: 'board' | 'sheet';
+  /** 流年叠加层：主星带流年四化小章 + 流年命宫描边 */
+  liunian?: ChartLiuNian | null;
+  layerMark?: string;
 }
 
 export default function PalaceCell({
@@ -104,6 +120,8 @@ export default function PalaceCell({
   inSanFang,
   onSelect,
   variant = 'board',
+  liunian = null,
+  layerMark = '',
 }: PalaceCellProps) {
   const selfSihuaMap = new Map<string, string>();
   for (const s of palace.selfSihua ?? []) {
@@ -142,7 +160,7 @@ export default function PalaceCell({
       onClick={() => onSelect(palace.branch)}
       aria-pressed={selected}
       aria-label={ariaLabel}
-      className={`palace-cell group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${stateClass}`}
+      className={`palace-cell group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${stateClass} ${layerMark}`}
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">
@@ -180,11 +198,22 @@ export default function PalaceCell({
         {major.length === 0 ? (
           <span className="text-star-major text-ink-2">空宫</span>
         ) : (
-          major.map((star) => (
+          major.map((star) => {
+            const lnMark = liuNianSiHuaOf(star.name, liunian);
+            return (
             <div key={star.name} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
               <StarName star={star} tier="major" selfSihua={selfSihuaMap.get(star.name)} />
+              {lnMark && (
+                <span
+                  className={`chip-sihua px-1 ${SIHUA_CLASS[lnMark.slice(1)] ?? 'border-line text-ink-3'}`}
+                  title={`流年四化：${lnMark}`}
+                >
+                  {lnMark}
+                </span>
+              )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

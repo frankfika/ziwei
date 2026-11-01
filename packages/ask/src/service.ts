@@ -9,7 +9,7 @@
  *   5. 用 verifyAnswer 做机械防编造检查
  */
 
-import { ZiweiService, chartSummary, type Birth } from '@ziwei/core';
+import { ZiweiService, chartSummary, liuNianLayer, type Birth } from '@ziwei/core';
 import {
   buildAskPrompt,
   DEFAULT_MAX_CONTEXT_CHARS,
@@ -136,6 +136,33 @@ export class AskService {
     const chart = this.service.chart(birth);
     const summary = chartSummary(chart);
 
+    // ②b 运限事实：时间层焦点（流年/大限）由引擎真实计算，绝不编造
+    let fortuneNote: string | undefined;
+    if (options?.focus?.time === 'liunian') {
+      const y = options.focus.targetYear ?? new Date().getFullYear();
+      const ln = liuNianLayer(chart, y);
+      const natal = chart.palaces.find((p) => p.branch === ln.mingBranch);
+      fortuneNote = [
+        `${y} ${ln.ganzhi}年：流年命宫落在本命${natal?.name ?? ''}（${natal?.branchName ?? ''}）。`,
+        `流年四化：化禄 ${ln.siHua.lu}、化权 ${ln.siHua.quan}、化科 ${ln.siHua.ke}、化忌 ${ln.siHua.ji}。`,
+      ].join('\n');
+    } else if (options?.focus?.time === 'daxian') {
+      const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
+      const dx = dxPalace
+        ? chart.daXians.find((d) => d.palaceBranch === dxPalace.branch)
+        : undefined;
+      if (dx) {
+        fortuneNote = [
+          `当前大限 ${dx.startAge}–${dx.endAge} 岁，大限命宫在${dx.palaceName}（${dx.stemName ?? ''}）。`,
+          ...(dx.siHua
+            ? [
+                `大限四化：化禄 ${dx.siHua.lu}、化权 ${dx.siHua.quan}、化科 ${dx.siHua.ke}、化忌 ${dx.siHua.ji}。`,
+              ]
+            : []),
+        ].join('\n');
+      }
+    }
+
     // ③ 拼提示词
     const prompt = buildAskPrompt({
       birth,
@@ -144,6 +171,7 @@ export class AskService {
       dimensions: reading.dimensions,
       ...(turns && turns.length > 0 ? { turns } : {}),
       ...(options?.focus ? { focus: options.focus } : {}),
+      ...(fortuneNote ? { fortuneNote } : {}),
       maxContextChars: this.maxContextChars,
     });
 

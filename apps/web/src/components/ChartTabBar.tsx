@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import type { ChartPalace } from '@ziwei/chart-engine';
+import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
 import ChartBoard from './ChartBoard';
 import ReadingPanel from './ReadingPanel';
 import AskPanel, { type AskSeed } from './AskPanel';
@@ -11,7 +11,7 @@ import ChartShareButton, {
   SUMMARY_CHIP_CLASS,
   type ChartShareButtonProps,
 } from './ChartShareButton';
-import type { ChartCenterInfo } from './CenterPanel';
+import type { ChartCenterInfo, CurrentDaXianInfo } from './CenterPanel';
 import type { CitationMode } from '@/lib/citations';
 
 /** 三个视图：命盘 / 解读 / 追问 */
@@ -50,6 +50,10 @@ export interface ChartCitationNotice {
 export interface ChartTabsProps {
   palaces: ChartPalace[];
   center: ChartCenterInfo;
+  /** 今年流年（引擎 liuNianLayer 输出，服务端算好） */
+  liunian?: ChartLiuNian | null;
+  /** 当前大限摘要 */
+  currentDaXian?: CurrentDaXianInfo | null;
   reading: {
     ok: boolean;
     dimensions?: ChartReadingDimension[];
@@ -92,6 +96,8 @@ const CREDIT_CLASS =
 export default function ChartTabs({
   palaces,
   center,
+  liunian = null,
+  currentDaXian = null,
   reading,
   ask,
   summary,
@@ -120,6 +126,19 @@ export default function ChartTabs({
       palace: short,
       label: palaceName,
       question: `帮我看看我的${palaceName}。`,
+    });
+    selectTab('ask');
+  };
+
+  /** 中宫「就这步运追问」：时间层种子 */
+  const seedFromTime = (time: 'liunian' | 'daxian') => {
+    setAskSeed({
+      id: Date.now(),
+      time,
+      question:
+        time === 'liunian'
+          ? '今年流年整体如何？流年命宫和流年四化带来了什么？'
+          : '当前这步大限整体如何？大限命宫和大限四化怎么看？',
     });
     selectTab('ask');
   };
@@ -205,8 +224,10 @@ export default function ChartTabs({
           <ChartBoard
             palaces={palaces}
             center={center}
+            liunian={liunian}
+            daXianInfo={currentDaXian}
             onNavigateTab={(t) => selectTab(t === 'ask' && !reading.ok ? 'reading' : t)}
-            {...(reading.ok ? { onAskPalace: seedFromPalace } : {})}
+            {...(reading.ok ? { onAskPalace: seedFromPalace, onAskTime: seedFromTime } : {})}
           />
         </div>
 

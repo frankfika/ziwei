@@ -44,6 +44,8 @@ export interface AskSeed {
   question?: string;
   dimension?: string;
   palace?: string;
+  /** 时间层种子（中宫「就这步运追问」） */
+  time?: 'liunian' | 'daxian';
   label?: string;
 }
 
@@ -51,6 +53,8 @@ export interface AskQuickPrompt {
   label: string;
   question: string;
   dimension?: string;
+  /** 时间层焦点：流年（今年）/ 大限（这十年） */
+  time?: 'liunian' | 'daxian';
 }
 
 const PRESETS = [
@@ -181,7 +185,10 @@ export default function AskPanel({
       setFocus({ dimension: seed.dimension, palace: seed.palace });
     }
     if (seed.question) {
-      submit(seed.question);
+      submit(
+        seed.question,
+        seed.dimension || seed.time ? { dimension: seed.dimension, time: seed.time } : undefined,
+      );
     } else {
       window.requestAnimationFrame(() => textareaRef.current?.focus());
     }
@@ -199,7 +206,10 @@ export default function AskPanel({
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
-  function submit(q: string, dimension?: string) {
+  function submit(
+    q: string,
+    chipFocus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' },
+  ) {
     const text = q.trim();
     if (!text || pending) return;
 
@@ -215,9 +225,13 @@ export default function AskPanel({
     fd.set('day', String(day));
     fd.set('hour', String(hour));
     fd.set('gender', gender);
-    const effectiveFocus = dimension ? { dimension } : focus;
+    const effectiveFocus = chipFocus ?? focus;
     if (effectiveFocus?.dimension) fd.set('dimension', effectiveFocus.dimension);
     if (effectiveFocus?.palace) fd.set('palace', effectiveFocus.palace);
+    if (chipFocus?.time) {
+      fd.set('time', chipFocus.time);
+      if (chipFocus.time === 'liunian') fd.set('targetYear', String(new Date().getFullYear()));
+    }
     setFocus(null);
     fd.set(
       'turns',
@@ -299,7 +313,12 @@ export default function AskPanel({
               <button
                 key={p.question}
                 type="button"
-                onClick={() => submit(p.question, p.dimension)}
+                onClick={() =>
+                submit(
+                  p.question,
+                  p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined,
+                )
+              }
                 disabled={pending}
                 className={CHIP_CLASS}
               >
@@ -351,7 +370,12 @@ export default function AskPanel({
                   <button
                     key={p.question}
                     type="button"
-                    onClick={() => submit(p.question, p.dimension)}
+                    onClick={() =>
+                submit(
+                  p.question,
+                  p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined,
+                )
+              }
                     disabled={pending}
                     className={CHIP_CLASS}
                   >
@@ -473,7 +497,12 @@ export default function AskPanel({
                 <button
                   key={p.question}
                   type="button"
-                  onClick={() => submit(p.question, p.dimension)}
+                  onClick={() =>
+                submit(
+                  p.question,
+                  p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined,
+                )
+              }
                   disabled={pending}
                   className={CHIP_CLASS}
                 >
@@ -490,7 +519,12 @@ export default function AskPanel({
                 <button
                   key={p.question}
                   type="button"
-                  onClick={() => submit(p.question, p.dimension)}
+                  onClick={() =>
+                submit(
+                  p.question,
+                  p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined,
+                )
+              }
                   disabled={pending}
                   className={CHIP_CLASS}
                 >

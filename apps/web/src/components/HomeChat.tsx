@@ -14,6 +14,8 @@ import { useHistory, chartUrl } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
+  { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian' },
+  { label: '这十年', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
   { label: '整体格局', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview' },
   { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
   { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },

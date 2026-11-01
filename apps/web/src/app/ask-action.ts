@@ -119,12 +119,21 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
   try {
     const service = new AskService();
     const turns = parseTurns(str(formData, 'turns'));
-    // 页内追问焦点：来自哪个解读维度 / 宫位（未知值在 prompt 层会被忽略）
+    // 页内追问焦点：来自哪个解读维度 / 宫位 / 时间层（未知值在 prompt 层会被忽略）
+    const timeRaw = str(formData, 'time').trim();
     const focus = {
       ...(str(formData, 'dimension').trim()
         ? { dimension: str(formData, 'dimension').trim() }
         : {}),
       ...(str(formData, 'palace').trim() ? { palace: str(formData, 'palace').trim() } : {}),
+      ...(timeRaw === 'liunian' || timeRaw === 'daxian'
+        ? {
+            time: timeRaw as 'liunian' | 'daxian',
+            ...(timeRaw === 'liunian' && Number(str(formData, 'targetYear'))
+              ? { targetYear: Number(str(formData, 'targetYear')) }
+              : {}),
+          }
+        : {}),
     };
     const result = await service.ask(
       { year, month, day, hour, gender },

@@ -12,6 +12,7 @@ import {
   chartSummary,
   DIMENSION_LABELS,
   READING_DIMENSIONS,
+  liuNianLayer,
   type Birth,
   type ChartJSON,
   type ReadingDimension,
@@ -160,5 +161,5 @@ export class ZiweiService {
   }
 }
 
-export { chart, chartSummary, DIMENSION_LABELS, READING_DIMENSIONS };
+export { chart, chartSummary, DIMENSION_LABELS, READING_DIMENSIONS, liuNianLayer };
 export type { Birth, ChartJSON, ReadingDimension };

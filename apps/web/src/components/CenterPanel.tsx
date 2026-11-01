@@ -1,5 +1,17 @@
-import type { ChartPalace } from '@ziwei/chart-engine';
+import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES, STEM_NAMES } from '@/lib/birth';
+
+/** 盘面时间层：本命 / 大限 / 流年（叠加视图） */
+export type BoardLayer = 'natal' | 'daxian' | 'liunian';
+
+/** 当前大限摘要（chart.daXians[currentDaXianIndex] 的展示子集） */
+export interface CurrentDaXianInfo {
+  startAge: number;
+  endAge: number;
+  palaceName: string;
+  stemName?: string;
+  siHua?: { lu: string; quan: string; ke: string; ji: string };
+}
 
 /** 中宫展示所需的标量信息 */
 export interface ChartCenterInfo {
@@ -65,6 +77,11 @@ export default function CenterPanel({
   chips = [],
   onJumpBranch,
   onNavigateTab,
+  layer = 'natal',
+  onLayerChange,
+  liunian = null,
+  currentDaXian = null,
+  onAskTime,
 }: {
   palaces: ChartPalace[];
   info: ChartCenterInfo;
@@ -73,6 +90,14 @@ export default function CenterPanel({
   onJumpBranch?: (branch: number) => void;
   /** 跳到底部 tab：解读 / 追问 */
   onNavigateTab?: (tab: 'reading' | 'ask') => void;
+  /** 时间轴叠加层 */
+  layer?: BoardLayer;
+  onLayerChange?: (layer: BoardLayer) => void;
+  /** 今年流年（引擎 liuNianLayer 输出） */
+  liunian?: ChartLiuNian | null;
+  currentDaXian?: CurrentDaXianInfo | null;
+  /** 「就这步运追问」 */
+  onAskTime?: (time: 'liunian' | 'daxian') => void;
 }) {
   const branchOf = (b: number) =>
     palaces.find((p) => p.branch === b)?.branchName ?? SHICHEN_NAMES[b] ?? '—';
@@ -97,6 +122,90 @@ export default function CenterPanel({
           {info.currentAge > 0 && info.currentAge < 150 ? `虚岁 ${info.currentAge} 岁` : ''}
         </p>
       </div>
+
+      {/* 时间轴：本命 / 大限 / 流年 叠加切换 */}
+      {onLayerChange && (
+        <div
+          role="tablist"
+          aria-label="时间层"
+          className="flex rounded-full border border-line bg-surface p-0.5"
+        >
+          {(
+            [
+              ['natal', '本命'],
+              ['daxian', '大限'],
+              ['liunian', '流年'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={layer === key}
+              onClick={() => onLayerChange(key)}
+              className={`rounded-full px-3 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                layer === key ? 'bg-zhu-soft text-ink' : 'text-ink-3 hover:text-ink-2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 运限事实：切到大限/流年时，中宫给出这一层的摘要（引擎真实计算） */}
+      {layer === 'daxian' && currentDaXian && (
+        <div className="w-full space-y-1.5 rounded-lg border border-lineSoft bg-surface px-3 py-2.5 text-left">
+          <p className="text-2xs text-ink-3">
+            当前大限 <span className="tabular-nums text-ink">{currentDaXian.startAge}–{currentDaXian.endAge}</span> 岁
+          </p>
+          <p className="text-xs text-ink">
+            大限命宫在{currentDaXian.palaceName}
+            {currentDaXian.stemName ? `（${currentDaXian.stemName}）` : ''}
+          </p>
+          {currentDaXian.siHua && (
+            <p className="text-2xs leading-relaxed text-ink-2">
+              大限四化：禄 {currentDaXian.siHua.lu} · 权 {currentDaXian.siHua.quan} · 科{' '}
+              {currentDaXian.siHua.ke} · 忌 {currentDaXian.siHua.ji}
+            </p>
+          )}
+          {onAskTime && (
+            <button
+              type="button"
+              onClick={() => onAskTime('daxian')}
+              className="mt-1 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              就这步大限追问
+            </button>
+          )}
+        </div>
+      )}
+
+      {layer === 'liunian' && liunian && (
+        <div className="w-full space-y-1.5 rounded-lg border border-hua-ke/30 bg-surface px-3 py-2.5 text-left">
+          <p className="text-2xs text-ink-3">
+            {liunian.year} <span className="text-ink">{liunian.ganzhi}年</span> · 流年
+          </p>
+          <p className="text-xs text-ink">
+            流年命宫在
+            {palaces.find((p) => p.branch === liunian.mingBranch)?.name ?? ''}
+            {palaces.find((p) => p.branch === liunian.mingBranch)?.branchName ?? ''}
+          </p>
+          <p className="text-2xs leading-relaxed text-ink-2">
+            流年四化：禄 {liunian.siHua.lu} · 权 {liunian.siHua.quan} · 科 {liunian.siHua.ke} · 忌{' '}
+            {liunian.siHua.ji}
+          </p>
+          {onAskTime && (
+            <button
+              type="button"
+              onClick={() => onAskTime('liunian')}
+              className="mt-1 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              就今年追问
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作） */}
       {(chips.length > 0 || onNavigateTab) && (

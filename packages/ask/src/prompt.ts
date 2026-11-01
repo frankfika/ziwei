@@ -44,14 +44,20 @@ export interface BuildAskPromptInput {
    * 给了就不再只靠关键词猜：焦点维度无条件置顶注入。
    */
   focus?: AskFocus;
+  /** 运限事实（流年/大限），由 service 用引擎数据生成，原样附在盘面事实之后 */
+  fortuneNote?: string;
 }
 
-/** 页内追问焦点：来自哪个解读维度 / 哪个宫位。 */
+/** 页内追问焦点：来自哪个解读维度 / 哪个宫位 / 哪个时间层。 */
 export interface AskFocus {
   /** 解读维度 key（如 'love'）；未知 key 会被忽略 */
   dimension?: string;
   /** 宫位名（如 '夫妻'）；经 PALACE_TO_DIMENSION 映射到维度 */
   palace?: string;
+  /** 时间层：liunian=流年（配合 targetYear），daxian=当前大限 */
+  time?: 'liunian' | 'daxian';
+  /** time 为 liunian 时的目标公历年，默认当年 */
+  targetYear?: number;
 }
 
 /** 焦点维度的加分：压过一切关键词命中，确保置顶注入。 */
@@ -269,6 +275,7 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     turns,
     maxContextChars = DEFAULT_MAX_CONTEXT_CHARS,
     focus,
+    fortuneNote,
   } = input;
 
   const q = (question ?? '').trim();
@@ -329,7 +336,7 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
   const historyChars = historyBlock.length;
   const snippetBudget = Math.max(
     0,
-    maxContextChars - summaryChars - historyChars - LABEL_RESERVE,
+    maxContextChars - summaryChars - historyChars - (fortuneNote?.length ?? 0) - LABEL_RESERVE,
   );
   const perDim = picked.length
     ? Math.max(600, Math.floor(snippetBudget / picked.length))
@@ -377,6 +384,9 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
       birthLine +
       '）',
     chartSummary ?? '',
+    ...(fortuneNote
+      ? ['', '【运限事实】（由确定性排盘引擎生成的流年/大限层，与本命盘叠加看）', fortuneNote]
+      : []),
     '',
     '【解读原文节选】（来自「紫微斗数开源解读数据集 v4.0」（CC BY 4.0，作者：王多鱼AI）；' +
       '以下为按问题相关性选取的节选，可能已被截断）',
@@ -402,7 +412,9 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     system: ASK_SYSTEM_PROMPT,
     user,
     selected,
-    contextChars: summaryChars + historyChars + selected.reduce((s, d) => s + d.includedChars, 0),
+    contextChars:
+      summaryChars + historyChars + (fortuneNote?.length ?? 0) +
+      selected.reduce((s, d) => s + d.includedChars, 0),
     maxContextChars,
   };
 }

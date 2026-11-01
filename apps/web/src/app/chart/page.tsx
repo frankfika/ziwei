@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import ChartTabs from '@/components/ChartTabBar';
 import { describeProviderEnv } from '@ziwei/ask';
+import { liuNianLayer } from '@ziwei/chart-engine';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
 import {
@@ -117,6 +118,22 @@ export default async function ChartPage({
   const chartDate = formatDate(year, month, day);
   const readingOk = reading.status === 'ok';
 
+  // 今年流年 + 当前大限：引擎真实计算，中宫时间轴与运势卡的数据源
+  const liunian = liuNianLayer(chart, new Date().getFullYear());
+  const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
+  const dx = dxPalace ? chart.daXians.find((d) => d.palaceBranch === dxPalace.branch) : undefined;
+  const currentDaXian = dx
+    ? {
+        startAge: dx.startAge,
+        endAge: dx.endAge,
+        palaceName: dx.palaceName,
+        ...(dx.stemName ? { stemName: dx.stemName } : {}),
+        ...(dx.siHua
+          ? { siHua: { lu: dx.siHua.lu, quan: dx.siHua.quan, ke: dx.siHua.ke, ji: dx.siHua.ji } }
+          : {}),
+      }
+    : null;
+
   // 引文降级在服务端算好，客户端壳只收纯数据
   const citationMode = resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
   const applied = readingOk
@@ -138,6 +155,8 @@ export default async function ChartPage({
       <ChartTabs
         palaces={chart.palaces}
         center={center}
+        liunian={liunian}
+        currentDaXian={currentDaXian}
         reading={{
           ok: readingOk,
           dimensions: applied?.dimensions,

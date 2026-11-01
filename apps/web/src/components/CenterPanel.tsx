@@ -25,6 +25,9 @@ export interface ChartCenterInfo {
 const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CN_MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
 
+/** 四柱列名（一行四个等宽的字，无边框格子墙） */
+const PILLAR_LABELS = ['年', '月', '日', '时'];
+
 function cnDay(day: number): string {
   if (day <= 10) return `初${CN_DIGITS[day]}`;
   if (day < 20) return `十${CN_DIGITS[day - 10]}`;
@@ -34,6 +37,7 @@ function cnDay(day: number): string {
   return `${CN_DIGITS[Math.floor(day / 10)]}十${CN_DIGITS[day % 10]}`;
 }
 
+/** 一行「标签 · 值」：标签最弱，值为正文级 */
 function Row({
   label,
   children,
@@ -45,7 +49,7 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="shrink-0 text-2xs tracking-wide2 text-ink-3">{label}</span>
+      <span className="shrink-0 text-2xs text-ink-3">{label}</span>
       <span
         className={`text-right text-xs tabular-nums ${accent ? 'text-zhu' : 'text-ink'}`}
       >
@@ -68,10 +72,28 @@ export default function CenterPanel({
   const pillars = info.fourPillars;
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-5 py-4">
+    // 中宫比宫卡更深一档（paper）—— 造成「洞 / 虚空」的层次
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-paper px-4 py-4">
+      {/* 中宫主视觉：局名 display 居中 → 命主/身主一行 → 虚岁一行（§B4） */}
       <div className="text-center">
-        <p className="text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
-        <p className="mt-1 text-2xs tracking-wide text-ink-3">
+        <p className="font-serif text-display text-ink">{info.wuxingJuName}</p>
+        {(info.mingZhu || info.shenZhu) && (
+          <p className="mt-1.5 text-xs text-ink-2">
+            {info.mingZhu ? `命主 ${info.mingZhu}` : ''}
+            {info.mingZhu && info.shenZhu ? ' · ' : ''}
+            {info.shenZhu ? `身主 ${info.shenZhu}` : ''}
+          </p>
+        )}
+        <p className="mt-1 text-2xs text-ink-3">
+          {info.yinYangGender ? `${info.yinYangGender} · ` : ''}
+          {info.currentAge > 0 && info.currentAge < 150 ? `虚岁 ${info.currentAge} 岁` : ''}
+        </p>
+      </div>
+
+      {/* 细节退后：生辰、落宫 */}
+      <div className="text-center">
+        <p className="font-serif text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
+        <p className="mt-1 text-2xs text-ink-3">
           {STEM_NAMES[info.yearStem]}
           {SHICHEN_NAMES[info.yearBranch]}年
           {info.isLeapMonth ? '闰' : ''}
@@ -81,40 +103,35 @@ export default function CenterPanel({
 
       {pillars && (
         <div className="w-full">
-          <p className="mb-1.5 text-center text-2xs tracking-wide2 text-ink-3">四柱</p>
-          <div className="grid grid-cols-4 gap-1">
+          <p className="mb-1.5 text-center text-2xs text-ink-3">四柱</p>
+          {/* 一行四个等宽的字 + 下面一行干支：无边框、无格子墙 */}
+          <div className="grid grid-cols-4 gap-x-2 gap-y-1">
+            {PILLAR_LABELS.map((label) => (
+              <span key={label} className="text-center text-2xs text-ink-3">
+                {label}
+              </span>
+            ))}
             {pillars.map((p, i) => (
-              <div
+              <span
                 key={`${p}-${i}`}
-                className="rounded-md border border-lineSoft bg-paper py-1 text-center font-mono text-xs text-ink"
+                className="text-center font-mono text-xs text-ink"
               >
                 {p}
-              </div>
+              </span>
             ))}
           </div>
-          <p className="mt-1 text-center text-2xs text-ink-3">
-            年 · 月 · 日 · 时
-          </p>
         </div>
       )}
 
-      <div className="w-full space-y-1.5">
+      {/* 细节退后：只留「落宫」这类不重复的信息 */}
+      <div className="w-full space-y-2">
         <Row label="命宫" accent>
           {branchOf(info.mingGongBranch)}宫
         </Row>
         <Row label="身宫">{branchOf(info.shenGongBranch)}宫</Row>
-        <Row label="五行局" accent>
-          {info.wuxingJuName}
-        </Row>
-        <Row label="命主">{info.mingZhu ?? '—'}</Row>
-        <Row label="身主">{info.shenZhu ?? '—'}</Row>
         <Row label="紫微">
           在{branchOf(info.ziweiPos)}宫
         </Row>
-        {info.yinYangGender && <Row label="阴阳男女">{info.yinYangGender}</Row>}
-        {info.currentAge > 0 && info.currentAge < 150 ? (
-          <Row label="虚岁">{info.currentAge} 岁</Row>
-        ) : null}
       </div>
     </div>
   );

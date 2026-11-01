@@ -123,14 +123,14 @@ export default function ReadingPanel({
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:gap-9">
-        {/* 维度切换：移动端横向分段行（不吸顶），桌面端左栏竖排 */}
+      <div className="grid gap-5 lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:items-start lg:gap-9">
+        {/* 维度切换：移动端横向分段行悬浮在滚动容器顶部，桌面端左栏竖排悬浮跟随 */}
         <nav
           id="reading-dimensions"
           role="tablist"
           aria-label="解读维度"
           onKeyDown={onTabListKeyDown}
-          className="-mx-1 flex gap-1 overflow-x-auto overscroll-x-contain border-b border-lineSoft px-1 pb-2 touch-pan-x scroll-mt-14 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:flex-col lg:overflow-visible lg:border-b-0 lg:px-0 lg:pb-0"
+          className="sticky top-0 z-20 -mx-2 flex gap-1 overflow-x-auto overscroll-x-contain border-b border-lineSoft bg-paper/95 px-2 pb-2 pt-2 backdrop-blur touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:z-auto lg:flex-col lg:overflow-visible lg:border-b-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:backdrop-blur-none"
         >
           {dimensions.map((d) => {
             const isActive = d.key === current.key;
@@ -182,8 +182,11 @@ export default function ReadingPanel({
                 本维 {current.chars.toLocaleString('zh-CN')} 字
               </span>
             </div>
+            {/* 阅读行宽收在 40em 左右：长文不再拉满整屏，一眼能扫完一行 */}
             {current.text.trim() ? (
-              <Markdown text={current.text} />
+              <div className="max-w-[40rem]">
+                <Markdown text={current.text} />
+              </div>
             ) : (
               <div
                 className="rounded-lg border border-lineSoft bg-surface-2 px-4 py-6 text-center"

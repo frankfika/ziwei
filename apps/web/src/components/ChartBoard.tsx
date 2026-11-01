@@ -91,7 +91,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
       <div className="relative flex min-h-0 flex-1 flex-col md:hidden">
         <div
           id="chart-board-grid"
-          className="palace-grid grid min-h-0 flex-1"
+          className="palace-grid grid min-h-0 flex-1 overflow-hidden rounded-2xl"
           style={{
             gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
             gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
@@ -349,7 +349,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
         <div className="min-h-0 flex-1 overflow-x-auto print:flex-none print:overflow-visible">
           <div
             id="chart-board-grid-desktop"
-            className="palace-grid grid h-full min-w-[46rem] overflow-hidden print:h-auto"
+            className="palace-grid grid h-full min-w-[42rem] overflow-hidden rounded-2xl print:h-auto"
             style={{
               gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
               gridTemplateRows: 'repeat(4, minmax(0, 1fr))',

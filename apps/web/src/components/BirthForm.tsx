@@ -429,10 +429,11 @@ export default function BirthForm({
         </div>
         <p
           id="chart-submit-status"
-          className={`mt-3 min-h-5 text-2xs text-ink-3${resolved.ok ? ' max-md:sr-only' : ''}`}
+          className="mt-3 min-h-5 text-2xs text-ink-3"
           aria-live={attemptedSubmit && !resolved.ok ? 'polite' : undefined}
         >
-          {submitHint}
+          {/* 信息完整时保持安静（「将按 X 年 X 月排盘」已在时辰区显示），别再重复一句 */}
+          {resolved.ok ? '' : submitHint}
         </p>
       </form>
 

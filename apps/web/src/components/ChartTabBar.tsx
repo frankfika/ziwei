@@ -7,7 +7,10 @@ import ChartBoard from './ChartBoard';
 import ReadingPanel from './ReadingPanel';
 import AskPanel from './AskPanel';
 import NotCoveredNotice from './NotCoveredNotice';
-import ChartShareButton, { type ChartShareButtonProps } from './ChartShareButton';
+import ChartShareButton, {
+  SUMMARY_CHIP_CLASS,
+  type ChartShareButtonProps,
+} from './ChartShareButton';
 import type { ChartCenterInfo } from './CenterPanel';
 import type { CitationMode } from '@/lib/citations';
 
@@ -73,7 +76,7 @@ export interface ChartTabsProps {
 
 /** 外壳：移动端固定一屏（header 56 + 摘要 56 + 底栏 56），桌面端回到正常流 */
 const SHELL_CLASS =
-  'fixed inset-x-0 top-14 bottom-[var(--chart-tab)] z-30 flex flex-col bg-paper pb-[env(safe-area-inset-bottom,_0px)] md:static md:inset-auto md:h-[calc(100dvh-3.5rem)] md:pb-[var(--chart-tab)] print:static print:!h-auto print:!pb-0';
+  'fixed inset-x-0 top-14 bottom-[var(--chart-tab)] z-30 flex flex-col bg-paper pb-[env(safe-area-inset-bottom,_0px)] md:static md:inset-auto md:h-[calc(100dvh-7.5rem)] print:static print:!h-auto print:!pb-0';
 
 /** 摘要行：≤56px */
 const SUMMARY_CLASS = 'relative z-20 flex h-14 shrink-0 items-center gap-2 px-3 md:px-0';
@@ -85,9 +88,6 @@ const CONTENT_CLASS =
 /** 署名行：底栏正上方，≤24px。实底，避免与上方滚动正文糊在一起。 */
 const CREDIT_CLASS =
   'flex h-4 shrink-0 items-center gap-1 truncate bg-paper px-3 text-2xs leading-4 text-ink-3 md:px-0 print:hidden';
-
-const SUMMARY_CHIP_CLASS =
-  'inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-line px-2.5 py-1 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu [&::-webkit-details-marker]:hidden';
 
 export default function ChartTabs({
   palaces,
@@ -173,12 +173,7 @@ export default function ChartTabs({
           </div>
         </details>
 
-        <details className="relative shrink-0">
-          <summary className={SUMMARY_CHIP_CLASS}>分享</summary>
-          <div className="absolute right-0 top-full z-30 mt-1.5 rounded-xl border border-line bg-surface-2 p-2 shadow-[0_12px_40px_rgba(3,5,16,0.45)] [&>div]:mt-0">
-            <ChartShareButton {...share} />
-          </div>
-        </details>
+        <ChartShareButton {...share} />
       </div>
 
       {/* ── 三个面板：都挂载，非激活的 hidden（打印时 print:block） ─── */}

@@ -15,6 +15,10 @@ export interface ChartShareButtonProps {
 
 type CopyKind = 'summary' | 'link' | null;
 
+/** 摘要行里的小折叠触发器（盘页「详情」「分享」共用一套形态） */
+export const SUMMARY_CHIP_CLASS =
+  'inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-line px-2.5 py-1 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu [&::-webkit-details-marker]:hidden';
+
 function buildSummary({
   name,
   year,
@@ -78,45 +82,34 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
   const summaryLabel = copied === 'summary' ? '已复制摘要' : '复制生辰摘要';
   const linkLabel = copied === 'link' ? '已复制链接' : '复制本页链接';
 
+  // 选完就收起菜单，别让它一直挂在摘要行下面
+  const collapse = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.closest('details')?.removeAttribute('open');
+  };
+
+  const actionClass =
+    'flex w-full min-h-9 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-left text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 print:hidden">
-      <button
-        type="button"
-        onClick={onCopySummary}
-        aria-label={summaryLabel}
-        className={`inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-          copied === 'summary'
-            ? 'border-zhu/40 bg-zhu-soft text-ink'
-            : 'border-line bg-surface text-ink-2 hover:border-ink-3 hover:text-ink'
-        }`}
-      >
-        {summaryLabel}
-      </button>
-      <button
-        type="button"
-        onClick={onCopyLink}
-        aria-label={linkLabel}
-        className={`inline-flex min-h-9 items-center rounded-lg border px-3 py-2 text-2xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-          copied === 'link'
-            ? 'border-zhu/40 bg-zhu-soft text-ink'
-            : 'border-line bg-surface text-ink-2 hover:border-ink-3 hover:text-ink'
-        }`}
-      >
-        {linkLabel}
-      </button>
-      <span
-        className={`inline-flex min-h-9 items-center rounded-lg px-2 text-2xs ${
-          failed
-            ? 'bg-zhu-soft/60 text-zhu'
-            : copied
-              ? 'text-ink'
-              : 'text-ink-3'
-        }`}
-        role={failed ? 'alert' : 'status'}
-        aria-live={failed ? 'assertive' : 'polite'}
-      >
-        {liveMessage}
-      </span>
-    </div>
+    <details className="relative shrink-0 print:hidden">
+      <summary className={SUMMARY_CHIP_CLASS}>分享</summary>
+      <div className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-xl border border-line bg-surface-2 p-1.5 shadow-[0_12px_40px_rgba(3,5,16,0.45)]">
+        <button type="button" onClick={(e) => { onCopySummary(); collapse(e); }} className={actionClass}>
+          {summaryLabel}
+        </button>
+        <button type="button" onClick={(e) => { onCopyLink(); collapse(e); }} className={actionClass}>
+          {linkLabel}
+        </button>
+        <span
+          className={`block px-2.5 py-1 text-2xs ${
+            failed ? 'text-danger' : copied ? 'text-ink' : 'text-ink-3'
+          }`}
+          role={failed ? 'alert' : 'status'}
+          aria-live={failed ? 'assertive' : 'polite'}
+        >
+          {liveMessage}
+        </span>
+      </div>
+    </details>
   );
 }

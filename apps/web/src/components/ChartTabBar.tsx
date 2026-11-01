@@ -236,6 +236,8 @@ export default function ChartTabs({
             <ReadingPanel
               dimensions={reading.dimensions ?? []}
               totalChars={reading.totalChars}
+              liunian={liunian}
+              palaces={palaces}
               {...(reading.citationNotice ? { citationNotice: reading.citationNotice } : {})}
               {...(reading.ok ? { onAskFollowUp: seedFromDimension } : {})}
             />

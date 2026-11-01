@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Markdown from './Markdown';
+import { LiuNianCard } from './FortuneCard';
+import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 
 export interface ReadingDimensionData {
@@ -23,6 +25,8 @@ export default function ReadingPanel({
   dimensions,
   citationNotice,
   onAskFollowUp,
+  liunian = null,
+  palaces = [],
 }: {
   dimensions: ReadingDimensionData[];
   /** 保留：父组件仍在传。面板只展示「本维」字数，不再展示总字数。 */
@@ -30,6 +34,9 @@ export default function ReadingPanel({
   citationNotice?: CitationNotice;
   /** 「就此追问」：带着当前解读维度跳到追问 tab */
   onAskFollowUp?: (dim: { key: string; label: string }) => void;
+  /** 今年流年：解读 tab 顶部先给一张运势卡 */
+  liunian?: ChartLiuNian | null;
+  palaces?: ChartPalace[];
 }) {
   const [active, setActive] = useState(dimensions[0]?.key ?? '');
   const current = dimensions.find((d) => d.key === active) ?? dimensions[0];
@@ -124,6 +131,13 @@ export default function ReadingPanel({
             关于与口径
           </Link>
         </p>
+      )}
+
+      {/* 今年运势卡：解读 tab 顶部 —— 先看时间层，再看维度 */}
+      {liunian && palaces.length > 0 && (
+        <div className="mb-6">
+          <LiuNianCard liunian={liunian} palaces={palaces} />
+        </div>
       )}
 
       <div className="grid gap-5 lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:items-start lg:gap-9">

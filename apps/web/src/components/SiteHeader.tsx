@@ -23,7 +23,7 @@ export function SiteHeader() {
           href="/"
           className="group flex items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
-          <ZiweiMark className="h-[18px] w-[18px] shrink-0 text-zhu drop-shadow-[0_0_7px_rgba(139,124,246,0.5)] transition-transform duration-300 group-hover:rotate-12" />
+          <ZiweiMark className="h-[18px] w-[18px] shrink-0 text-zhu drop-shadow-[0_0_7px_rgba(61,90,133,0.35)] transition-transform duration-300 group-hover:rotate-12" />
           <span className="font-serif text-[15px] font-semibold tracking-[0.16em] text-ink">
             紫微助手
           </span>

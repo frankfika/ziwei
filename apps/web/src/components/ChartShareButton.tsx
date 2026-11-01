@@ -93,7 +93,7 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
   return (
     <details className="relative shrink-0 print:hidden">
       <summary className={SUMMARY_CHIP_CLASS}>分享</summary>
-      <div className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-xl border border-line bg-surface-2 p-1.5 shadow-[0_12px_40px_rgba(3,5,16,0.45)]">
+      <div className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-xl border border-line bg-surface-2 p-1.5 shadow-[0_12px_40px_rgba(46,42,35,0.14)]">
         <button type="button" onClick={(e) => { onCopySummary(); collapse(e); }} className={actionClass}>
           {summaryLabel}
         </button>

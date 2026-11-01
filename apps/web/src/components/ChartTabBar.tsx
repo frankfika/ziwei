@@ -168,7 +168,7 @@ export default function ChartTabs({
 
         <details className="relative shrink-0">
           <summary className={SUMMARY_CHIP_CLASS}>详情</summary>
-          <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-line bg-surface-2 p-3 shadow-[0_12px_40px_rgba(3,5,16,0.45)]">
+          <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-line bg-surface-2 p-3 shadow-[0_12px_40px_rgba(46,42,35,0.14)]">
             {details}
           </div>
         </details>

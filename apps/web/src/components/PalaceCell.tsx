@@ -188,23 +188,23 @@ export default function PalaceCell({
         )}
       </div>
 
-      {/* 辅星 / 吉星 */}
-      {minor.length > 0 && (
+      {/* 辅星 / 吉星：盘面默认收起，选中才展开（渐进披露 §B3） */}
+      {selected && minor.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {minor.map((star) => (
             <StarName key={star.name} star={star} tier="minor" />
           ))}
         </div>
       )}
-      {lucky.length > 0 && (
+      {selected && lucky.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {lucky.map((star) => (
             <StarName key={star.name} star={star} tier="minor" />
           ))}
         </div>
       )}
-      {/* 煞星 / 杂曜 */}
-      {sha.length > 0 && (
+      {/* 煞星 / 杂曜：同收起 */}
+      {selected && sha.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {sha.map((star) => (
             <StarName key={star.name} star={star} tier="misc" />
@@ -233,7 +233,7 @@ export default function PalaceCell({
             {palace.borrowedFromName ? ` · 借${palace.borrowedFromName}` : ''}
           </span>
         )}
-        {palace.borrowedStars && palace.borrowedStars.length > 0 && (
+        {selected && palace.borrowedStars && palace.borrowedStars.length > 0 && (
           <span className="text-2xs text-ink-3">
             {palace.borrowedStars.join('、')}
           </span>

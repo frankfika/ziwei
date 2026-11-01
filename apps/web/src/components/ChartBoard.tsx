@@ -9,6 +9,8 @@ import { DURATION, motionStyle } from '@/lib/motion';
 interface ChartBoardProps {
   palaces: ChartPalace[];
   center: ChartCenterInfo;
+  /** 中宫「看解读 / 去追问」跳到底部 tab */
+  onNavigateTab?: (tab: 'reading' | 'ask') => void;
 }
 
 /** 四化图例（桌面一行 / 移动端 sheet 顶部共用） */
@@ -21,7 +23,7 @@ const SIHUA_LEGEND = (
   </>
 );
 
-export default function ChartBoard({ palaces, center }: ChartBoardProps) {
+export default function ChartBoard({ palaces, center, onNavigateTab }: ChartBoardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   /** 移动端：中宫详情 sheet */
   const [centerOpen, setCenterOpen] = useState(false);
@@ -79,11 +81,24 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
     setSelected((prev) => (prev === branch ? null : branch));
   };
 
-  const jumpChips: Array<{ key: string; label: string; palace: ChartPalace | null }> = [
-    { key: 'ming', label: '命宫', palace: mingPalace },
-    { key: 'shen', label: '身宫', palace: shenPalace },
-    { key: 'daxian', label: '当前大限', palace: currentDaXian },
-  ];
+  const jumpChips: Array<{ key: string; label: string; branch: number; active: boolean }> = [
+    { key: 'ming', label: '命宫', branch: mingPalace?.branch ?? -1, active: selected === mingPalace?.branch },
+    { key: 'shen', label: '身宫', branch: shenPalace?.branch ?? -1, active: selected === shenPalace?.branch },
+    { key: 'daxian', label: '当前大限', branch: currentDaXian?.branch ?? -1, active: selected === currentDaXian?.branch },
+  ].filter((chip) => chip.branch >= 0);
+
+  const centerPanel = (
+    <CenterPanel
+      palaces={palaces}
+      info={center}
+      chips={jumpChips}
+      onJumpBranch={(branch) => {
+        setCenterOpen(false);
+        toggleSelected(branch);
+      }}
+      {...(onNavigateTab ? { onNavigateTab } : {})}
+    />
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col print:flex-none print:h-auto">
@@ -203,7 +218,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             );
           })}
 
-          {/* 中宫：虚空 —— 局名 / 命主身主 / 虚岁 + 跳转芯片 */}
+          {/* 中宫：控制区入口 —— 点开 sheet 看全局 + 跳转 + 解读/追问 */}
           <div
             style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
             className="flex min-h-0 flex-col items-center justify-center gap-1 bg-paper p-2"
@@ -231,32 +246,10 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 {center.yinYangGender ? `${center.yinYangGender} · ` : ''}虚岁{' '}
                 {center.currentAge} 岁
               </span>
+              <span className="mt-1 rounded-full border border-line bg-surface px-2 py-0.5 text-2xs leading-none text-ink-3">
+                命局与操作
+              </span>
             </button>
-
-            {/* 跳转芯片：挪进中宫，省掉盘下方那 40px */}
-            <div className="flex w-full shrink-0 flex-wrap items-center justify-center gap-1">
-              {jumpChips.map((chip) => {
-                if (!chip.palace) return null;
-                const active = selected === chip.palace.branch;
-                return (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={(event) => {
-                      mobileTriggerRef.current = event.currentTarget;
-                      toggleSelected(chip.palace!.branch);
-                    }}
-                    className={`rounded-full border px-1.5 py-0.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-                      active
-                        ? 'border-zhu bg-zhu-soft text-ink'
-                        : 'border-line bg-surface text-ink-3'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
 
@@ -291,7 +284,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
 
               {centerOpen ? (
                 <div className="px-3.5 py-2">
-                  <CenterPanel palaces={palaces} info={center} />
+                  {centerPanel}
                 </div>
               ) : (
                 selectedPalace && (
@@ -387,7 +380,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
               style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
               className="min-h-0 overflow-y-auto print:overflow-visible"
             >
-              <CenterPanel palaces={palaces} info={center} />
+              {centerPanel}
             </div>
           </div>
         </div>

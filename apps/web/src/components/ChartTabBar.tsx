@@ -179,7 +179,11 @@ export default function ChartTabs({
       {/* ── 三个面板：都挂载，非激活的 hidden（打印时 print:block） ─── */}
       <div className={CONTENT_CLASS}>
         <div {...panelProps('chart')}>
-          <ChartBoard palaces={palaces} center={center} />
+          <ChartBoard
+            palaces={palaces}
+            center={center}
+            onNavigateTab={(t) => selectTab(t === 'ask' && !reading.ok ? 'reading' : t)}
+          />
         </div>
 
         <div {...panelProps('reading')}>

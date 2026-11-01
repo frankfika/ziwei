@@ -62,9 +62,17 @@ function Row({
 export default function CenterPanel({
   palaces,
   info,
+  chips = [],
+  onJumpBranch,
+  onNavigateTab,
 }: {
   palaces: ChartPalace[];
   info: ChartCenterInfo;
+  /** 跳转芯片：命宫 / 身宫 / 当前大限（中宫即控制区） */
+  chips?: Array<{ key: string; label: string; branch: number; active: boolean }>;
+  onJumpBranch?: (branch: number) => void;
+  /** 跳到底部 tab：解读 / 追问 */
+  onNavigateTab?: (tab: 'reading' | 'ask') => void;
 }) {
   const branchOf = (b: number) =>
     palaces.find((p) => p.branch === b)?.branchName ?? SHICHEN_NAMES[b] ?? '—';
@@ -89,6 +97,49 @@ export default function CenterPanel({
           {info.currentAge > 0 && info.currentAge < 150 ? `虚岁 ${info.currentAge} 岁` : ''}
         </p>
       </div>
+
+      {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作） */}
+      {(chips.length > 0 || onNavigateTab) && (
+        <div className="flex w-full flex-col items-center gap-2">
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {chips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => onJumpBranch?.(chip.branch)}
+                  aria-pressed={chip.active}
+                  className={`rounded-full border px-2.5 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                    chip.active
+                      ? 'border-zhu bg-zhu-soft text-ink'
+                      : 'border-line bg-surface text-ink-2 hover:border-ink-3'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {onNavigateTab && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onNavigateTab('reading')}
+                className="rounded-full border border-line bg-surface px-2.5 py-1.5 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                看解读
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('ask')}
+                className="rounded-full border border-line bg-surface px-2.5 py-1.5 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                去追问
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 细节退后：生辰、落宫 */}
       <div className="text-center">

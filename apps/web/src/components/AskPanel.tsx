@@ -39,6 +39,14 @@ const PRESETS = [
 /** 带入下一轮问题的上文轮数 */
 const CONTEXT_TURNS = 6;
 
+/** 推荐追问 chip：低反光冷玉，不用高彩紫底 */
+const CHIP_CLASS =
+  'max-w-full min-h-9 whitespace-normal rounded-full border border-line bg-surface-2 px-3 py-2 text-left text-2xs leading-snug text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+
+/** 「问」标记：冷玉小方（深底 + 紫字，无高饱和紫底） */
+const ASK_MARK_CLASS =
+  'mr-1.5 inline-flex min-w-6 items-center justify-center rounded-sm bg-surface px-1.5 py-0.5 text-2xs text-zhu';
+
 /** 服务端返回的非 ok 状态 / 本地失败 —— 不进线程，作为临时提示展示 */
 type Transient =
   | { kind: 'not-covered' | 'not-configured'; message: string }
@@ -72,11 +80,11 @@ function MessageVerification({ suspects, isLatest }: { suspects: string[]; isLat
   if (suspects.length > 0) {
     return (
       <div
-        className="mt-4 rounded-lg border border-zhu/30 bg-zhu-soft/50 px-4 py-3"
+        className="mt-4 rounded-lg border border-hua-ke/40 bg-surface-2 px-4 py-3"
         {...(isLatest ? { 'data-ask-verification': 'warn' } : {})}
         role="alert"
       >
-        <p className="text-xs font-medium text-zhu">
+        <p className="text-xs font-medium text-hua-ke">
           这条回答里有些说法超出了你的盘面材料，请谨慎参考：
         </p>
         <ul className="mt-1.5 space-y-0.5 text-2xs text-ink-2">
@@ -105,7 +113,7 @@ export default function AskPanel({
   const [question, setQuestion] = useState('');
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [pending, startTransition] = useTransition();
   const resultId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -125,12 +133,12 @@ export default function AskPanel({
     return () => window.removeEventListener('hashchange', expandFromHash);
   }, []);
 
-  // 新回答进线程后滚到它
+  // 新回答进线程后跟随：block: 'nearest' 只做最小滚动，不会把整页往下推
   useEffect(() => {
     if (messages.length > prevCountRef.current) {
       lastMessageRef.current?.scrollIntoView({
         behavior: preferredScrollBehavior(),
-        block: 'start',
+        block: 'nearest',
       });
     }
     prevCountRef.current = messages.length;
@@ -196,7 +204,7 @@ export default function AskPanel({
   const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
 
   return (
-    <div className="mt-14 print:hidden" id="ask-panel">
+    <div className="print:hidden" id="ask-panel">
       <div className="mb-5 border-b border-line pb-3">
         <h2>
           <button
@@ -216,7 +224,7 @@ export default function AskPanel({
                 )}
               </span>
               <span className="mt-1 block text-2xs font-normal text-ink-3">
-                围绕这张盘提问，对话只存在本机
+                对话只存在本机
               </span>
             </span>
             <span className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-line px-3 py-1.5 text-2xs text-ink-2">
@@ -233,7 +241,7 @@ export default function AskPanel({
                 type="button"
                 onClick={() => submit(p)}
                 disabled={pending}
-                className="max-w-full whitespace-normal text-left leading-snug rounded-full border border-zhu/25 bg-zhu-soft/40 px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-zhu/50 hover:bg-zhu-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className={CHIP_CLASS}
               >
                 {p}
               </button>
@@ -245,7 +253,7 @@ export default function AskPanel({
                 window.requestAnimationFrame(() => textareaRef.current?.focus());
               }}
               aria-label="展开更多推荐追问"
-              className="inline-flex min-h-9 items-center rounded-full border border-dashed border-line px-3 py-2 text-2xs text-ink-3 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3 py-2 text-2xs text-ink-3 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               更多推荐
             </button>
@@ -260,7 +268,7 @@ export default function AskPanel({
       >
         {!providerConfigured && (
           <div
-            className="mb-5 rounded-lg border border-line bg-paper px-4 py-3"
+            className="mb-5 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
             data-ask-provider="not-configured"
             role="status"
           >
@@ -273,13 +281,23 @@ export default function AskPanel({
         {/* 对话线程 */}
         <div id={resultId} aria-live="polite" aria-busy={pending}>
           {messages.length === 0 && !pending && !transient && (
-            <div
-              className="rounded-lg border border-dashed border-line bg-paper px-4 py-4"
-              role="status"
-            >
-              <p className="text-xs leading-relaxed text-ink-3">
-                尚未追问。点选下方推荐问题，或自行输入后提交；对话会存在这张盘下，下次回来接着聊。
+            <div role="status">
+              <p className="text-xs leading-relaxed text-ink-2">
+                围绕这张盘提问，回答只依据数据集原文。
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PRESETS.slice(0, 2).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => submit(p)}
+                    disabled={pending}
+                    className={CHIP_CLASS}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -290,13 +308,11 @@ export default function AskPanel({
                 <div
                   key={m.id}
                   ref={isLatest ? lastMessageRef : undefined}
-                  className="rounded-xl border border-line bg-paper px-4 py-4"
+                  className="rounded-xl border border-line bg-surface-2 px-4 py-4"
                   {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
                 >
                   <p className="text-xs font-medium text-ink">
-                    <span className="mr-1.5 inline-flex min-w-6 items-center justify-center rounded-md border border-zhu/30 bg-zhu-soft/50 px-1.5 py-0.5 text-2xs text-zhu">
-                      问
-                    </span>
+                    <span className={ASK_MARK_CLASS}>问</span>
                     {m.question}
                   </p>
                   <div className="mt-3 border-t border-lineSoft pt-3">
@@ -315,20 +331,21 @@ export default function AskPanel({
           </div>
 
           {pending && pendingQuestion && (
-            <div className="mt-5 rounded-xl border border-line bg-paper px-4 py-4" role="status">
+            <div className="mt-5 rounded-xl border border-line bg-surface-2 px-4 py-4" role="status">
               <p className="text-xs font-medium text-ink">
-                <span className="mr-1.5 inline-flex min-w-6 items-center justify-center rounded-md border border-zhu/30 bg-zhu-soft/50 px-1.5 py-0.5 text-2xs text-zhu">
-                  问
-                </span>
+                <span className={ASK_MARK_CLASS}>问</span>
                 {pendingQuestion}
               </p>
-              <div className="mt-3 flex items-center gap-3 border-t border-lineSoft pt-3">
-                <span
-                  className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-                <p className="text-xs text-ink-2">
-                  正在核对盘面并检索数据集原文，通常需要几秒…
+              <div className="mt-3 border-t border-lineSoft pt-3">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                  <p className="text-xs text-ink-2">星图检索中…</p>
+                </div>
+                <p className="mt-1.5 text-2xs text-ink-3">
+                  正在核对盘面并检索数据集原文，通常需要几秒。
                 </p>
               </div>
             </div>
@@ -336,7 +353,7 @@ export default function AskPanel({
 
           {transient && (
             <div
-              className="mt-5 rounded-lg border border-line bg-paper px-4 py-3"
+              className="mt-5 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
               data-ask-state={transient.kind === 'local-error' ? 'error' : transient.kind}
               role={transient.kind === 'local-error' || transient.kind === 'error' ? 'alert' : 'status'}
             >
@@ -346,7 +363,7 @@ export default function AskPanel({
                   type="button"
                   onClick={() => submit(transient.retryQuestion)}
                   disabled={pending}
-                  className="mt-3 rounded-lg border border-zhu/30 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
                   重试
                 </button>
@@ -383,19 +400,22 @@ export default function AskPanel({
             aria-describedby="ask-submit-hint"
           />
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => submit(p)}
-                disabled={pending}
-                className="max-w-full whitespace-normal text-left leading-snug rounded-full border border-line bg-surface px-3 py-2 min-h-9 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          {/* 空态里已有 2 枚推荐 chip，有对话后才在这里再列全部推荐，避免重复 */}
+          {messages.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => submit(p)}
+                  disabled={pending}
+                  className={CHIP_CLASS}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
 
           <button
             type="button"

@@ -33,6 +33,10 @@ export interface AskPanelProps {
    * id 去重：同一颗种子只消费一次；带 question 则自动提交，否则只做焦点并聚焦输入框。
    */
   seed?: AskSeed;
+  /** 意图芯片：替代默认推荐追问（首页对话主壳用） */
+  quickPrompts?: AskQuickPrompt[];
+  /** 嵌入模式（首页对话）：去掉「命盘追问」折叠头，芯片条固定在输入区上方 */
+  bare?: boolean;
 }
 
 export interface AskSeed {
@@ -41,6 +45,12 @@ export interface AskSeed {
   dimension?: string;
   palace?: string;
   label?: string;
+}
+
+export interface AskQuickPrompt {
+  label: string;
+  question: string;
+  dimension?: string;
 }
 
 const PRESETS = [
@@ -127,6 +137,8 @@ export default function AskPanel({
   available,
   providerConfigured = true,
   seed,
+  quickPrompts,
+  bare = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const { messages, append, clear } = useAskThread(identity);
@@ -142,6 +154,10 @@ export default function AskPanel({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
   const consumedSeedRef = useRef<number | null>(null);
+
+  /** 推荐/意图芯片统一成 { label, question, dimension? } */
+  const presets: AskQuickPrompt[] =
+    quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
 
   useEffect(() => {
     function expandFromHash() {
@@ -183,7 +199,7 @@ export default function AskPanel({
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
-  function submit(q: string) {
+  function submit(q: string, dimension?: string) {
     const text = q.trim();
     if (!text || pending) return;
 
@@ -199,8 +215,9 @@ export default function AskPanel({
     fd.set('day', String(day));
     fd.set('hour', String(hour));
     fd.set('gender', gender);
-    if (focus?.dimension) fd.set('dimension', focus.dimension);
-    if (focus?.palace) fd.set('palace', focus.palace);
+    const effectiveFocus = dimension ? { dimension } : focus;
+    if (effectiveFocus?.dimension) fd.set('dimension', effectiveFocus.dimension);
+    if (effectiveFocus?.palace) fd.set('palace', effectiveFocus.palace);
     setFocus(null);
     fd.set(
       'turns',
@@ -247,6 +264,7 @@ export default function AskPanel({
 
   return (
     <div className="print:hidden" id="ask-panel">
+      {!bare && (
       <div className="mb-5 border-b border-line pb-3">
         <h2>
           <button
@@ -277,15 +295,15 @@ export default function AskPanel({
         {!expanded && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-2xs font-medium text-ink-2">推荐追问：</span>
-            {PRESETS.slice(0, 2).map((p) => (
+            {presets.slice(0, 2).map((p) => (
               <button
-                key={p}
+                key={p.question}
                 type="button"
-                onClick={() => submit(p)}
+                onClick={() => submit(p.question, p.dimension)}
                 disabled={pending}
                 className={CHIP_CLASS}
               >
-                {p}
+                {p.label}
               </button>
             ))}
             <button
@@ -302,10 +320,11 @@ export default function AskPanel({
           </div>
         )}
       </div>
+      )}
 
       <div
         id="ask-panel-content"
-        hidden={!expanded}
+        hidden={!bare && !expanded}
         className="panel p-5 sm:p-6"
       >
         {!providerConfigured && (
@@ -328,15 +347,15 @@ export default function AskPanel({
                 围绕这张盘提问，回答只依据数据集原文。
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {PRESETS.slice(0, 2).map((p) => (
+                {presets.slice(0, 2).map((p) => (
                   <button
-                    key={p}
+                    key={p.question}
                     type="button"
-                    onClick={() => submit(p)}
+                    onClick={() => submit(p.question, p.dimension)}
                     disabled={pending}
                     className={CHIP_CLASS}
                   >
-                    {p}
+                    {p.label}
                   </button>
                 ))}
               </div>
@@ -447,18 +466,35 @@ export default function AskPanel({
             aria-describedby="ask-submit-hint"
           />
 
-          {/* 空态里已有 2 枚推荐 chip，有对话后才在这里再列全部推荐，避免重复 */}
-          {messages.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {PRESETS.map((p) => (
+          {/* 意图芯片条：bare（首页对话）固定在输入区上方，常显 */}
+          {bare && (
+            <div className="mt-4 flex flex-wrap gap-2" aria-label="问点什么">
+              {presets.map((p) => (
                 <button
-                  key={p}
+                  key={p.question}
                   type="button"
-                  onClick={() => submit(p)}
+                  onClick={() => submit(p.question, p.dimension)}
                   disabled={pending}
                   className={CHIP_CLASS}
                 >
-                  {p}
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 空态里已有 2 枚推荐 chip，有对话后才在这里再列全部推荐，避免重复 */}
+          {!bare && messages.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {presets.map((p) => (
+                <button
+                  key={p.question}
+                  type="button"
+                  onClick={() => submit(p.question, p.dimension)}
+                  disabled={pending}
+                  className={CHIP_CLASS}
+                >
+                  {p.label}
                 </button>
               ))}
             </div>

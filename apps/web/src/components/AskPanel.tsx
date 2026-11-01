@@ -17,6 +17,9 @@ import { chartKey } from '@/lib/history';
 import { useAskThread, type AskMessage } from '@/lib/askThreads';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 import Markdown from './Markdown';
+import MiniChart from './MiniChart';
+import { getChatChart, type ChatChartPayload } from '@/app/chat-chart-action';
+import { readUserConfig } from '@/lib/aiConfig';
 
 export interface AskPanelProps {
   year: number;
@@ -37,6 +40,8 @@ export interface AskPanelProps {
   quickPrompts?: AskQuickPrompt[];
   /** 嵌入模式（首页对话）：去掉「命盘追问」折叠头，芯片条固定在输入区上方 */
   bare?: boolean;
+  /** 对话内嵌命盘：回答后就地渲染迷你盘，不跳走 */
+  embedChart?: boolean;
 }
 
 export interface AskSeed {
@@ -143,6 +148,7 @@ export default function AskPanel({
   seed,
   quickPrompts,
   bare = false,
+  embedChart = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const { messages, append, clear } = useAskThread(identity);
@@ -158,6 +164,11 @@ export default function AskPanel({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
   const consumedSeedRef = useRef<number | null>(null);
+  /** 对话内嵌盘：服务端算好后缓存，展开时渲染 */
+  const [miniChart, setMiniChart] = useState<ChatChartPayload | null>(null);
+  const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
+  /** 展开了迷你盘的消息 id */
+  const [chartOpenFor, setChartOpenFor] = useState<string | null>(null);
 
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
@@ -175,6 +186,18 @@ export default function AskPanel({
     window.addEventListener('hashchange', expandFromHash);
     return () => window.removeEventListener('hashchange', expandFromHash);
   }, []);
+
+  // 对话内嵌盘：需要时才去服务端取（懒加载，不阻塞对话）
+  useEffect(() => {
+    if (!embedChart || miniChart) return;
+    let cancelled = false;
+    void getChatChart(year, month, day, hour, gender).then((c) => {
+      if (!cancelled) setMiniChart(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [embedChart, miniChart, year, month, day, hour, gender]);
 
   // 页内追问种子：消费一次。带问题自动提交，否则只做焦点并聚焦输入框
   useEffect(() => {
@@ -225,6 +248,15 @@ export default function AskPanel({
     fd.set('day', String(day));
     fd.set('hour', String(hour));
     fd.set('gender', gender);
+    // 用户自配 AI provider：随请求带给服务端临时构造（配置只在本机）
+    const uai = readUserConfig();
+    if (uai) {
+      fd.set('ai_kind', uai.kind);
+      if (uai.baseUrl) fd.set('ai_base_url', uai.baseUrl);
+      fd.set('ai_key', uai.apiKey);
+      fd.set('ai_model', uai.model);
+      fd.set('ai_max_tokens', String(uai.maxTokens));
+    }
     const effectiveFocus = chipFocus ?? focus;
     if (effectiveFocus?.dimension) fd.set('dimension', effectiveFocus.dimension);
     if (effectiveFocus?.palace) fd.set('palace', effectiveFocus.palace);
@@ -344,9 +376,9 @@ export default function AskPanel({
       <div
         id="ask-panel-content"
         hidden={!bare && !expanded}
-        className="panel p-5 sm:p-6"
+        className={bare ? '' : 'panel p-5 sm:p-6'}
       >
-        {!providerConfigured && (
+        {!providerConfigured && !bare && (
           <div
             className="mb-5 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
             data-ask-provider="not-configured"
@@ -360,7 +392,7 @@ export default function AskPanel({
 
         {/* 对话线程 */}
         <div id={resultId} aria-live="polite" aria-busy={pending}>
-          {messages.length === 0 && !pending && !transient && (
+          {messages.length === 0 && !pending && !transient && !bare && (
             <div role="status">
               <p className="text-xs leading-relaxed text-ink-2">
                 围绕这张盘提问，回答只依据数据集原文。
@@ -386,9 +418,60 @@ export default function AskPanel({
             </div>
           )}
 
-          <div className="space-y-5">
+          <div className={bare ? 'space-y-4' : 'space-y-5'}>
             {messages.map((m) => {
               const isLatest = m.id === latestId;
+              if (bare) {
+                return (
+                  <div
+                    key={m.id}
+                    ref={isLatest ? lastMessageRef : undefined}
+                    className="space-y-1.5"
+                    {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
+                  >
+                    <p className="text-right">
+                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                        {m.question}
+                      </span>
+                    </p>
+                    <div
+                      className="max-w-[95%] text-sm leading-[1.9] text-ink-2"
+                      data-ask-answer=""
+                    >
+                      <Markdown text={m.answer} />
+                    </div>
+                    {m.cited.length > 0 && (
+                      <p className="text-2xs text-ink-3">依据：{m.cited.join('、')}</p>
+                    )}
+                    <MessageVerification suspects={m.suspects} isLatest={isLatest} />
+                    {embedChart && miniChart && (
+                      chartOpenFor === m.id ? (
+                        <div>
+                          <MiniChart chart={miniChart} layer={chartLayer} onLayerChange={setChartLayer} />
+                          <button
+                            type="button"
+                            onClick={() => setChartOpenFor(null)}
+                            className="mt-1.5 text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          >
+                            收起命盘
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChartOpenFor(m.id);
+                            setChartLayer('natal');
+                          }}
+                          className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          在对话里看这张盘
+                        </button>
+                      )
+                    )}
+                  </div>
+                );
+              }
               return (
                 <div
                   key={m.id}
@@ -409,14 +492,58 @@ export default function AskPanel({
                       <Markdown text={m.answer} />
                     </div>
                     <MessageVerification suspects={m.suspects} isLatest={isLatest} />
+
+                    {/* 对话内嵌盘：回答后就地展开，不跳走 */}
+                    {embedChart && miniChart && (
+                      <div className="mt-3 border-t border-lineSoft pt-3">
+                        {chartOpenFor === m.id ? (
+                          <>
+                            <MiniChart
+                              chart={miniChart}
+                              layer={chartLayer}
+                              onLayerChange={setChartLayer}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setChartOpenFor(null)}
+                              className="mt-2 inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                            >
+                              收起命盘
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChartOpenFor(m.id);
+                              setChartLayer('natal');
+                            }}
+                            className="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          >
+                            在对话里看这张盘
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {pending && pendingQuestion && (
-            /* 提交后 pending 气泡淡入：class 提供 keyframes，inline style 提供时长/缓动 */
+          {pending && pendingQuestion && (bare ? (
+            <div
+              className="chart-submit flex items-center gap-2"
+              style={motionStyle(DURATION.sanfang)}
+              role="status"
+            >
+              <span
+                className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              <p className="text-2xs text-ink-3">{pendingQuestion} · 查证中…</p>
+            </div>
+          ) : (
             <div
               className="chart-submit mt-5 rounded-xl border border-line bg-surface-2 px-4 py-4"
               style={motionStyle(DURATION.sanfang)}
@@ -439,7 +566,7 @@ export default function AskPanel({
                 </p>
               </div>
             </div>
-          )}
+          ))}
 
           {transient && (
             <div
@@ -462,7 +589,73 @@ export default function AskPanel({
           )}
         </div>
 
-        {/* 输入区 */}
+        {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
+        {bare ? (
+          <div className="mt-3">
+            <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="问点什么">
+              {presets.map((p) => (
+                <button
+                  key={p.question}
+                  type="button"
+                  onClick={() =>
+                    submit(
+                      p.question,
+                      p.dimension || p.time
+                        ? { dimension: p.dimension, time: p.time }
+                        : undefined,
+                    )
+                  }
+                  disabled={pending}
+                  className="text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                id="ask-question"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submit(question);
+                  }
+                }}
+                rows={1}
+                maxLength={500}
+                placeholder="问问感情、事业、今年如何…"
+                className="field-input min-h-11 flex-1 resize-none rounded-full px-4 py-2.5 leading-relaxed"
+                disabled={pending}
+              />
+              <button
+                type="button"
+                onClick={() => submit(question)}
+                disabled={pending || !question.trim()}
+                aria-label="发送"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zhu text-white transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                ↑
+              </button>
+            </div>
+            {messages.length > 0 && (
+              <div className="mt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('清空这张盘的全部追问对话？')) clear();
+                  }}
+                  className="text-2xs text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  清空对话
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
         <div className="mt-6 border-t border-line pt-5">
           <label htmlFor="ask-question" className="field-label">
             你的问题
@@ -490,30 +683,8 @@ export default function AskPanel({
             aria-describedby="ask-submit-hint"
           />
 
-          {/* 意图芯片条：bare（首页对话）固定在输入区上方，常显 */}
-          {bare && (
-            <div className="mt-4 flex flex-wrap gap-2" aria-label="问点什么">
-              {presets.map((p) => (
-                <button
-                  key={p.question}
-                  type="button"
-                  onClick={() =>
-                submit(
-                  p.question,
-                  p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined,
-                )
-              }
-                  disabled={pending}
-                  className={CHIP_CLASS}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* 空态里已有 2 枚推荐 chip，有对话后才在这里再列全部推荐，避免重复 */}
-          {!bare && messages.length > 0 && (
+          {messages.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {presets.map((p) => (
                 <button
@@ -566,11 +737,15 @@ export default function AskPanel({
             </button>
           </div>
         )}
+        </>
+        )}
       </div>
 
-      <p className="mt-3 text-2xs leading-relaxed text-ink-3">
-        回答只依据这张盘的已有材料，没写到的会直说「材料里没有写」。内容仅供参考，不构成医疗、法律或投资建议。
-      </p>
+      {!bare && (
+        <p className="mt-3 text-2xs leading-relaxed text-ink-3">
+          回答只依据这张盘的已有材料，没写到的会直说「材料里没有写」。内容仅供参考，不构成医疗、法律或投资建议。
+        </p>
+      )}
     </div>
   );
 }

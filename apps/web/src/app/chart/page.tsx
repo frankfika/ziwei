@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import ChartTabs from '@/components/ChartTabBar';
 import { describeProviderEnv } from '@ziwei/ask';
-import { liuNianLayer, daXianLayer } from '@ziwei/chart-engine';
+import { liuNianLayer, daXianLayer, liuYueLayer } from '@ziwei/chart-engine';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
 import {
@@ -129,6 +129,20 @@ export default async function ChartPage({
     siHuaPalaces: liunianRaw.siHuaPalaces,
   };
 
+  // 12 个流月层（当前农历年），时间轴流月层与月份切换的数据源
+  const CN_MONTH_NAMES = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
+  const liuyueMonths = Array.from({ length: 12 }, (_, i) => {
+    const ly = liuYueLayer(chart, new Date().getFullYear(), i + 1);
+    return {
+      kind: 'liunian' as const,
+      label: CN_MONTH_NAMES[i],
+      mingBranch: ly.mingBranch,
+      palaces: ly.palaces,
+      siHua: ly.siHua,
+      siHuaPalaces: ly.siHuaPalaces,
+    };
+  });
+
   // 当前大限：取当前大限落宫的宫位序号
   const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
   const dxIndex = dxPalace
@@ -171,6 +185,7 @@ export default async function ChartPage({
         center={center}
         liunian={liunian}
         daXian={daXian}
+        liuyueMonths={liuyueMonths}
         currentDaXian={currentDaXian}
         reading={{
           ok: readingOk,

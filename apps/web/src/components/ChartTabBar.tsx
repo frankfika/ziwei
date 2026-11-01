@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import ChartBoard from './ChartBoard';
 import ReadingPanel from './ReadingPanel';
-import AskPanel, { type AskSeed } from './AskPanel';
+import { dispatchZiweiAsk } from './FloatingAsk';
 import NotCoveredNotice from './NotCoveredNotice';
 import ChartShareButton, {
   SUMMARY_CHIP_CLASS,
@@ -15,20 +15,18 @@ import type { ChartCenterInfo, CurrentDaXianInfo } from './CenterPanel';
 import type { CitationMode } from '@/lib/citations';
 
 /** 三个视图：命盘 / 解读 / 追问 */
-export type ChartTabKey = 'chart' | 'reading' | 'ask';
+export type ChartTabKey = 'chart' | 'reading';
 
 /** 面板 id（保留 #chart-board / #reading；#ask-panel 由 AskPanel 自己渲染） */
 const PANEL_ID: Record<ChartTabKey, string> = {
   chart: 'chart-board',
   reading: 'reading',
-  ask: 'ask-tabpanel',
 };
 
 /** tab ⇄ hash（深链用 replaceState 同步，不制造历史堆栈） */
 const TAB_HASH: Record<ChartTabKey, string> = {
   chart: '#chart-board',
   reading: '#reading',
-  ask: '#ask-panel',
 };
 
 /** 解读维度（与 ReadingPanel 的入参同形，不依赖对方文件导出的类型名） */
@@ -54,6 +52,8 @@ export interface ChartTabsProps {
   liunian?: ChartFortuneLayer | null;
   /** 大限运限层（引擎 daXianLayer 输出） */
   daXian?: ChartFortuneLayer | null;
+  /** 12 个流月层（引擎 liuYueLayer 输出，服务端算好） */
+  liuyueMonths?: ChartFortuneLayer[];
   /** 当前大限摘要 */
   currentDaXian?: CurrentDaXianInfo | null;
   reading: {
@@ -100,6 +100,7 @@ export default function ChartTabs({
   center,
   liunian = null,
   daXian = null,
+  liuyueMonths,
   currentDaXian = null,
   reading,
   ask,
@@ -108,65 +109,63 @@ export default function ChartTabs({
   share,
 }: ChartTabsProps) {
   const [tab, setTab] = useState<ChartTabKey>('chart');
-  /** 页内追问种子：解读维度 / 宫格「就此追问」带过来的焦点与首问 */
-  const [askSeed, setAskSeed] = useState<AskSeed | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
+  /** 追问一律走左下角悬浮机器人（不跳转），这里派发事件带上当前盘 */
+  const askEventBirth = {
+    year: ask.year,
+    month: ask.month,
+    day: ask.day,
+    hour: ask.hour,
+    gender: ask.gender,
+  };
+
   const seedFromDimension = (dim: { key: string; label: string }) => {
-    setAskSeed({
-      id: Date.now(),
-      dimension: dim.key,
-      label: dim.label,
+    dispatchZiweiAsk({
       question: `帮我看看${dim.label}方面，原文是怎么说的？`,
+      dimension: dim.key,
+      birth: askEventBirth,
     });
-    selectTab('ask');
   };
 
   const seedFromPalace = (palaceName: string) => {
-    const short = palaceName.replace(/宫$/, '');
-    setAskSeed({
-      id: Date.now(),
-      palace: short,
-      label: palaceName,
+    dispatchZiweiAsk({
       question: `帮我看看我的${palaceName}。`,
+      palace: palaceName.replace(/宫$/, ''),
+      birth: askEventBirth,
     });
-    selectTab('ask');
   };
 
   /** 中宫「就这步运追问」：时间层种子 */
   const seedFromTime = (time: 'liunian' | 'daxian') => {
-    setAskSeed({
-      id: Date.now(),
-      time,
+    dispatchZiweiAsk({
       question:
         time === 'liunian'
           ? '今年流年整体如何？流年命宫和流年四化带来了什么？'
           : '当前这步大限整体如何？大限命宫和大限四化怎么看？',
+      time,
+      birth: askEventBirth,
     });
-    selectTab('ask');
   };
 
   const tabs = useMemo(() => {
-    const list: Array<{ key: ChartTabKey; label: string }> = [
-      { key: 'chart', label: '命盘' },
-      { key: 'reading', label: '解读' },
+    return [
+      { key: 'chart' as const, label: '命盘' },
+      { key: 'reading' as const, label: '解读' },
     ];
-    if (reading.ok) list.push({ key: 'ask', label: '追问' });
-    return list;
-  }, [reading.ok]);
+  }, []);
 
   // 初始 tab 由 hash 决定（SSR 先渲染命盘，挂载后再修正，避免 hydration 不一致）
   useEffect(() => {
     const applyHash = () => {
       const hash = window.location.hash;
       if (hash === '#reading') setTab('reading');
-      else if (hash === '#ask-panel' && reading.ok) setTab('ask');
       else setTab('chart');
     };
     applyHash();
     window.addEventListener('hashchange', applyHash);
     return () => window.removeEventListener('hashchange', applyHash);
-  }, [reading.ok]);
+  }, []);
 
   const selectTab = (next: ChartTabKey) => {
     setTab(next);
@@ -229,8 +228,9 @@ export default function ChartTabs({
             center={center}
             liunian={liunian}
             daXian={daXian}
+            liuyueMonths={liuyueMonths}
             daXianInfo={currentDaXian}
-            onNavigateTab={(t) => selectTab(t === 'ask' && !reading.ok ? 'reading' : t)}
+            onNavigateTab={(t) => selectTab(t === 'ask' ? 'reading' : t)}
             {...(reading.ok ? { onAskPalace: seedFromPalace, onAskTime: seedFromTime } : {})}
           />
         </div>
@@ -253,31 +253,7 @@ export default function ChartTabs({
           )}
         </div>
 
-        {reading.ok && (
-          <div {...panelProps('ask')}>
-            <AskPanel {...ask} {...(askSeed ? { seed: askSeed } : {})} />
-          </div>
-        )}
       </div>
-
-      {/* ── 署名（CC BY 4.0 署名要求；移动端壳会盖住全局 footer） ─── */}
-      <p className={CREDIT_CLASS}>
-        <span className="truncate">解读数据：紫微斗数开源解读数据集 v4.0</span>
-        <span aria-hidden="true">·</span>
-        <Link
-          href="/about"
-          className="shrink-0 underline underline-offset-2 transition-colors hover:text-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          口径说明
-        </Link>
-        <span aria-hidden="true">·</span>
-        <Link
-          href="/about"
-          className="shrink-0 underline underline-offset-2 transition-colors hover:text-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          免责声明
-        </Link>
-      </p>
 
       {/* ── 底 Tab：命盘 | 解读 | 追问 ───────────────────────────── */}
       <div

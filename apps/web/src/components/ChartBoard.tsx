@@ -16,6 +16,8 @@ interface ChartBoardProps {
   liunian?: ChartFortuneLayer | null;
   /** 大限运限层 */
   daXian?: ChartFortuneLayer | null;
+  /** 12 个流月层 */
+  liuyueMonths?: ChartFortuneLayer[];
   /** 当前大限摘要 */
   daXianInfo?: CurrentDaXianInfo | null;
   /** 「就这步运追问」 */
@@ -39,14 +41,21 @@ export default function ChartBoard({
   onAskPalace,
   liunian = null,
   daXian = null,
+  liuyueMonths,
   daXianInfo = null,
   onAskTime,
 }: ChartBoardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   /** 时间轴叠加层：本命 / 大限 / 流年 */
   const [layer, setLayer] = useState<BoardLayer>('natal');
-  /** 当前叠加的运限层：本命=空，大限=大限层，流年=流年层 */
-  const fortune = layer === 'daxian' ? daXian : layer === 'liunian' ? liunian : null;
+  /** 流月选中月份（1–12），默认当前农历月 */
+  const [liuyueMonth, setLiuyueMonth] = useState(center.lunarMonth);
+  /** 当前叠加的运限层：本命=空，大限=大限层，流年=流年层，流月=选中月层 */
+  const fortune =
+    layer === 'daxian' ? daXian
+      : layer === 'liunian' ? liunian
+        : layer === 'liuyue' ? liuyueMonths?.[liuyueMonth - 1] ?? null
+          : null;
 
   const sanFang = selected === null ? null : new Set(sanFangBranches(selected));
   const selectedPalace = useMemo(
@@ -95,6 +104,9 @@ export default function ChartBoard({
       fortune={fortune}
       currentDaXian={daXianInfo}
       {...(onAskTime ? { onAskTime } : {})}
+      liuyueMonth={liuyueMonth}
+      onLiuyueMonthChange={setLiuyueMonth}
+      liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
     />
   );
 
@@ -111,6 +123,9 @@ export default function ChartBoard({
       fortune={fortune}
       currentDaXian={daXianInfo}
       {...(onAskTime ? { onAskTime } : {})}
+      liuyueMonth={liuyueMonth}
+      onLiuyueMonthChange={setLiuyueMonth}
+      liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
       compact
     />
   );

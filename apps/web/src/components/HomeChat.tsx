@@ -7,9 +7,11 @@
  * 对话只存在本机；回答只依据数据集原文，未覆盖的盘会如实说明。
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
+import AiConfigPanel from './AiConfigPanel';
+import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory, chartUrl } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
@@ -29,6 +31,13 @@ const PROFILE_CHIP_CLASS =
 export default function HomeChat({ providerConfigured = true }: { providerConfigured?: boolean }) {
   const { history } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [userAi, setUserAi] = useState(false);
+
+  // 客户端配置状态：挂载与打开面板后都刷新
+  useEffect(() => {
+    setUserAi(!!readUserConfig());
+  }, [showConfig]);
   const selected = history.find((e) => e.id === selectedId) ?? history[0] ?? null;
 
   const resolved = useMemo(
@@ -51,8 +60,30 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     ? `${resolved.resolved.year}-${resolved.resolved.month}-${resolved.resolved.day}-${resolved.resolved.hour}-${selected!.form.gender}`
     : selected?.id ?? 'none';
 
+  const aiReady = providerConfigured || userAi;
+
   return (
     <div>
+      {/* AI 未配置：一行小字 + 配置入口 */}
+      {!aiReady && !showConfig && (
+        <p className="mb-3 text-2xs text-ink-3">
+          想用 AI 追问？{' '}
+          <button
+            type="button"
+            onClick={() => setShowConfig(true)}
+            className="text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            填一个 API Key 就行 →
+          </button>
+          {' '}（配置只存本机）
+        </p>
+      )}
+      {showConfig && (
+        <div className="mb-4">
+          <AiConfigPanel onClose={() => setShowConfig(false)} />
+        </div>
+      )}
+
       {/* 档案选择：星册即「我的人」 */}
       <div
         className="-mx-2 flex gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -80,19 +111,16 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         })}
       </div>
 
-      {/* 当前档案 + 命盘入口 */}
-      {selected && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-2xs text-ink-3">正在和「{selected.label}」这张盘对话</p>
-          {chartUrl(selected.form) && (
-            <Link
-              href={chartUrl(selected.form)!}
-              className="text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              查看命盘 →
-            </Link>
-          )}
-        </div>
+      {/* 查看命盘：紧跟档案芯片，不占一整行 */}
+      {selected && chartUrl(selected.form) && (
+        <p className="mb-3">
+          <Link
+            href={chartUrl(selected.form)!}
+            className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            查看命盘 →
+          </Link>
+        </p>
       )}
 
       {/* 对话线程：key 随档案切换，线程按盘隔离存储 */}

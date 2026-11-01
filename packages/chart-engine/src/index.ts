@@ -9,7 +9,7 @@
  */
 
 export * from './types';
-export { chart, chartSummary, validateBirth, palaceAt, liuNianLayer, daXianLayer } from './adapter';
+export { chart, chartSummary, validateBirth, palaceAt, liuNianLayer, daXianLayer, liuYueLayer } from './adapter';
 
 /** 时辰序号 → 钟点区间文案 */
 export { calcTrueSolarBranch } from './engine/share';

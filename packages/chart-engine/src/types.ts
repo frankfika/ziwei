@@ -174,6 +174,27 @@ export interface ChartLiuNian {
 }
 
 /**
+ * 流月运限层（对外公共类型）。
+ * 流月命宫 = 流月月支（正月=寅…十二月=丑）；流月十二宫与流年同构（逐宫地支减 1）。
+ */
+export interface ChartLiuYue {
+  /** 流月所在公历年 */
+  year: number;
+  /** 实际农历月序 1–12 */
+  month: number;
+  /** 流月干支，如「丙寅月」 */
+  ganzhi: string;
+  /** 流月命宫地支索引 */
+  mingBranch: number;
+  /** 流月十二宫 */
+  palaces: Array<{ branch: number; name: string }>;
+  /** 流月四化 */
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化四星落宫地支索引；星不在任何宫时省略该键 */
+  siHuaPalaces: Record<string, number>;
+}
+
+/**
  * 一张盘的完整结构化结果。
  * 这是排盘引擎 → 展示层 / 追问层 的唯一传递形式。
  */

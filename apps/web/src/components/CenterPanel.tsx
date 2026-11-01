@@ -1,8 +1,8 @@
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES, STEM_NAMES } from '@/lib/birth';
 
-/** 盘面时间层：本命 / 大限 / 流年（叠加视图） */
-export type BoardLayer = 'natal' | 'daxian' | 'liunian';
+/** 盘面时间层：本命 / 大限 / 流年 / 流月（叠加视图） */
+export type BoardLayer = 'natal' | 'daxian' | 'liunian' | 'liuyue';
 
 /** 当前大限摘要（chart.daXians[currentDaXianIndex] 的展示子集） */
 export interface CurrentDaXianInfo {
@@ -82,6 +82,9 @@ export default function CenterPanel({
   fortune = null,
   currentDaXian = null,
   onAskTime,
+  liuyueMonth,
+  onLiuyueMonthChange,
+  liuyueLabels,
   compact = false,
 }: {
   palaces: ChartPalace[];
@@ -99,6 +102,10 @@ export default function CenterPanel({
   currentDaXian?: CurrentDaXianInfo | null;
   /** 「就这步运追问」 */
   onAskTime?: (time: 'liunian' | 'daxian') => void;
+  /** 流月：当前选中月（1–12）与切换回调、12 个月名 */
+  liuyueMonth?: number;
+  onLiuyueMonthChange?: (month: number) => void;
+  liuyueLabels?: string[];
   /** 紧凑版：移动端中宫只留局名/命主/虚岁 + 时间轴，省掉生辰/四柱/落宫 */
   compact?: boolean;
 }) {
@@ -138,6 +145,7 @@ export default function CenterPanel({
               ['natal', '本命'],
               ['daxian', '大限'],
               ['liunian', '流年'],
+              ['liuyue', '流月'],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -181,8 +189,34 @@ export default function CenterPanel({
         </div>
       )}
 
-      {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作） */}
-      {(chips.length > 0 || onNavigateTab) && (
+      {/* 流月月份选择：只在流月层显示（替换本命跳转芯片，高度不涨） */}
+      {layer === 'liuyue' && onLiuyueMonthChange && liuyueLabels?.length === 12 && (
+        <div
+          role="radiogroup"
+          aria-label="流月月份"
+          className="flex max-w-full flex-wrap items-center justify-center gap-1"
+        >
+          {liuyueLabels.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              role="radio"
+              aria-checked={liuyueMonth === i + 1}
+              onClick={() => onLiuyueMonthChange(i + 1)}
+              className={`rounded-full border px-1.5 py-1 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                liuyueMonth === i + 1
+                  ? 'border-zhu bg-zhu-soft text-ink'
+                  : 'border-line bg-surface text-ink-3 hover:text-ink-2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作）；流月层时隐藏，给月份 chips 让位 */}
+      {layer !== 'liuyue' && (chips.length > 0 || onNavigateTab) && (
         <div className="flex w-full flex-col items-center gap-2">
           {chips.length > 0 && (
             <div className="flex flex-wrap items-center justify-center gap-1.5">

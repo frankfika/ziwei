@@ -1,4 +1,5 @@
 import { generateChart } from './engine/algorithm';
+import { buildLiuYuePillar } from './engine/liuyue';
 import { BRANCHES, PALACE_NAMES_ORDER, STEMS } from './engine/constants';
 import {
   getLiuNianSiHua,
@@ -14,6 +15,7 @@ import {
   type ChartJSON,
   type ChartFortuneLayer,
   type ChartLiuNian,
+  type ChartLiuYue,
   type ChartPalace,
   type ChartStar,
   type StarType,
@@ -268,6 +270,40 @@ export function liuNianLayer(c: ChartJSON, year: number): ChartLiuNian {
   }
 
   return { year: y, ganzhi, mingBranch, palaces, siHua, siHuaPalaces };
+}
+
+/**
+ * 流月运限层。
+ *
+ * 流月命宫 = 流月月支（正月=寅…十二月=丑）；十二宫与四化落宫与流年同构。
+ * month 传农历月序 1–12；闰月口径通过 options 传入。
+ */
+export function liuYueLayer(
+  c: ChartJSON,
+  year: number,
+  month: number,
+  options?: { isLeapMonth?: boolean; liuriDay?: number },
+): ChartLiuYue {
+  const y = Math.trunc(year);
+  const pillar = buildLiuYuePillar(y, month, options);
+
+  const layer = buildFortuneLayer(
+    c,
+    'liunian',
+    `${pillar.ganzhi}`,
+    pillar.branch,
+    pillar.siHua,
+  );
+
+  return {
+    year: y,
+    month: pillar.month,
+    ganzhi: pillar.ganzhi,
+    mingBranch: pillar.branch,
+    palaces: layer.palaces,
+    siHua: layer.siHua,
+    siHuaPalaces: layer.siHuaPalaces,
+  };
 }
 
 /**

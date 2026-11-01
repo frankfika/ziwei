@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SiteHeader } from '@/components/SiteHeader';
-import { SiteFooter } from '@/components/SiteFooter';
+import FloatingAsk from '@/components/FloatingAsk';
 
 export const metadata: Metadata = {
   title: {
@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        <SiteFooter />
+        <FloatingAsk />
       </body>
     </html>
   );

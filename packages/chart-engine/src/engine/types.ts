@@ -121,6 +121,23 @@ export interface ZiweiChart {
 }
 
 /** 流年运限层：流年干支、流年命宫、流年十二宫、流年四化及其落宫 */
+export interface LiuYueLayer {
+  /** 流月所在公历年（年柱口径与流年一致） */
+  year: number;
+  /** 实际采用的农历月序 1–12（闰月按前后半月口径归并） */
+  month: number;
+  /** 流月干支，如「丙寅月」 */
+  ganzhi: string;
+  /** 流月命宫地支索引（= 流月月支：正月=寅…十二月=丑） */
+  mingBranch: number;
+  /** 流月十二宫：自流月命宫起按 PALACE_NAMES_ORDER 逐宫地支索引减 1（模 12） */
+  palaces: Array<{ branch: number; name: string }>;
+  /** 流月四化（流月月干查表） */
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化四星各自落宫的地支索引；星不在任何宫时省略该键 */
+  siHuaPalaces: Record<'禄' | '权' | '科' | '忌', number>;
+}
+
 export interface LiuNianLayer {
   /** 流年公历年（年柱口径：(year - 4) % N，正月初一/公历年份换年） */
   year: number;

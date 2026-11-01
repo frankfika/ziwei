@@ -19,6 +19,7 @@ import {
   AskProviderError,
   type AskTurn,
 } from '@ziwei/ask';
+import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
 
 /** 单条问题长度上限（字符） */
 const MAX_QUESTION_CHARS = 500;
@@ -117,7 +118,9 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
   }
 
   try {
-    const service = new AskService();
+    // 用户自配 provider 优先；没配就用服务端环境变量
+    const userProvider = providerFromUserConfig(readUserProvider(formData));
+    const service = new AskService(userProvider ? { provider: userProvider } : {});
     const turns = parseTurns(str(formData, 'turns'));
     // 页内追问焦点：来自哪个解读维度 / 宫位 / 时间层（未知值在 prompt 层会被忽略）
     const timeRaw = str(formData, 'time').trim();

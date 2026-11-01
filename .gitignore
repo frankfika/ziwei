@@ -25,3 +25,4 @@ npm-debug.log*
 apps/web/.verify/
 .verify/
 .playwright-mcp/
+apps/web/.data/

@@ -78,7 +78,7 @@ export function createOpenAICompatibleProvider(
     apiKey,
     model,
     endpoint,
-    timeoutMs = 60_000,
+    timeoutMs = 180_000,
     defaultMaxTokens,
     defaultTemperature,
     headers = {},

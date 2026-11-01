@@ -289,6 +289,8 @@ export default function AskPanel({
           setTransient({ kind: 'not-configured', message: '智能追问暂未开启，请稍后再试。' });
         } else if (r.status === 'not-covered') {
           setTransient({ kind: 'not-covered', message: r.message });
+        } else if (r.status === 'quota') {
+          setTransient({ kind: 'not-covered', message: r.message });
         } else {
           setTransient({ kind: 'error', message: r.message, retryQuestion: text });
         }

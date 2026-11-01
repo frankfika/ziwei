@@ -20,6 +20,7 @@ import {
   type AskTurn,
 } from '@ziwei/ask';
 import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
+import { consumeAskQuota, checkAskQuota } from '@/lib/askQuota';
 
 /** 单条问题长度上限（字符） */
 const MAX_QUESTION_CHARS = 500;
@@ -80,6 +81,10 @@ export type AskActionResult =
       missing: string[];
     }
   | {
+      status: 'quota';
+      message: string;
+    }
+  | {
       status: 'error';
       message: string;
     };
@@ -118,8 +123,12 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
   }
 
   try {
-    // 用户自配 provider 优先；没配就用服务端环境变量
+    // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先查后发，成功才计数）
     const userProvider = providerFromUserConfig(readUserProvider(formData));
+    if (!userProvider) {
+      const q = await checkAskQuota();
+      if (!q.ok) return { status: 'quota', message: q.message };
+    }
     const service = new AskService(userProvider ? { provider: userProvider } : {});
     const turns = parseTurns(str(formData, 'turns'));
     // 页内追问焦点：来自哪个解读维度 / 宫位 / 时间层（未知值在 prompt 层会被忽略）
@@ -148,6 +157,7 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
     if (result.status === 'not-covered') {
       return { status: 'not-covered', message: result.message };
     }
+    if (!userProvider) await consumeAskQuota();
 
     const v = result.verification;
     return {

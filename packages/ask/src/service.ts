@@ -23,7 +23,6 @@ import {
   type AskProvider,
   type AskUsage,
 } from './types';
-import { DEFAULT_MAX_TOKENS } from './providers/env';
 import { verifyAnswer, type VerifyAnswerResult } from './verify';
 
 export interface AskServiceOptions {
@@ -82,7 +81,7 @@ export class AskService {
     this.service = opts.service ?? new ZiweiService();
     this.provider = opts.provider;
     this.maxContextChars = opts.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
-    this.maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
+    this.maxTokens = opts.maxTokens;
     this.temperature = opts.temperature;
   }
 

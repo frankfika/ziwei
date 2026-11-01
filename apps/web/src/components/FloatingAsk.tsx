@@ -146,6 +146,12 @@ export default function FloatingAsk() {
             </div>
           )}
 
+          {!aiConfigured && (
+            <p className="mb-2 text-2xs text-ink-3">
+              AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
+            </p>
+          )}
+
           {birth ? (
             <AskPanel
               key={identity}

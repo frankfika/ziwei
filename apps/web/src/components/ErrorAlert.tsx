@@ -17,7 +17,7 @@ export default function ErrorAlert({ children }: { children: React.ReactNode }) 
       role="alert"
       tabIndex={-1}
     >
-      <p className="text-xs font-medium tracking-wide text-zhu">无法完成排盘</p>
+      <p className="text-xs font-medium tracking-wide text-danger">无法完成排盘</p>
       <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{children}</p>
       <p className="mt-2 text-2xs leading-relaxed text-ink-3">
         请核对下方表单中的出生日期与时辰后重试。

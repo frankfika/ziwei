@@ -207,7 +207,7 @@ export default function AskPanel({
             className="flex w-full items-center justify-between gap-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-zhu"
           >
             <span>
-              <span className="block font-serif text-sm tracking-[0.2em] text-ink">
+              <span className="block text-sm tracking-[0.2em] text-ink">
                 命盘追问
                 {messages.length > 0 && (
                   <span className="ml-2 text-2xs font-normal tracking-normal text-ink-3">

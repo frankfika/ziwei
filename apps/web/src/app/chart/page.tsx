@@ -24,14 +24,14 @@ function invalid(message: string) {
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
       <div className="panel mx-auto max-w-lg p-8 text-center">
-        <h1 className="font-serif text-lg tracking-wide text-ink">无法排盘</h1>
+        <h1 className="text-lg tracking-wide text-ink">无法排盘</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-2" role="alert">
           {message}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             回到输入页
           </Link>
@@ -127,7 +127,7 @@ export default async function ChartPage({
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div>
             <p className="mb-1.5 text-2xs tracking-[0.3em] text-ink-3">紫微斗数命盘</p>
-            <h1 className="font-serif text-xl font-semibold tracking-[0.1em] text-ink sm:text-2xl">
+            <h1 className="text-xl font-semibold tracking-[0.1em] text-ink sm:text-2xl">
               {name ? `${name} · ` : ''}
               {year} 年 {month} 月 {day} 日 · {SHICHEN_NAMES[hour]}时 ·{' '}
               {GENDER_LABEL[gender]}

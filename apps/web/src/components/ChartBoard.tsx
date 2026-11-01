@@ -75,7 +75,9 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             className="grid min-w-[46rem] gap-px rounded-xl border border-line bg-line"
             style={{
               gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gridTemplateRows: 'repeat(4, minmax(8.5rem, auto))',
+              gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
+              // 高度跟随视口：任何屏幕都整盘入一屏；个别星曜密的宫位格内滚动
+              height: 'max(26rem, calc(100dvh - 14rem))',
             }}
           >
             {palaces.map((palace) => {
@@ -87,7 +89,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
                 <div
                   key={palace.branch}
                   style={{ gridRow: row, gridColumn: col }}
-                  className="bg-surface"
+                  className="min-h-0 overflow-y-auto bg-surface"
                 >
                   <PalaceCell
                     palace={palace}
@@ -106,7 +108,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
 
             <div
               style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
-              className="bg-surface"
+              className="min-h-0 overflow-y-auto bg-surface"
             >
               <CenterPanel palaces={palaces} info={center} />
             </div>
@@ -254,7 +256,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
             style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
             className="flex flex-col items-center justify-center gap-1 bg-surface p-2 text-center"
           >
-            <span className="font-serif text-xs font-medium tracking-[0.2em] text-ink">
+            <span className="text-xs font-medium tracking-[0.2em] text-ink">
               {center.wuxingJuName}
             </span>
             {(center.mingZhu || center.shenZhu) && (
@@ -301,7 +303,7 @@ export default function ChartBoard({ palaces, center }: ChartBoardProps) {
           <div
             ref={mobileDetailRef}
             id="mobile-palace-detail"
-            className="mb-3 max-h-[min(70vh,36rem)] scroll-mt-16 overflow-y-auto overscroll-contain rounded-xl border border-zhu/30 bg-surface shadow-[0_8px_24px_rgba(36,33,29,0.08)]"
+            className="mb-3 max-h-[min(70vh,36rem)] scroll-mt-16 overflow-y-auto overscroll-contain rounded-xl border border-zhu/30 bg-surface shadow-[0_12px_32px_rgba(3,5,16,0.5)]"
             role="region"
             aria-label={`${selectedPalace.name}宫位详情`}
             onKeyDown={(event) => {

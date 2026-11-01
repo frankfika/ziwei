@@ -17,7 +17,7 @@ function Section({
 }) {
   return (
     <section className="border-t border-line pt-8">
-      <h2 className="mb-4 font-serif text-base tracking-[0.2em] text-ink">{title}</h2>
+      <h2 className="mb-4 text-base tracking-[0.2em] text-ink">{title}</h2>
       <div className="space-y-3 text-[15px] leading-[1.9] text-ink-2">{children}</div>
     </section>
   );
@@ -31,7 +31,7 @@ export default async function AboutPage() {
     <div className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
       <header className="mb-10">
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ABOUT</p>
-        <h1 className="font-serif text-3xl font-semibold tracking-[0.12em] text-ink">
+        <h1 className="text-3xl font-semibold tracking-[0.12em] text-ink">
           关于与口径
         </h1>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">
@@ -163,7 +163,7 @@ export default async function AboutPage() {
       <div className="mt-12">
         <Link
           href="/"
-          className="inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#8d3324] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           去排一张盘
         </Link>

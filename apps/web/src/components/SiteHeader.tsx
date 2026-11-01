@@ -9,7 +9,7 @@ export function SiteHeader() {
           href="/"
           className="group flex items-baseline gap-2.5 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
-          <span className="font-serif text-lg font-semibold tracking-[0.2em] text-ink">
+          <span className="text-lg font-semibold tracking-[0.2em] text-ink">
             紫微助手
           </span>
           <span className="hidden text-2xs tracking-[0.25em] text-ink-3 sm:inline">

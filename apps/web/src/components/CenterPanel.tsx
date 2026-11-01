@@ -70,7 +70,7 @@ export default function CenterPanel({
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-5 py-4">
       <div className="text-center">
-        <p className="font-serif text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
+        <p className="text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
         <p className="mt-1 text-2xs tracking-wide text-ink-3">
           {STEM_NAMES[info.yearStem]}
           {SHICHEN_NAMES[info.yearBranch]}年

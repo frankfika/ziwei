@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   html {
@@ -27,21 +27,26 @@
     @apply bg-paper text-ink font-sans antialiased;
     font-feature-settings: 'kern' 1;
     text-rendering: optimizeLegibility;
+    /* 星光底：紫微紫 + 星金色，极低透明度，固定不动 */
+    background-image:
+      radial-gradient(60rem 32rem at 75% -12%, rgba(139, 124, 246, 0.12), transparent 60%),
+      radial-gradient(46rem 26rem at 8% -6%, rgba(232, 196, 104, 0.06), transparent 55%);
+    background-attachment: fixed;
   }
 
   ::selection {
-    background: #f0ddd6;
-    color: #24211d;
+    background: rgba(139, 124, 246, 0.35);
+    color: #eceef8;
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-zhu/40 ring-offset-2 ring-offset-paper;
+    @apply outline-none ring-2 ring-zhu/50 ring-offset-2 ring-offset-paper;
   }
 }
 
 @layer components {
   .panel {
-    @apply rounded-xl border border-line bg-surface;
+    @apply rounded-xl border border-line bg-surface/90 shadow-[0_8px_30px_rgba(3,5,16,0.35)];
   }
 
   .field-label {
@@ -49,19 +54,19 @@
   }
 
   .field-input {
-    @apply min-h-11 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink
+    @apply min-h-11 w-full rounded-lg border border-line bg-paper/60 px-3 py-2 text-sm text-ink
       outline-none transition-colors duration-150
-      focus:border-zhu focus:ring-2 focus:ring-zhu/15;
+      focus:border-zhu focus:ring-2 focus:ring-zhu/25;
   }
 
   .field-input[aria-invalid='true'] {
-    @apply border-zhu/50 bg-zhu-soft/30 focus:border-zhu focus:ring-zhu/25;
+    @apply border-danger/60 bg-danger/10 focus:border-danger focus:ring-danger/25;
   }
 
   .btn-primary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-lg bg-zhu px-5 py-3
       text-sm font-medium tracking-wide2 text-white transition-colors duration-150
-      hover:bg-[#8d3324] disabled:cursor-not-allowed disabled:opacity-60;
+      hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .chip {
@@ -74,6 +79,30 @@
   body {
     background: #fff !important;
     color: #24211d;
+  }
+
+  /* 深色主题打印兜底：纸面一律白底深字 */
+  .panel,
+  .bg-surface,
+  .bg-paper {
+    background: #fff !important;
+  }
+
+  .text-ink {
+    color: #24211d !important;
+  }
+
+  .text-ink-2 {
+    color: #57524a !important;
+  }
+
+  .text-ink-3 {
+    color: #8b8479 !important;
+  }
+
+  .border-line,
+  .border-lineSoft {
+    border-color: #e4dfd5 !important;
   }
 
   /* Prefer print:hidden on chrome; keep CSS fallbacks for paper/break. */

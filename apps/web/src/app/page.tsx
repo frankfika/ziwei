@@ -31,7 +31,7 @@ export default async function HomePage({
       {/* Hero */}
       <section className="mb-12 max-w-2xl">
         <p className="mb-3 text-2xs tracking-[0.35em] text-ink-3">ZIWEI DOU SHU</p>
-        <h1 className="font-serif text-3xl font-semibold leading-tight tracking-[0.12em] text-ink sm:text-4xl">
+        <h1 className="text-3xl font-semibold leading-tight tracking-[0.12em] text-ink sm:text-4xl">
           排一张紫微命盘
         </h1>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">

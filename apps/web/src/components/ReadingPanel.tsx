@@ -49,7 +49,7 @@ export default function ReadingPanel({
     return (
       <div>
         <div className="mb-5 flex items-baseline justify-between border-b border-line pb-3">
-          <h2 className="font-serif text-sm tracking-[0.2em] text-ink">十三维解读</h2>
+          <h2 className="text-sm tracking-[0.2em] text-ink">十三维解读</h2>
         </div>
         <div
           className="rounded-lg border border-dashed border-line bg-paper px-4 py-6 text-center"
@@ -101,7 +101,7 @@ export default function ReadingPanel({
   return (
     <div>
       <div className="mb-5 flex items-baseline justify-between border-b border-line pb-3">
-        <h2 className="font-serif text-sm tracking-[0.2em] text-ink">十三维解读</h2>
+        <h2 className="text-sm tracking-[0.2em] text-ink">十三维解读</h2>
         <p className="text-2xs tabular-nums text-ink-3">
           {dimensions.length} 维 · 约 {totalChars.toLocaleString('zh-CN')} 字
         </p>
@@ -182,7 +182,7 @@ export default function ReadingPanel({
             当前维度：{current.label}
           </p>
           <div className="mb-4 flex flex-wrap items-baseline gap-2">
-            <h3 className="font-serif text-base font-semibold tracking-wide text-ink sm:text-lg">
+            <h3 className="text-base font-semibold tracking-wide text-ink sm:text-lg">
               {current.label}
             </h3>
             <span className="text-2xs text-ink-3">

@@ -213,7 +213,7 @@ export default function BirthForm({
           {attemptedSubmit && resolved.ok === false && (
             <p
               id="birth-date-error"
-              className="mt-2 text-xs text-zhu"
+              className="mt-2 text-xs text-danger"
               role="alert"
             >
               {hasDateError

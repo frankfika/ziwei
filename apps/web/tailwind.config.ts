@@ -5,25 +5,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        paper: '#f7f5f1',
-        surface: '#ffffff',
-        line: '#e4dfd5',
-        lineSoft: '#eeebe4',
+        // 夜空底 —— 紫微即星，全盘围绕「星图」气质
+        paper: '#0b0e1c',
+        surface: '#161b31',
+        line: '#2a3252',
+        lineSoft: '#202744',
         ink: {
-          DEFAULT: '#24211d',
-          2: '#57524a',
-          3: '#8b8479',
+          DEFAULT: '#eceef8',
+          2: '#aab1cf',
+          3: '#7a81a3',
         },
         zhu: {
-          DEFAULT: '#a33b2a',
-          soft: '#f6ebe8',
+          DEFAULT: '#8b7cf6',
+          soft: '#2a2352',
+          deep: '#7365e8',
         },
         hua: {
-          lu: '#4a7c3f',
-          quan: '#2f5fa8',
-          ke: '#9a6b16',
-          ji: '#a33b2a',
+          lu: '#6fd79a',
+          quan: '#7fa9f0',
+          ke: '#e8c468',
+          ji: '#f08080',
         },
+        danger: '#f08080',
       },
       fontFamily: {
         sans: [

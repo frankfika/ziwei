@@ -39,7 +39,7 @@ export default function Markdown({ text }: { text: string }) {
               return (
                 <h2
                   key={i}
-                  className="mt-8 border-t border-lineSoft pt-5 font-serif text-base font-semibold tracking-[0.12em] text-ink first:mt-0 first:border-0 first:pt-0"
+                  className="mt-8 border-t border-lineSoft pt-5 text-base font-semibold tracking-[0.12em] text-ink first:mt-0 first:border-0 first:pt-0"
                 >
                   {renderInline(block.text)}
                 </h2>

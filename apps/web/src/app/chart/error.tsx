@@ -30,7 +30,7 @@ export default function ChartError({
         tabIndex={-1}
       >
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">CHART</p>
-        <h1 className="font-serif text-xl font-semibold tracking-[0.12em] text-ink">
+        <h1 className="text-xl font-semibold tracking-[0.12em] text-ink">
           命盘页出了点问题
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-2">
@@ -40,7 +40,7 @@ export default function ChartError({
           <button
             type="button"
             onClick={() => retry()}
-            className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-4 py-2.5 text-sm font-medium tracking-wide2 text-white transition-colors hover:bg-[#8d3324] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-4 py-2.5 text-sm font-medium tracking-wide2 text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
             重试
           </button>

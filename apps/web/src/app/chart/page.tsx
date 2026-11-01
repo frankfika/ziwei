@@ -1,9 +1,5 @@
 import Link from 'next/link';
-import ChartBoard from '@/components/ChartBoard';
-import ReadingPanel from '@/components/ReadingPanel';
-import NotCoveredNotice from '@/components/NotCoveredNotice';
-import AskPanel from '@/components/AskPanel';
-import ChartShareButton from '@/components/ChartShareButton';
+import ChartTabs from '@/components/ChartTabBar';
 import { describeProviderEnv } from '@ziwei/ask';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
@@ -119,166 +115,108 @@ export default async function ChartPage({
   };
 
   const chartDate = formatDate(year, month, day);
+  const readingOk = reading.status === 'ok';
+
+  // 引文降级在服务端算好，客户端壳只收纯数据
+  const citationMode = resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
+  const applied = readingOk
+    ? applyCitationModeToDimensions(
+        reading.dimensions.map((d) => ({
+          key: d.key,
+          label: d.label,
+          text: d.text,
+          chars: d.chars,
+        })),
+        citationMode,
+      )
+    : null;
+
+  const provider = describeProviderEnv();
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-5">
-      {/* 生辰摘要 */}
-      <header className="mb-4 border-b border-line pb-3">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-          <div>
-            <p className="mb-1.5 text-2xs tracking-[0.3em] text-ink-3">紫微斗数命盘</p>
-            <h1 className="text-xl font-semibold tracking-[0.1em] text-ink sm:text-2xl">
-              {name ? `${name} · ` : ''}
-              {year} 年 {month} 月 {day} 日 · {SHICHEN_NAMES[hour]}时 ·{' '}
-              {GENDER_LABEL[gender]}
-            </h1>
-            <p className="mt-2 text-xs leading-relaxed text-ink-2">
-              排盘日 <span className="tabular-nums">{chartDate}</span>
-              {' · '}{SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
-              {' · '}未做真太阳时校正
+    <div className="mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 sm:py-4 md:py-0">
+      <ChartTabs
+        palaces={chart.palaces}
+        center={center}
+        reading={{
+          ok: readingOk,
+          dimensions: applied?.dimensions,
+          totalChars: readingOk ? reading.totalChars : 0,
+          citationNotice: applied
+            ? {
+                mode: citationMode,
+                modeLabel: CITATION_MODE_LABEL[citationMode],
+                totalCitations: applied.totalCitations,
+                redactedDims: applied.redactedDims,
+              }
+            : undefined,
+          notCovered: readingOk
+            ? undefined
+            : { message: reading.message, availableYears: reading.availableYears },
+        }}
+        ask={{
+          year,
+          month,
+          day,
+          hour,
+          gender,
+          available: readingOk,
+          providerConfigured: provider.ok,
+        }}
+        share={{
+          ...(name ? { name } : {}),
+          year,
+          month,
+          day,
+          hour,
+          gender,
+          chartDate,
+        }}
+        /* 摘要行：单行 H1（不再是大标题块） */
+        summary={
+          <h1 className="truncate text-xs font-medium tracking-wide text-ink md:text-sm">
+            {name ? `${name} · ` : ''}
+            {chartDate} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]}
+            {lateFlag && (
+              <span className="ml-1.5 text-zhu" title="晚子时已按传统规则顺延排盘日">
+                晚子时顺延
+              </span>
+            )}
+          </h1>
+        }
+        /* 「详情」折叠面板：口径说明默认藏起来，不占首屏高度 */
+        details={
+          <div className="space-y-2 text-2xs leading-relaxed text-ink-2">
+            <p>
+              排盘日 <span className="tabular-nums text-ink">{chartDate}</span>
             </p>
+            <p>
+              {SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
+            </p>
+            <p>未做真太阳时校正</p>
+            {lateFlag && (
+              <p className="text-zhu">
+                晚子时已顺延：输入日期 {birthDateRaw || '—'} 属晚子时（23:00–23:59），
+                排盘日顺延至 {chartDate}，时辰为 {SHICHEN_NAMES[hour]}时。
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3 border-t border-lineSoft pt-2">
+              <Link
+                href="/"
+                className="text-ink underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                重新排盘
+              </Link>
+              <Link
+                href="/about"
+                className="text-ink underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                口径说明
+              </Link>
+            </div>
           </div>
-          <ChartShareButton
-            {...(name ? { name } : {})}
-            year={year}
-            month={month}
-            day={day}
-            hour={hour}
-            gender={gender}
-            chartDate={chartDate}
-          />
-        </div>
-      </header>
-
-      <nav
-        className="sticky top-14 z-30 -mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-line bg-paper/95 px-4 py-2 backdrop-blur print:hidden sm:-mx-6 sm:px-6 md:hidden"
-        aria-label="命盘章节"
-      >
-        <a
-          href="#chart-board"
-          className="shrink-0 inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          命盘
-        </a>
-        <a
-          href="#reading"
-          className="shrink-0 inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          解读
-        </a>
-        {reading.status === 'ok' && (
-          <a
-            href="#ask-panel"
-            className="shrink-0 inline-flex min-h-9 items-center rounded-lg border border-zhu/25 bg-zhu-soft/40 px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-zhu/50 hover:bg-zhu-soft hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            追问
-          </a>
-        )}
-        <a
-          href="#main-content"
-          className="ml-auto shrink-0 inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          title="回到页面顶部"
-        >
-          回顶部
-        </a>
-      </nav>
-
-      {/* 晚子时提示 */}
-      {lateFlag && (
-        <div
-          className="mb-5 rounded-xl border border-zhu/25 bg-zhu-soft/50 px-5 py-4"
-          role="status"
-        >
-          <p className="text-sm leading-relaxed text-ink-2">
-            <span className="font-medium text-zhu">已按晚子时规则调整：</span>
-            输入的出生日期 {birthDateRaw || '—'} 属晚子时（23:00–23:59），
-            排盘日已顺延至 <span className="tabular-nums">{chartDate}</span>，
-            时辰为 <span className="tabular-nums">{hour}</span>（{SHICHEN_NAMES[hour]}时）。
-          </p>
-        </div>
-      )}
-
-      {/* 命盘 */}
-      <section id="chart-board" aria-label="十二宫命盘" className="mb-10 scroll-mt-28">
-        <ChartBoard palaces={chart.palaces} center={center} />
-      </section>
-
-      {/* 解读 */}
-      <section id="reading" aria-label="十三维解读" className="scroll-mt-28">
-        {reading.status === 'ok' ? (
-          (() => {
-            const mode = resolveCitationMode(process.env.ZIWEI_CITATION_MODE);
-            const applied = applyCitationModeToDimensions(
-              reading.dimensions.map((d) => ({
-                key: d.key,
-                label: d.label,
-                text: d.text,
-                chars: d.chars,
-              })),
-              mode,
-            );
-            return (
-              <ReadingPanel
-                dimensions={applied.dimensions}
-                totalChars={reading.totalChars}
-                citationNotice={{
-                  mode,
-                  modeLabel: CITATION_MODE_LABEL[mode],
-                  totalCitations: applied.totalCitations,
-                  redactedDims: applied.redactedDims,
-                }}
-              />
-            );
-          })()
-        ) : (
-          <NotCoveredNotice
-            message={reading.message}
-            availableYears={reading.availableYears}
-          />
-        )}
-      </section>
-
-      {reading.status === 'ok' && (
-        <div className="mt-8 mb-2 flex justify-center print:hidden md:justify-start">
-          <a
-            href="#ask-panel"
-            className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-4 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            对本盘有疑问？展开命盘追问
-          </a>
-        </div>
-      )}
-
-      {/* 追问 */}
-      {(() => {
-        const provider = describeProviderEnv();
-        return (
-          <AskPanel
-            year={year}
-            month={month}
-            day={day}
-            hour={hour}
-            gender={gender}
-            available={reading.status === 'ok'}
-            providerConfigured={provider.ok}
-          />
-        );
-      })()}
-
-      <div className="mt-10 flex flex-wrap gap-3">
-        <Link
-          href="/"
-          className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          重新排盘
-        </Link>
-        <Link
-          href="/about"
-          className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-4 py-2 text-xs tracking-wide text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          口径说明
-        </Link>
-      </div>
+        }
+      />
     </div>
   );
 }

@@ -115,8 +115,14 @@ export default function PalaceCell({
   const lucky = palace.stars.filter((s) => s.type === 'lucky');
   const sha = palace.stars.filter((s) => s.type === 'sha');
 
-  // 宫卡材质由 globals.css 的 .palace-cell / .is-selected / .is-sanfang 承担
-  const stateClass = selected ? 'is-selected' : inSanFang ? 'is-sanfang' : '';
+  // 宫卡材质由 globals.css 的 .palace-cell / .is-selected / .is-sanfang 承担；
+  // 动效 class 也在这里挂：选中 → 恒星呼吸（.palace-breathe），进入三方态 → 三方淡入（.sanfang-fade）。
+  // .sanfang-fade 只在「刚变成三方」时加（class 增删才会重播 keyframes），常驻的 is-sanfang 不触发动画。
+  const stateClass = selected
+    ? 'is-selected palace-breathe'
+    : inSanFang
+      ? 'is-sanfang sanfang-fade'
+      : '';
 
   const majorSummary = major.map((s) => s.name).join('、') || '空宫';
   const ariaLabel = [

@@ -15,7 +15,7 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { askChart, type AskActionResult } from '@/app/ask-action';
 import { chartKey } from '@/lib/history';
 import { useAskThread, type AskMessage } from '@/lib/askThreads';
-import { preferredScrollBehavior } from '@/lib/motion';
+import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 import Markdown from './Markdown';
 
 export interface AskPanelProps {
@@ -331,7 +331,12 @@ export default function AskPanel({
           </div>
 
           {pending && pendingQuestion && (
-            <div className="mt-5 rounded-xl border border-line bg-surface-2 px-4 py-4" role="status">
+            /* 提交后 pending 气泡淡入：class 提供 keyframes，inline style 提供时长/缓动 */
+            <div
+              className="chart-submit mt-5 rounded-xl border border-line bg-surface-2 px-4 py-4"
+              style={motionStyle(DURATION.sanfang)}
+              role="status"
+            >
               <p className="text-xs font-medium text-ink">
                 <span className={ASK_MARK_CLASS}>问</span>
                 {pendingQuestion}

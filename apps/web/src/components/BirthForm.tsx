@@ -16,7 +16,7 @@ import {
   resolveForm,
   shichenToClock,
 } from '@/lib/birth';
-import { preferredScrollBehavior } from '@/lib/motion';
+import { DURATION, motionDuration, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 
 export type { BirthFormState };
 
@@ -72,8 +72,9 @@ function SubmitButton({
       aria-describedby="chart-submit-status"
     >
       {pending ? (
-        // 按钮态：同一 keyframes，压到 120ms（reduced-motion 下由 globals 压到 80ms）
-        <span className="chart-submit" style={{ animationDuration: '120ms' }}>
+        // 按钮态：同一 keyframes，压到 DURATION.submit = 120ms
+        // （reduced-motion 下 motionDuration 收到 80ms，globals.css 也有 80ms 兜底）
+        <span className="chart-submit" style={motionStyle(motionDuration(DURATION.submit))}>
           排盘中…
         </span>
       ) : canSubmit ? (

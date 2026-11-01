@@ -10,6 +10,8 @@
     --chart-chrome: 112px;
     /* 底 Tab 高度（不含 safe-area） */
     --chart-tab: 56px;
+    /* 三方高亮底色（zhu-soft / 20）—— .is-sanfang 与 sanfang-fade keyframes 共用这一份 */
+    --sanfang-tint: rgba(30, 26, 58, 0.2);
   }
 
   html {
@@ -27,14 +29,15 @@
       animation: none !important;
     }
 
-    /* 无限循环的呼吸光：彻底关掉 */
+    /* 无限循环的呼吸光：彻底关掉（.palace-breathe 只作用在 ::after 光晕层上） */
     .palace-breathe,
+    .palace-breathe::after,
     .palace-cell.is-selected,
     .palace-cell.is-selected::after {
       animation: none !important;
     }
 
-    /* 一次性动效：压成 ≤80ms 的瞬时变化，保留终态（不能 animation:none，否则会停在 opacity:0） */
+    /* 一次性动效：压成 ≤80ms 的瞬时变化，保留终态（不能 animation:none，否则会停在起始态） */
     .sanfang-fade,
     .tab-crossfade,
     .detail-sheet,
@@ -151,8 +154,10 @@
 }
 
 /* 呼吸光单独一层（::after）：只让光晕呼吸，不压暗宫内文字；
-   用 inset 阴影，祖先 overflow 也不会把它裁掉。 */
-.palace-cell.is-selected::after {
+   用 inset 阴影，祖先 overflow 也不会把它裁掉。
+   .palace-breathe 可单独挂（移动端 active 格），.is-selected 自带呼吸。 */
+.palace-cell.is-selected::after,
+.palace-breathe::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -162,8 +167,12 @@
   animation: palace-breathe 1.8s ease-in-out infinite alternate;
 }
 
+.palace-breathe {
+  position: relative; /* ::after 光晕需要定位上下文 */
+}
+
 .palace-cell.is-sanfang {
-  background-color: rgba(30, 26, 58, 0.2); /* zhu-soft / 20 —— 只底色 */
+  background-color: var(--sanfang-tint); /* zhu-soft / 20 —— 只底色 */
 }
 
 .palace-sheet {
@@ -191,6 +200,10 @@
 
 /* ══════════════════════════════════════════════════════════════════════
    Motion language（§B5）—— 命名动效
+
+   ⚠️ 下面的时长 / 缓动对应 `src/lib/motion.ts` 的 DURATION / EASE。
+      CSS 没法 import TS 常量，改一处要改两处。
+      （呼吸光是例外：§B5 规定 1.8s ease-in-out 对称呼吸，不用 EASE.standard。）
    ══════════════════════════════════════════════════════════════════════ */
 
 /* 选中宫光晕：1.8s ease-in-out infinite alternate，opacity 0.35 → 0.55 */
@@ -203,13 +216,14 @@
   }
 }
 
-/* 三方高亮出现：220ms cubic-bezier(0.22, 1, 0.36, 1) */
+/* 三方高亮出现：220ms cubic-bezier(0.22, 1, 0.36, 1)
+   淡的是底色（zhu-soft / 20），不是整个宫卡 —— 否则宫内星名会跟着闪一下 */
 @keyframes sanfang-fade {
   from {
-    opacity: 0;
+    background-color: rgba(30, 26, 58, 0);
   }
   to {
-    opacity: 1;
+    background-color: var(--sanfang-tint);
   }
 }
 
@@ -248,28 +262,30 @@
   }
 }
 
-/* 可直接挂的 class */
-.palace-breathe {
-  animation: palace-breathe 1.8s ease-in-out infinite alternate;
-}
+/* 可直接挂的 class —— 时长取自 DURATION.*，缓动取自 EASE.standard
+   （恒星呼吸 .palace-breathe 的声明在「宫卡材质」段，和 ::after 光晕规则放在一起） */
 
+/* 三方淡入（DURATION.sanfang = 220ms）：淡入的是底色本身，宫内星名不跟着闪 */
 .sanfang-fade {
   animation: sanfang-fade 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* 解读维切换溶化（DURATION.tab = 180ms） */
 .tab-crossfade {
   animation: tab-crossfade 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* 宫位详情滑入（DURATION.sheet = 240ms）；关闭态反向播放（DURATION.sheetClose = 180ms） */
 .detail-sheet {
   animation: detail-sheet 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* 关闭态：反向播放，180ms */
 .detail-sheet.is-closing {
   animation: detail-sheet 180ms cubic-bezier(0.22, 1, 0.36, 1) reverse both;
 }
 
+/* 排盘骨架淡入（DURATION.skeleton = 200ms）；
+   按钮态复用同一 keyframes 时把 duration 改成 DURATION.submit = 120ms */
 .chart-submit {
   animation: chart-submit 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }

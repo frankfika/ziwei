@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import Markdown from './Markdown';
-import { preferredScrollBehavior } from '@/lib/motion';
+import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 
 export interface ReadingDimensionData {
   key: string;
@@ -130,7 +130,7 @@ export default function ReadingPanel({
           role="tablist"
           aria-label="解读维度"
           onKeyDown={onTabListKeyDown}
-          className="-mx-1 flex gap-1 overflow-x-auto overscroll-x-contain border-b border-lineSoft px-1 pb-2 touch-pan-x scroll-mt-14 lg:mx-0 lg:flex-col lg:overflow-visible lg:border-b-0 lg:px-0 lg:pb-0"
+          className="-mx-1 flex gap-1 overflow-x-auto overscroll-x-contain border-b border-lineSoft px-1 pb-2 touch-pan-x scroll-mt-14 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:flex-col lg:overflow-visible lg:border-b-0 lg:px-0 lg:pb-0"
         >
           {dimensions.map((d) => {
             const isActive = d.key === current.key;
@@ -173,8 +173,9 @@ export default function ReadingPanel({
           <p className="sr-only" aria-live="polite">
             当前维度：{current.label}
           </p>
-          {/* key 变化 → 重新挂载 → tab-crossfade 溶化（180ms opacity + 6px translateY） */}
-          <div key={current.key} className="tab-crossfade">
+          {/* key 变化 → 重新挂载 → tab-crossfade 溶化（class 提供 keyframes，
+              inline style 提供时长/缓动 —— 时长只有一个来源：DURATION.tab） */}
+          <div key={current.key} className="tab-crossfade" style={motionStyle(DURATION.tab)}>
             <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h3 className="font-serif text-title font-semibold text-ink">{current.label}</h3>
               <span className="text-2xs tabular-nums text-ink-3">

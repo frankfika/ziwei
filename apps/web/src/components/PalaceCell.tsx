@@ -13,19 +13,20 @@ export function sanFangBranches(branch: number): number[] {
   return [branch, (branch + 6) % 12, (branch + 4) % 12, (branch + 8) % 12];
 }
 
+/** 四化：字色 + 低彩描边 + 8~10% 底（§B1，降到低彩度） */
 export const SIHUA_CLASS: Record<string, string> = {
-  禄: 'text-hua-lu border-hua-lu/30 bg-hua-lu/10',
-  权: 'text-hua-quan border-hua-quan/30 bg-hua-quan/10',
-  科: 'text-hua-ke border-hua-ke/30 bg-hua-ke/10',
-  忌: 'text-hua-ji border-hua-ji/30 bg-hua-ji/10',
+  禄: 'text-hua-lu border-hua-lu/40 bg-hua-lu/10',
+  权: 'text-hua-quan border-hua-quan/40 bg-hua-quan/10',
+  科: 'text-hua-ke border-hua-ke/40 bg-hua-ke/10',
+  忌: 'text-hua-ji border-hua-ji/40 bg-hua-ji/10',
 };
 
-/** 庙旺利得平不陷 → 文字层次（移动端紧凑宫格也复用） */
+/** 庙旺利得平不陷 → 文字层次（仅主星可用；庙旺棕已废除，改 star.miao） */
 export function brightnessClass(b?: string): string {
   switch (b) {
     case '庙':
     case '旺':
-      return 'text-[#8a5512]';
+      return 'text-star-miao';
     case '得':
     case '利':
       return 'text-ink';
@@ -33,16 +34,25 @@ export function brightnessClass(b?: string): string {
       return 'text-ink-2';
     case '不':
     case '陷':
-      return 'text-ink-3';
+      return 'text-star-xian';
     default:
       return 'text-ink';
   }
 }
 
+/** 星等三级（§B2）：主星 / 辅星吉星 / 煞星杂曜 */
+type StarTier = 'major' | 'minor' | 'misc';
+
+const TIER_CLASS: Record<StarTier, string> = {
+  major: 'text-star-major font-semibold',
+  minor: 'text-star-minor text-ink-2',
+  misc: 'text-star-misc text-ink-3',
+};
+
 function SiHuaBadge({ siHua }: { siHua: string }) {
   return (
     <span
-      className={`chip ${SIHUA_CLASS[siHua] ?? 'border-line bg-paper text-ink-2'}`}
+      className={`chip-sihua ${SIHUA_CLASS[siHua] ?? 'border-line bg-paper text-ink-2'}`}
       title={`四化：${siHua}`}
     >
       {siHua}
@@ -52,23 +62,21 @@ function SiHuaBadge({ siHua }: { siHua: string }) {
 
 function StarName({
   star,
-  size = 'md',
+  tier = 'major',
   selfSihua,
 }: {
   star: ChartStar;
-  size?: 'md' | 'sm';
+  tier?: StarTier;
   selfSihua?: string;
 }) {
-  const base =
-    size === 'md'
-      ? 'text-[14px] font-semibold tracking-tight'
-      : 'text-[11px] leading-tight';
+  const isMajor = tier === 'major';
   return (
     <span className="inline-flex items-baseline gap-1">
-      <span className={`${base} ${brightnessClass(star.brightnessRaw)}`}>
+      {/* 只有主星允许庙旺色，辅星煞曜永远不跟主星抢色 */}
+      <span className={`${TIER_CLASS[tier]} ${isMajor ? brightnessClass(star.brightnessRaw) : ''}`}>
         {star.name}
       </span>
-      {star.brightnessRaw && size === 'md' && (
+      {isMajor && star.brightnessRaw && (
         <span className="text-2xs text-ink-3">{star.brightnessRaw}</span>
       )}
       {star.siHua && <SiHuaBadge siHua={star.siHua} />}
@@ -86,6 +94,8 @@ interface PalaceCellProps {
   selected: boolean;
   inSanFang: boolean;
   onSelect: (branch: number) => void;
+  /** 'board' = 盘面宫格；'sheet' = 宫位详情 sheet（隐藏重复的命/身宫 chip） */
+  variant?: 'board' | 'sheet';
 }
 
 export default function PalaceCell({
@@ -93,6 +103,7 @@ export default function PalaceCell({
   selected,
   inSanFang,
   onSelect,
+  variant = 'board',
 }: PalaceCellProps) {
   const selfSihuaMap = new Map<string, string>();
   for (const s of palace.selfSihua ?? []) {
@@ -104,11 +115,8 @@ export default function PalaceCell({
   const lucky = palace.stars.filter((s) => s.type === 'lucky');
   const sha = palace.stars.filter((s) => s.type === 'sha');
 
-  const highlight = selected
-    ? 'bg-zhu-soft/60 ring-1 ring-inset ring-zhu/40'
-    : inSanFang
-      ? 'bg-zhu-soft/25 ring-1 ring-inset ring-zhu/15'
-      : 'bg-surface';
+  // 宫卡材质由 globals.css 的 .palace-cell / .is-selected / .is-sanfang 承担
+  const stateClass = selected ? 'is-selected' : inSanFang ? 'is-sanfang' : '';
 
   const majorSummary = major.map((s) => s.name).join('、') || '空宫';
   const ariaLabel = [
@@ -128,7 +136,7 @@ export default function PalaceCell({
       onClick={() => onSelect(palace.branch)}
       aria-pressed={selected}
       aria-label={ariaLabel}
-      className={`group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2.5 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${highlight}`}
+      className={`palace-cell group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${stateClass}`}
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">
@@ -164,51 +172,46 @@ export default function PalaceCell({
       {/* 主星 */}
       <div className="flex w-full flex-col gap-0.5">
         {major.length === 0 ? (
-          <span className="text-[13px] text-ink-2">空宫</span>
+          <span className="text-star-major text-ink-2">空宫</span>
         ) : (
           major.map((star) => (
             <div key={star.name} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-              <StarName star={star} selfSihua={selfSihuaMap.get(star.name)} />
+              <StarName star={star} tier="major" selfSihua={selfSihuaMap.get(star.name)} />
             </div>
           ))
         )}
       </div>
 
-      {/* 辅星 / 杂曜 / 煞星 */}
+      {/* 辅星 / 吉星 */}
       {minor.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {minor.map((star) => (
-            <StarName key={star.name} star={star} size="sm" />
+            <StarName key={star.name} star={star} tier="minor" />
           ))}
         </div>
       )}
       {lucky.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {lucky.map((star) => (
-            <StarName key={star.name} star={star} size="sm" />
+            <StarName key={star.name} star={star} tier="minor" />
           ))}
         </div>
       )}
+      {/* 煞星 / 杂曜 */}
       {sha.length > 0 && (
         <div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5">
           {sha.map((star) => (
-            <span
-              key={star.name}
-              className="inline-flex items-baseline gap-1 text-[11px] leading-tight text-ink-3"
-            >
-              {star.name}
-              {star.siHua && <SiHuaBadge siHua={star.siHua} />}
-            </span>
+            <StarName key={star.name} star={star} tier="misc" />
           ))}
         </div>
       )}
 
       {/* 标记：命宫 / 身宫 / 空宫借宫 */}
       <div className="mt-auto flex w-full flex-wrap items-center gap-1 pt-1">
-        {palace.isMingGong && (
-          <span className="chip border-zhu/40 bg-zhu-soft text-zhu">命宫</span>
+        {variant === 'board' && palace.isMingGong && (
+          <span className="chip border-zhu/30 bg-zhu-soft/40 text-zhu">命宫</span>
         )}
-        {palace.isShenGong && (
+        {variant === 'board' && palace.isShenGong && (
           <span className="chip border-hua-quan/40 bg-hua-quan/10 text-hua-quan">身宫</span>
         )}
         {palace.isEmpty && (

@@ -5,6 +5,11 @@
 @layer base {
   :root {
     color-scheme: dark;
+
+    /* 盘页顶区预算：header + 单行摘要 */
+    --chart-chrome: 112px;
+    /* 底 Tab 高度（不含 safe-area） */
+    --chart-tab: 56px;
   }
 
   html {
@@ -21,22 +26,40 @@
     .animate-pulse {
       animation: none !important;
     }
+
+    /* 无限循环的呼吸光：彻底关掉 */
+    .palace-breathe,
+    .palace-cell.is-selected,
+    .palace-cell.is-selected::after {
+      animation: none !important;
+    }
+
+    /* 一次性动效：压成 ≤80ms 的瞬时变化，保留终态（不能 animation:none，否则会停在 opacity:0） */
+    .sanfang-fade,
+    .tab-crossfade,
+    .detail-sheet,
+    .detail-sheet.is-closing,
+    .chart-submit {
+      animation-duration: 80ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 
   body {
     @apply bg-paper text-ink font-sans antialiased;
     font-feature-settings: 'kern' 1;
     text-rendering: optimizeLegibility;
-    /* 星光底：紫微紫 + 星金色，极低透明度，固定不动 */
+    /* 三层星空（§B4）：近·细噪 / 远·紫微紫 / 中·星金 —— 固定、极低透明度、不动画 */
     background-image:
-      radial-gradient(60rem 32rem at 75% -12%, rgba(139, 124, 246, 0.12), transparent 60%),
-      radial-gradient(46rem 26rem at 8% -6%, rgba(232, 196, 104, 0.06), transparent 55%);
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.018'/%3E%3C/svg%3E"),
+      radial-gradient(60rem 32rem at 75% -12%, rgba(139, 124, 246, 0.1), transparent 60%),
+      radial-gradient(46rem 26rem at 8% -6%, rgba(196, 160, 106, 0.05), transparent 55%);
     background-attachment: fixed;
   }
 
   ::selection {
     background: rgba(139, 124, 246, 0.35);
-    color: #eceef8;
+    color: #e8eaf4;
   }
 
   :focus-visible {
@@ -46,7 +69,7 @@
 
 @layer components {
   .panel {
-    @apply rounded-xl border border-line bg-surface/90 shadow-[0_8px_30px_rgba(3,5,16,0.35)];
+    @apply rounded-xl border border-line bg-surface/90 shadow-[0_12px_40px_rgba(3,5,16,0.45)];
   }
 
   .field-label {
@@ -72,8 +95,184 @@
   .chip {
     @apply inline-flex items-center rounded-full border px-2 py-0.5 text-2xs leading-none;
   }
+
+  /* 四化 chip：字色 + 1px 低彩描边 + 8~10% 底；圆角改 rounded-sm 的视觉（4px）；字号 2xs
+     —— 颜色由 SIHUA_CLASS 的 text-/border-/bg- 工具类给（工具类优先级高于本层），
+        单独使用时回落到中性冷玉色。
+     —— 圆角写死 4px：Tailwind v3 的 rounded-sm 实际是 2px，与说明书的 4px 不符。 */
+  .chip-sihua {
+    @apply inline-flex items-center border border-line bg-paper/60 px-2 py-0.5
+      text-2xs leading-none text-ink-2;
+    border-radius: 4px;
+  }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   以下规则刻意放在 @layer 之外（unlayered）：
+   CSS 规范里「未分层」的声明优先级高于任何 @layer，能压掉 Tailwind utilities。
+   所以 .palace-grid 能真正盖掉遗留的 gap-px / bg-line（水泥缝），
+   .chip-sihua 的 rounded-sm 能盖掉 .chip 的 rounded-full。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 冷玉面板（生辰表单）─────────────────────────────────────────────
+   在 .panel 基础上叠一层非常淡的顶部内高光 + 1px 内描边，不加明显光晕。
+   token：ink #E8EAF4 / zhu #8B7CF6 / surface #0F1426 / line #243052 */
+.panel-ritual {
+  @apply rounded-xl border border-line bg-surface/90;
+  box-shadow:
+    inset 0 1px 0 rgba(232, 234, 244, 0.06),
+    inset 0 0 0 1px rgba(139, 124, 246, 0.12),
+    0 12px 40px rgba(3, 5, 16, 0.45);
+}
+
+/* ── 宫卡材质（§B4）──────────────────────────────────────────────────
+   .palace-grid          网格容器：gap 0、背景透明 —— 宫与宫之间不再有「水泥缝」
+   .palace-cell          基础宫卡：surface/85 + 内 hairline lineSoft
+   .palace-cell.is-selected  选中：zhu-soft/50 + zhu ring + zhu.glow + 呼吸光
+   .palace-cell.is-sanfang   三方四正：仅底色 zhu-soft/20，不加第二圈 ring
+   .palace-sheet         移动端宫位详情 sheet 的材质（定位/安全区由组件负责）
+   token：surface #0F1426 / lineSoft #1A223C / zhu-soft #1E1A3A / zhu #8B7CF6 */
+.palace-grid {
+  gap: 0;
+  background-color: transparent;
+}
+
+.palace-cell {
+  position: relative;
+  background-color: rgba(15, 20, 38, 0.85); /* surface / 85 */
+  box-shadow: inset 0 0 0 1px #1a223c; /* lineSoft */
+}
+
+.palace-cell.is-selected {
+  background-color: rgba(30, 26, 58, 0.5); /* zhu-soft / 50 */
+  box-shadow:
+    inset 0 0 0 1px rgba(139, 124, 246, 0.4), /* zhu / 40 */
+    0 0 24px rgba(139, 124, 246, 0.28); /* zhu-glow */
+}
+
+/* 呼吸光单独一层（::after）：只让光晕呼吸，不压暗宫内文字；
+   用 inset 阴影，祖先 overflow 也不会把它裁掉。 */
+.palace-cell.is-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 20px rgba(139, 124, 246, 0.28); /* zhu-glow */
+  animation: palace-breathe 1.8s ease-in-out infinite alternate;
+}
+
+.palace-cell.is-sanfang {
+  background-color: rgba(30, 26, 58, 0.2); /* zhu-soft / 20 —— 只底色 */
+}
+
+.palace-sheet {
+  border-radius: 1rem; /* rounded-2xl */
+  border: 1px solid #243052; /* line */
+  background-color: rgba(15, 20, 38, 0.98); /* surface */
+  box-shadow: 0 12px 40px rgba(3, 5, 16, 0.45);
+}
+
+/* ── 底 Tab 容器（盘页：命盘 | 解读 | 追问）────────────────────────── */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40; /* z-40 */
+  display: flex;
+  align-items: stretch;
+  background-color: rgba(15, 20, 38, 0.72); /* surface 半透明 */
+  border-top: 1px solid #243052; /* line */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Motion language（§B5）—— 命名动效
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 选中宫光晕：1.8s ease-in-out infinite alternate，opacity 0.35 → 0.55 */
+@keyframes palace-breathe {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* 三方高亮出现：220ms cubic-bezier(0.22, 1, 0.36, 1) */
+@keyframes sanfang-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 解读维切换：180ms opacity + translateY(6px) → 0 */
+@keyframes tab-crossfade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 排盘提交：按钮 → spinner 120ms；加载骨架淡入 200ms
+   （按钮态复用同一 keyframes 时把 duration 改成 120ms 即可） */
+@keyframes chart-submit {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 移动宫位详情：240ms slide-up + fade；关闭态 180ms */
+@keyframes detail-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 可直接挂的 class */
+.palace-breathe {
+  animation: palace-breathe 1.8s ease-in-out infinite alternate;
+}
+
+.sanfang-fade {
+  animation: sanfang-fade 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tab-crossfade {
+  animation: tab-crossfade 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.detail-sheet {
+  animation: detail-sheet 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 关闭态：反向播放，180ms */
+.detail-sheet.is-closing {
+  animation: detail-sheet 180ms cubic-bezier(0.22, 1, 0.36, 1) reverse both;
+}
+
+.chart-submit {
+  animation: chart-submit 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 @media print {
   body {
@@ -114,7 +313,9 @@
   }
 
   #ask-panel,
-  #mobile-palace-detail {
+  #mobile-palace-detail,
+  .tab-bar,
+  .palace-sheet {
     display: none !important;
   }
 }

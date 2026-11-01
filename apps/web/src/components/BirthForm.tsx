@@ -29,6 +29,23 @@ function FormPendingSync({ onPending }: { onPending: (pending: boolean) => void 
   return null;
 }
 
+/** 线描星 —— 空态插画与列表行指示共用 */
+function StarGlyph({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 2.5 14.1 9.9 21.5 12 14.1 14.1 12 21.5 9.9 14.1 2.5 12 9.9 9.9Z" />
+    </svg>
+  );
+}
+
 function SubmitButton({
   canSubmit,
   pending,
@@ -54,7 +71,16 @@ function SubmitButton({
       aria-busy={pending || undefined}
       aria-describedby="chart-submit-status"
     >
-      {pending ? '排盘中…' : canSubmit ? '排 盘' : disabledLabel}
+      {pending ? (
+        // 按钮态：同一 keyframes，压到 120ms（reduced-motion 下由 globals 压到 80ms）
+        <span className="chart-submit" style={{ animationDuration: '120ms' }}>
+          排盘中…
+        </span>
+      ) : canSubmit ? (
+        '排 盘'
+      ) : (
+        disabledLabel
+      )}
     </button>
   );
 }
@@ -68,6 +94,8 @@ export default function BirthForm({
   const [form, setForm] = useState<BirthFormState>(EMPTY_FORM);
   const [formPending, setFormPending] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  /** 移动端星册默认折叠；桌面端恒展开 */
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const { history, save, remove, rename, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
@@ -158,7 +186,7 @@ export default function BirthForm({
       <form
         id="birth-form"
         action={handleSubmit}
-        className={`panel p-6 sm:p-8${resolved.ok ? ' pb-24 md:pb-8' : ''}`}
+        className={`panel panel-ritual p-6 sm:p-8${resolved.ok ? ' pb-24 md:pb-8' : ''}`}
         noValidate
       >
         <FormPendingSync onPending={setFormPending} />
@@ -410,7 +438,7 @@ export default function BirthForm({
       {/* Mobile sticky submit — outside panel padding; still owns form via form= */}
       {resolved.ok && (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 print:hidden md:hidden" aria-busy={formPending || undefined}>
-          <div className="pointer-events-auto border-t border-line bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+          <div className="pointer-events-auto border-t border-line/80 bg-surface-2/90 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
             <div className="mx-auto w-full max-w-6xl">
               <SubmitButton canSubmit pending={formPending} form="birth-form" />
             </div>
@@ -418,15 +446,20 @@ export default function BirthForm({
         </div>
       )}
 
-      {/* 我的命盘 */}
+      {/* 星册 */}
       <aside className="panel p-5" aria-labelledby="history-heading">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">
-            我的命盘
-            {history.length > 0 && (
-              <span className="ml-2 font-normal text-ink-3 tabular-nums">{history.length} 张</span>
-            )}
-          </h2>
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div>
+            <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">
+              星册
+              {history.length > 0 && (
+                <span className="ml-2 hidden font-normal text-ink-3 tabular-nums md:inline">
+                  {history.length} 张
+                </span>
+              )}
+            </h2>
+            <p className="mt-1 text-2xs leading-relaxed text-ink-3">只存在本机，不上传。</p>
+          </div>
           {history.length > 0 && (
             <button
               type="button"
@@ -435,83 +468,109 @@ export default function BirthForm({
                   clear();
                 }
               }}
-              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               清空
             </button>
           )}
         </div>
+
         {history.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line bg-paper px-3 py-4">
-            <p className="text-2xs leading-relaxed text-ink-3">
-              排过的盘会自动存在这里（只存在本机），家人朋友的盘随时点开回看、继续追问。
-            </p>
+          <div className="flex items-center gap-3 py-1">
+            <StarGlyph className="h-6 w-6 shrink-0 text-ink-3/40" />
+            <p className="text-2xs leading-relaxed text-ink-3">排过的盘会留在这</p>
           </div>
         ) : (
-          <ul className="max-h-[28rem] space-y-2 overflow-y-auto overscroll-contain pr-0.5">
-            {history.map((entry) => {
-              const url = chartUrl(entry.form);
-              return (
-                <li key={entry.id}>
-                  <div className="group flex items-start gap-2">
-                    <a
-                      href={url ?? '#'}
-                      onClick={(e) => {
-                        if (!url) {
-                          e.preventDefault();
-                          onPickHistory(entry.form);
-                        }
-                      }}
-                      className="flex min-h-11 flex-1 flex-col justify-center rounded-lg border border-line bg-paper px-3 py-2.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                    >
-                      <span className="block truncate text-xs text-ink">{entry.label}</span>
-                      <span className="mt-0.5 block text-2xs text-ink-3">
-                        {entry.form.year}年{entry.form.month}月{entry.form.day}日
-                        {' · '}
-                        {entry.form.timeMode === 'clock'
-                          ? `${formatClock(Number(entry.form.clockHour), Number(entry.form.clockMinute))}`
-                          : `${SHICHEN_NAMES[entry.form.shichen]}时`}
-                        {' · '}
-                        {GENDER_LABEL[entry.form.gender]}
-                      </span>
-                    </a>
-                    <div className="flex shrink-0 flex-col">
-                      <button
-                        type="button"
-                        aria-label={`回填「${entry.label}」到表单`}
-                        title="回填到表单修改"
-                        onClick={() => onPickHistory(entry.form)}
-                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        填
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`重命名「${entry.label}」`}
-                        title="重命名"
-                        onClick={() => {
-                          const next = window.prompt('给这张盘起个名字（如「妈妈的盘」）', entry.label);
-                          if (next !== null) rename(entry.id, next);
+          <>
+            {/* 移动端默认折叠成一行；桌面端隐藏此开关 */}
+            <button
+              type="button"
+              onClick={() => setLibraryOpen((v) => !v)}
+              aria-expanded={libraryOpen}
+              aria-controls="history-list"
+              className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg border border-lineSoft bg-paper/40 px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:hidden"
+            >
+              <span>已存 {history.length} 张</span>
+              <span className="flex items-center gap-1">
+                {libraryOpen ? '收起' : '展开'}
+                <span
+                  aria-hidden="true"
+                  className={`transition-transform ${libraryOpen ? 'rotate-180' : ''}`}
+                >
+                  ▾
+                </span>
+              </span>
+            </button>
+
+            <ul
+              id="history-list"
+              className={`${libraryOpen ? 'block' : 'hidden'} max-h-[28rem] space-y-2 overflow-y-auto overscroll-contain pr-0.5 md:block`}
+            >
+              {history.map((entry) => {
+                const url = chartUrl(entry.form);
+                return (
+                  <li key={entry.id}>
+                    <div className="group flex items-center gap-2">
+                      <StarGlyph className="h-2.5 w-2.5 shrink-0 text-zhu/70" />
+                      <a
+                        href={url ?? '#'}
+                        onClick={(e) => {
+                          if (!url) {
+                            e.preventDefault();
+                            onPickHistory(entry.form);
+                          }
                         }}
-                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        className="flex min-h-12 min-w-0 flex-1 flex-col justify-center rounded-lg border border-lineSoft bg-paper/50 px-3 py-1.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
-                        名
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`删除「${entry.label}」`}
-                        title="删除"
-                        onClick={() => remove(entry.id)}
-                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        ×
-                      </button>
+                        <span className="block truncate text-xs text-ink">{entry.label}</span>
+                        <span className="mt-0.5 block truncate text-2xs text-ink-3">
+                          {entry.form.year}年{entry.form.month}月{entry.form.day}日
+                          {' · '}
+                          {entry.form.timeMode === 'clock'
+                            ? `${formatClock(Number(entry.form.clockHour), Number(entry.form.clockMinute))}`
+                            : `${SHICHEN_NAMES[entry.form.shichen]}时`}
+                          {' · '}
+                          {GENDER_LABEL[entry.form.gender]}
+                        </span>
+                      </a>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={`回填「${entry.label}」到表单`}
+                          title="回填到表单修改"
+                          onClick={() => onPickHistory(entry.form)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          填
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`重命名「${entry.label}」`}
+                          title="重命名"
+                          onClick={() => {
+                            const next = window.prompt('给这张盘起个名字（如「妈妈的盘」）', entry.label);
+                            if (next !== null) rename(entry.id, next);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          名
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`删除「${entry.label}」`}
+                          title="删除"
+                          onClick={() => remove(entry.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </aside>
     </div>

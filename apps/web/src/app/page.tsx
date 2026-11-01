@@ -27,72 +27,79 @@ export default async function HomePage({
   const years = coverage.indexedYears;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
+    <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
       {/* Hero */}
-      <section className="mb-12 max-w-2xl">
+      <section className="mb-8 max-w-2xl sm:mb-10">
         <p className="mb-3 text-2xs tracking-[0.35em] text-ink-3">ZIWEI DOU SHU</p>
-        <h1 className="text-3xl font-semibold leading-tight tracking-[0.12em] text-ink sm:text-4xl">
-          排一张紫微命盘
-        </h1>
-        <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">
-          输入公历出生日期和时辰，排出你的紫微命盘，并从性格、感情、事业等十三个方面解读。
-          解读逐条有据可依；没有依据的地方宁可直说，也不编造。
+        <h1 className="font-serif text-display font-semibold text-ink">排一张紫微命盘</h1>
+        <p className="mt-3 text-[15px] leading-[1.9] text-ink-2">
+          输入生辰，先看盘，再读解读；没有依据的地方，直说不编造。
         </p>
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </section>
 
       <BirthForm indexedYears={years} />
 
-      {/* 覆盖情况 */}
-      <section
+      {/* 覆盖情况 —— 折叠，summary 只留一行标题 + 当前年份范围 */}
+      <details
         id="coverage"
-        className="mt-10 scroll-mt-6 rounded-xl border border-lineSoft bg-surface px-5 py-4"
-        aria-labelledby="coverage-title"
+        className="group mt-10 scroll-mt-6 border-t border-lineSoft pt-4"
       >
-        <h2 id="coverage-title" className="text-xs font-medium tracking-wide2 text-ink-3">
-          解读覆盖范围
-        </h2>
-        {years.length === 0 ? (
-          <div
-            className="mt-3 rounded-lg border border-dashed border-line bg-paper px-3.5 py-3"
-            role="status"
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <h2
+            id="coverage-title"
+            className="flex items-center justify-between gap-3 text-xs font-medium tracking-wide2 text-ink-3"
           >
-            <p className="text-xs leading-relaxed text-ink-2">
-              解读材料还在准备中。仍可排盘查看十二宫，解读会提示暂未覆盖。
-            </p>
-            <p className="mt-1.5 text-2xs leading-relaxed text-ink-3">
-              准备好后，这里会列出可解读的年份范围。细节见{' '}
-              <Link
-                href="/about"
-                className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                关于与口径
-              </Link>
-              。
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="mt-2 text-xs leading-relaxed text-ink-2">
-              目前覆盖{' '}
-              <span className="tabular-nums text-ink">
-                {years[0]}–{years[years.length - 1]}
-              </span>{' '}
-              年出生的解读。不在范围内的生辰会如实提示，不会用编造的内容替代。
-            </p>
-            <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-              细节见{' '}
-              <Link
-                href="/about"
-                className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                关于与口径
-              </Link>
-              。
-            </p>
-          </>
-        )}
-      </section>
+            <span>解读覆盖范围</span>
+            <span className="flex items-center gap-2 tabular-nums text-ink-2">
+              {years.length === 0 ? '待补充' : `${years[0]}–${years[years.length - 1]}`}
+              <span aria-hidden="true" className="transition-transform group-open:rotate-180">
+                ▾
+              </span>
+            </span>
+          </h2>
+        </summary>
+
+        <div className="mt-3">
+          {years.length === 0 ? (
+            <>
+              <p className="text-xs leading-relaxed text-ink-2">
+                解读材料还在准备中。仍可排盘查看十二宫，解读会提示暂未覆盖。
+              </p>
+              <p className="mt-1.5 text-2xs leading-relaxed text-ink-3">
+                准备好后，这里会列出可解读的年份范围。细节见{' '}
+                <Link
+                  href="/about"
+                  className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  关于与口径
+                </Link>
+                。
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs leading-relaxed text-ink-2">
+                目前覆盖{' '}
+                <span className="tabular-nums text-ink">
+                  {years[0]}–{years[years.length - 1]}
+                </span>{' '}
+                年出生的解读。不在范围内的生辰会如实提示，不会用编造的内容替代。
+              </p>
+              <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+                细节见{' '}
+                <Link
+                  href="/about"
+                  className="text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  关于与口径
+                </Link>
+                。
+              </p>
+            </>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

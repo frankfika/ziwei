@@ -1,68 +1,48 @@
+/** 骨架格位：4×4 十二宫，中央 2×2 是中宫（与真盘同几何） */
+const CELLS: ReadonlyArray<readonly [number, number]> = [
+  [1, 1], [2, 1], [3, 1], [4, 1],
+  [1, 2], [4, 2],
+  [1, 3], [4, 3],
+  [1, 4], [2, 4], [3, 4], [4, 4],
+];
+
 export default function ChartLoading() {
   return (
     <div
-      className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14"
+      className="chart-submit mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
-      <div className="mb-8 border-b border-line pb-6">
+      <div className="mb-8">
         <div className="h-3 w-24 animate-pulse motion-reduce:animate-none rounded bg-lineSoft" />
         <div className="mt-3 h-8 w-72 max-w-full animate-pulse motion-reduce:animate-none rounded bg-lineSoft" />
-        <div className="mt-3 h-3 w-56 max-w-full animate-pulse motion-reduce:animate-none rounded bg-lineSoft" />
         <div className="mt-4 flex gap-2">
           <div className="h-9 w-24 animate-pulse motion-reduce:animate-none rounded-lg bg-lineSoft" />
           <div className="h-9 w-24 animate-pulse motion-reduce:animate-none rounded-lg bg-lineSoft" />
         </div>
       </div>
 
-      {/* Desktop 4×4 board skeleton (center 2×2) */}
+      {/* 4×4 骨架：矮格 + 中宫，hairline 内描边（无「水泥缝」） */}
       <div
-        className="mb-14 hidden gap-px overflow-hidden rounded-xl border border-line bg-line md:grid"
-        style={{
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          gridTemplateRows: 'repeat(4, minmax(10.5rem, auto))',
-        }}
+        className="grid grid-cols-4 gap-1 h-[18rem] md:h-[26rem]"
+        style={{ gridTemplateRows: 'repeat(4, minmax(0, 1fr))' }}
       >
-        {Array.from({ length: 4 }).map((_, i) => (
+        {CELLS.map(([col, row]) => (
           <div
-            key={`r1-${i}`}
-            className="animate-pulse motion-reduce:animate-none bg-surface"
+            key={`${col}-${row}`}
+            style={{ gridColumn: col, gridRow: row }}
+            className="animate-pulse motion-reduce:animate-none rounded-xl bg-surface ring-1 ring-inset ring-lineSoft"
           />
         ))}
-        <div className="animate-pulse motion-reduce:animate-none bg-surface" />
         <div
-          className="col-span-2 row-span-2 animate-pulse motion-reduce:animate-none bg-surface"
-          aria-hidden="true"
+          style={{ gridColumn: '2 / span 2', gridRow: '2 / span 2' }}
+          className="animate-pulse motion-reduce:animate-none rounded-xl bg-surface ring-1 ring-inset ring-lineSoft"
         />
-        <div className="animate-pulse motion-reduce:animate-none bg-surface" />
-        <div className="animate-pulse motion-reduce:animate-none bg-surface" />
-        <div className="animate-pulse motion-reduce:animate-none bg-surface" />
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={`r4-${i}`}
-            className="animate-pulse motion-reduce:animate-none bg-surface"
-          />
-        ))}
       </div>
 
-      {/* Mobile list skeleton */}
-      <div className="mb-14 space-y-2 md:hidden">
-        <div className="h-28 animate-pulse motion-reduce:animate-none rounded-xl border border-line bg-surface" />
-        <div className="flex gap-2">
-          <div className="h-9 w-20 animate-pulse motion-reduce:animate-none rounded-full bg-lineSoft" />
-          <div className="h-9 w-20 animate-pulse motion-reduce:animate-none rounded-full bg-lineSoft" />
-          <div className="h-9 w-24 animate-pulse motion-reduce:animate-none rounded-full bg-lineSoft" />
-        </div>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-16 animate-pulse motion-reduce:animate-none rounded-xl border border-line bg-surface"
-          />
-        ))}
-      </div>
-
-      <div className="space-y-3">
+      {/* 解读面板骨架 —— 只在桌面端堆叠 */}
+      <div className="mt-8 hidden space-y-3 md:block">
         <div className="h-4 w-32 animate-pulse motion-reduce:animate-none rounded bg-lineSoft" />
         <div className="flex gap-2 overflow-hidden">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -72,9 +52,10 @@ export default function ChartLoading() {
             />
           ))}
         </div>
-        <div className="h-40 animate-pulse motion-reduce:animate-none rounded-xl border border-line bg-surface" />
+        <div className="h-40 animate-pulse motion-reduce:animate-none rounded-xl bg-surface ring-1 ring-inset ring-lineSoft" />
       </div>
-      <p className="mt-6 text-center text-2xs text-ink-3">正在排盘与检索解读…</p>
+
+      <p className="mt-6 text-center text-2xs text-ink-3">正在排布十二宫…</p>
     </div>
   );
 }

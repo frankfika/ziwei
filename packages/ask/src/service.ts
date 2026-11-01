@@ -9,7 +9,7 @@
  *   5. 用 verifyAnswer 做机械防编造检查
  */
 
-import { ZiweiService, chartSummary, liuNianLayer, type Birth } from '@ziwei/core';
+import { ZiweiService, chartSummary, liuNianLayer, daXianLayer, type Birth } from '@ziwei/core';
 import {
   buildAskPrompt,
   DEFAULT_MAX_CONTEXT_CHARS,
@@ -142,16 +142,34 @@ export class AskService {
       const y = options.focus.targetYear ?? new Date().getFullYear();
       const ln = liuNianLayer(chart, y);
       const natal = chart.palaces.find((p) => p.branch === ln.mingBranch);
+      // 流年十二宫落位：流年某宫落在本命哪一宫
+      const placements = ln.palaces
+        .map((lp) => {
+          const p = chart.palaces.find((c) => c.branch === lp.branch);
+          return p ? `${lp.name}在本命${p.name}（${p.branchName}）` : null;
+        })
+        .filter(Boolean)
+        .join('；');
       fortuneNote = [
         `${y} ${ln.ganzhi}年：流年命宫落在本命${natal?.name ?? ''}（${natal?.branchName ?? ''}）。`,
         `流年四化：化禄 ${ln.siHua.lu}、化权 ${ln.siHua.quan}、化科 ${ln.siHua.ke}、化忌 ${ln.siHua.ji}。`,
+        `流年十二宫落位：${placements}。`,
       ].join('\n');
     } else if (options?.focus?.time === 'daxian') {
       const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
-      const dx = dxPalace
-        ? chart.daXians.find((d) => d.palaceBranch === dxPalace.branch)
-        : undefined;
-      if (dx) {
+      const dxIndex = dxPalace
+        ? chart.daXians.findIndex((d) => d.palaceBranch === dxPalace.branch)
+        : -1;
+      const dx = dxIndex >= 0 ? chart.daXians[dxIndex] : undefined;
+      const layer = dxIndex >= 0 ? daXianLayer(chart, dxIndex) : null;
+      if (dx && layer) {
+        const placements = layer.palaces
+          .map((lp) => {
+            const p = chart.palaces.find((c) => c.branch === lp.branch);
+            return p ? `${lp.name}在本命${p.name}（${p.branchName}）` : null;
+          })
+          .filter(Boolean)
+          .join('；');
         fortuneNote = [
           `当前大限 ${dx.startAge}–${dx.endAge} 岁，大限命宫在${dx.palaceName}（${dx.stemName ?? ''}）。`,
           ...(dx.siHua
@@ -159,6 +177,7 @@ export class AskService {
                 `大限四化：化禄 ${dx.siHua.lu}、化权 ${dx.siHua.quan}、化科 ${dx.siHua.ke}、化忌 ${dx.siHua.ji}。`,
               ]
             : []),
+          `大限十二宫落位：${placements}。`,
         ].join('\n');
       }
     }

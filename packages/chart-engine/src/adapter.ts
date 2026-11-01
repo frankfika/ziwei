@@ -12,6 +12,7 @@ import {
   type Birth,
   type ChartDaXian,
   type ChartJSON,
+  type ChartFortuneLayer,
   type ChartLiuNian,
   type ChartPalace,
   type ChartStar,
@@ -178,6 +179,61 @@ export function palaceAt(c: ChartJSON, branch: number): ChartPalace | null {
  *   流年命宫 = 流年地支；流年十二宫自命宫起逐宫地支减 1（模 12）；
  *   四化取流年天干查表；落宫在 c.palaces[].stars 里找四化星所在宫支。
  */
+/**
+ * 运限层通用构造：大限与流年共用「层命宫 → 十二宫名 → 层四化落宫」这一条路。
+ *
+ * @param mingBranch 该层命宫落宫的地支索引
+ * @param siHua 该层四化四星名
+ */
+function buildFortuneLayer(
+  c: ChartJSON,
+  kind: 'daxian' | 'liunian',
+  label: string,
+  mingBranch: number,
+  siHua: { lu: string; quan: string; ke: string; ji: string },
+): ChartFortuneLayer {
+  // 运限十二宫：自命宫起按 PALACE_NAMES_ORDER 每下一宫地支索引减 1（模 12）
+  const palaces = PALACE_NAMES_ORDER.map((name, i) => ({
+    branch: (((mingBranch - i) % 12) + 12) % 12,
+    name,
+  }));
+
+  // 四化星落宫；星不在任何宫则省略该键
+  const siHuaPalaces: Record<string, number> = {};
+  const starOf: Array<[string, string]> = [
+    ['禄', siHua.lu],
+    ['权', siHua.quan],
+    ['科', siHua.ke],
+    ['忌', siHua.ji],
+  ];
+  for (const [key, starName] of starOf) {
+    if (!starName) continue;
+    const palace = c.palaces.find((p) => p.stars.some((s) => s.name === starName));
+    if (palace) siHuaPalaces[key] = palace.branch;
+  }
+
+  return { kind, label, mingBranch, palaces, siHua, siHuaPalaces };
+}
+
+/**
+ * 当前大限运限层。
+ *
+ * 大限命宫 = 大限所落宫的宫位（大限以该宫起限，命宫随之移位）；
+ * 大限十二宫与大限四化均由该宫宫干推出。
+ */
+export function daXianLayer(c: ChartJSON, index: number): ChartFortuneLayer | null {
+  const dx = c.daXians[index];
+  if (!dx) return null;
+  const siHua = dx.siHua ?? { lu: '', quan: '', ke: '', ji: '' };
+  return buildFortuneLayer(
+    c,
+    'daxian',
+    `${dx.startAge}–${dx.endAge} 岁`,
+    dx.palaceBranch,
+    siHua,
+  );
+}
+
 export function liuNianLayer(c: ChartJSON, year: number): ChartLiuNian {
   const y = Math.trunc(year);
   const yearStem = getYearStemIndex(y);

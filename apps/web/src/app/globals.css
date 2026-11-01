@@ -40,8 +40,6 @@
     /* 一次性动效：压成 ≤80ms 的瞬时变化，保留终态（不能 animation:none，否则会停在起始态） */
     .sanfang-fade,
     .tab-crossfade,
-    .detail-sheet,
-    .detail-sheet.is-closing,
     .chart-submit {
       animation-duration: 80ms !important;
       animation-iteration-count: 1 !important;
@@ -140,7 +138,6 @@
    .palace-cell          基础宫卡：surface/92 + 内 hairline lineSoft，像贴在纸上的笺
    .palace-cell.is-selected  选中：zhu-soft + zhu ring + zhu.glow + 呼吸光
    .palace-cell.is-sanfang   三方四正：仅底色 zhu-soft/90，不加第二圈 ring
-   .palace-sheet         移动端宫位详情 sheet 的材质（定位/安全区由组件负责）
    token：surface #FDFBF5 / lineSoft #E9E2D1 / zhu-soft #E7ECF3 / zhu #3D5A85 */
 .palace-grid {
   gap: 0;
@@ -182,22 +179,17 @@
   background-color: var(--sanfang-tint); /* zhu-soft / 90 —— 只底色 */
 }
 
-/* 时间轴叠加层：流年命宫鎏金描边，大限命宫淡紫底 */
+/* 时间轴叠加层：流年命宫鎏金描边，大限命宫紫描边 */
 .palace-cell.is-liunian-ming {
   box-shadow:
     inset 0 0 0 1px rgba(168, 121, 47, 0.55),
     0 0 20px rgba(168, 121, 47, 0.15);
 }
 
-.palace-cell.is-daxian-palace {
-  background-color: rgba(124, 95, 184, 0.08);
-}
-
-.palace-sheet {
-  border-radius: 1rem; /* rounded-2xl */
-  border: 1px solid #ddd4c0; /* line */
-  background-color: rgba(253, 251, 245, 0.98); /* surface */
-  box-shadow: 0 12px 40px rgba(46, 42, 35, 0.16);
+.palace-cell.is-daxian-ming {
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 95, 184, 0.5),
+    0 0 18px rgba(124, 95, 184, 0.12);
 }
 
 /* ── 底 Tab 容器（盘页：命盘 | 解读 | 追问）──────────────────────────
@@ -277,18 +269,6 @@
   }
 }
 
-/* 移动宫位详情：240ms slide-up + fade；关闭态 180ms */
-@keyframes detail-sheet {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* 可直接挂的 class —— 时长取自 DURATION.*，缓动取自 EASE.standard
    （恒星呼吸 .palace-breathe 的声明在「宫卡材质」段，和 ::after 光晕规则放在一起） */
 
@@ -300,15 +280,6 @@
 /* 解读维切换溶化（DURATION.tab = 180ms） */
 .tab-crossfade {
   animation: tab-crossfade 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* 宫位详情滑入（DURATION.sheet = 240ms）；关闭态反向播放（DURATION.sheetClose = 180ms） */
-.detail-sheet {
-  animation: detail-sheet 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.detail-sheet.is-closing {
-  animation: detail-sheet 180ms cubic-bezier(0.22, 1, 0.36, 1) reverse both;
 }
 
 /* 排盘骨架淡入（DURATION.skeleton = 200ms）；
@@ -356,9 +327,7 @@
   }
 
   #ask-panel,
-  #mobile-palace-detail,
-  .tab-bar,
-  .palace-sheet {
+  .tab-bar {
     display: none !important;
   }
 }

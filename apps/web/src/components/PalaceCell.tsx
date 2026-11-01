@@ -1,15 +1,15 @@
-import type { ChartLiuNian, ChartPalace, ChartStar } from '@ziwei/chart-engine';
+import type { ChartFortuneLayer, ChartPalace, ChartStar } from '@ziwei/chart-engine';
 
-/** 某星在本命盘的流年四化标记（流禄/流权/流科/流忌），无则 null */
-export function liuNianSiHuaOf(
+/** 某星在该运限层的四化标记（禄/权/科/忌，无则 null） */
+export function fortuneSiHuaOf(
   starName: string,
-  liunian: ChartLiuNian | null | undefined,
+  layer: ChartFortuneLayer | null | undefined,
 ): string | null {
-  if (!liunian) return null;
-  if (liunian.siHua.lu === starName) return '流禄';
-  if (liunian.siHua.quan === starName) return '流权';
-  if (liunian.siHua.ke === starName) return '流科';
-  if (liunian.siHua.ji === starName) return '流忌';
+  if (!layer) return null;
+  if (layer.siHua.lu === starName) return '禄';
+  if (layer.siHua.quan === starName) return '权';
+  if (layer.siHua.ke === starName) return '科';
+  if (layer.siHua.ji === starName) return '忌';
   return null;
 }
 
@@ -107,10 +107,10 @@ interface PalaceCellProps {
   selected: boolean;
   inSanFang: boolean;
   onSelect: (branch: number) => void;
-  /** 'board' = 盘面宫格；'sheet' = 宫位详情 sheet（隐藏重复的命/身宫 chip） */
-  variant?: 'board' | 'sheet';
-  /** 流年叠加层：主星带流年四化小章 + 流年命宫描边 */
-  liunian?: ChartLiuNian | null;
+  /** 'board' = 盘面宫格 */
+  variant?: 'board';
+  /** 运限叠加层：该层宫名 + 该层四化落宫标记 */
+  fortune?: ChartFortuneLayer | null;
   layerMark?: string;
 }
 
@@ -120,7 +120,7 @@ export default function PalaceCell({
   inSanFang,
   onSelect,
   variant = 'board',
-  liunian = null,
+  fortune = null,
   layerMark = '',
 }: PalaceCellProps) {
   const selfSihuaMap = new Map<string, string>();
@@ -141,6 +141,9 @@ export default function PalaceCell({
     : inSanFang
       ? 'is-sanfang sanfang-fade'
       : '';
+
+  // 运限层的宫名（流年/大限落在本宫的那个宫）
+  const fortuneName = fortune?.palaces.find((p) => p.branch === palace.branch)?.name ?? null;
 
   const majorSummary = major.map((s) => s.name).join('、') || '空宫';
   const ariaLabel = [
@@ -164,7 +167,7 @@ export default function PalaceCell({
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0">
           <span
             className={`text-xs font-medium tracking-wide ${
               palace.isMingGong
@@ -176,6 +179,15 @@ export default function PalaceCell({
           >
             {palace.name}
           </span>
+          {/* 运限层宫名：本命宫在流年/大限里叫什么，直接标出来 */}
+          {fortuneName && fortuneName !== palace.name && (
+            <span
+              className="rounded-sm border border-hua-ke/40 bg-hua-ke/10 px-1 text-2xs leading-none text-hua-ke"
+              title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}${fortuneName}`}
+            >
+              {fortuneName.replace('宫', '')}
+            </span>
+          )}
           <span className="font-mono text-2xs text-ink-2">
             {palace.stemName}
             {palace.branchName}
@@ -199,15 +211,16 @@ export default function PalaceCell({
           <span className="text-star-major text-ink-2">空宫</span>
         ) : (
           major.map((star) => {
-            const lnMark = liuNianSiHuaOf(star.name, liunian);
+            const lnMark = fortuneSiHuaOf(star.name, fortune);
             return (
             <div key={star.name} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
               <StarName star={star} tier="major" selfSihua={selfSihuaMap.get(star.name)} />
               {lnMark && (
                 <span
-                  className={`chip-sihua px-1 ${SIHUA_CLASS[lnMark.slice(1)] ?? 'border-line text-ink-3'}`}
-                  title={`流年四化：${lnMark}`}
+                  className={`chip-sihua px-1 ${SIHUA_CLASS[lnMark] ?? 'border-line text-ink-3'}`}
+                  title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}四化：${lnMark}`}
                 >
+                  {fortune?.kind === 'liunian' ? '流' : '限'}
                   {lnMark}
                 </span>
               )}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import Link from 'next/link';
 import Markdown from './Markdown';
 import { LiuNianCard } from './FortuneCard';
-import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
+import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 
 export interface ReadingDimensionData {
@@ -35,7 +35,7 @@ export default function ReadingPanel({
   /** 「就此追问」：带着当前解读维度跳到追问 tab */
   onAskFollowUp?: (dim: { key: string; label: string }) => void;
   /** 今年流年：解读 tab 顶部先给一张运势卡 */
-  liunian?: ChartLiuNian | null;
+  liunian?: ChartFortuneLayer | null;
   palaces?: ChartPalace[];
 }) {
   const [active, setActive] = useState(dimensions[0]?.key ?? '');

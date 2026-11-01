@@ -134,6 +134,27 @@ export interface ChartDaXian {
 }
 
 /**
+ * 运限层（对外公共类型）—— 大限与流年共用一套结构。
+ *
+ * 运限命宫 = 该层命宫落宫的地支；运限十二宫自命宫起按十二宫序逐宫地支减 1（模 12）。
+ * 例：流年命宫在午宫，则流年兄弟宫在巳宫、流年夫妻宫在辰宫……（与本命盘宫名排布方向一致）。
+ */
+export interface ChartFortuneLayer {
+  /** 层名：大限 / 流年 */
+  kind: 'daxian' | 'liunian';
+  /** 年限（如大限 26–35 岁 / 流年 2026） */
+  label: string;
+  /** 运限命宫地支索引 */
+  mingBranch: number;
+  /** 运限十二宫：地支索引 → 该层宫名 */
+  palaces: Array<{ branch: number; name: string }>;
+  /** 该层四化（层干查表） */
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化四星落宫地支索引；星不在任何宫时省略该键 */
+  siHuaPalaces: Record<string, number>;
+}
+
+/**
  * 流年运限层（对外公共类型）。
  * 流年命宫 = 流年地支；流年十二宫自命宫起按十二宫序逐宫地支减 1（模 12）。
  */

@@ -16,8 +16,6 @@ export const DURATION = {
   tab: 180, // 解读维切换溶化
   submit: 120, // 提交按钮 → spinner
   skeleton: 200, // 排盘骨架淡入
-  sheet: 240, // 宫位详情滑入
-  sheetClose: 180, // 宫位详情关闭
 } as const;
 
 /** 命名缓动 —— 统一用这一条，不要散落 cubic-bezier 字面量 */

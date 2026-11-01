@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import ChartTabs from '@/components/ChartTabBar';
 import { describeProviderEnv } from '@ziwei/ask';
-import { liuNianLayer } from '@ziwei/chart-engine';
+import { liuNianLayer, daXianLayer } from '@ziwei/chart-engine';
 import { getService } from '@/lib/service';
 import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
 import {
@@ -118,10 +118,24 @@ export default async function ChartPage({
   const chartDate = formatDate(year, month, day);
   const readingOk = reading.status === 'ok';
 
-  // 今年流年 + 当前大限：引擎真实计算，中宫时间轴与运势卡的数据源
-  const liunian = liuNianLayer(chart, new Date().getFullYear());
+  // 运限层：流年与大限各一层，引擎真实计算（宫名 + 四化落宫）
+  const liunianRaw = liuNianLayer(chart, new Date().getFullYear());
+  const liunian = {
+    kind: 'liunian' as const,
+    label: `${liunianRaw.year} ${liunianRaw.ganzhi}年`,
+    mingBranch: liunianRaw.mingBranch,
+    palaces: liunianRaw.palaces,
+    siHua: liunianRaw.siHua,
+    siHuaPalaces: liunianRaw.siHuaPalaces,
+  };
+
+  // 当前大限：取当前大限落宫的宫位序号
   const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
-  const dx = dxPalace ? chart.daXians.find((d) => d.palaceBranch === dxPalace.branch) : undefined;
+  const dxIndex = dxPalace
+    ? chart.daXians.findIndex((d) => d.palaceBranch === dxPalace.branch)
+    : -1;
+  const daXian = dxIndex >= 0 ? daXianLayer(chart, dxIndex) : null;
+  const dx = dxIndex >= 0 ? chart.daXians[dxIndex] : undefined;
   const currentDaXian = dx
     ? {
         startAge: dx.startAge,
@@ -156,6 +170,7 @@ export default async function ChartPage({
         palaces={chart.palaces}
         center={center}
         liunian={liunian}
+        daXian={daXian}
         currentDaXian={currentDaXian}
         reading={{
           ok: readingOk,

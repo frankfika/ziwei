@@ -5,16 +5,16 @@
  * 数据全部来自引擎（流年命宫/四化、大限命宫/四化），没有解读原文的部分不编。
  */
 
-import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
+import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 
-const SIHUA_ROW: Array<[keyof ChartLiuNian['siHua'], string, string]> = [
+const SIHUA_ROW: Array<[keyof ChartFortuneLayer['siHua'], string, string]> = [
   ['lu', '禄', 'text-hua-lu border-hua-lu/40 bg-hua-lu/10'],
   ['quan', '权', 'text-hua-quan border-hua-quan/40 bg-hua-quan/10'],
   ['ke', '科', 'text-hua-ke border-hua-ke/40 bg-hua-ke/10'],
   ['ji', '忌', 'text-hua-ji border-hua-ji/40 bg-hua-ji/10'],
 ];
 
-function SiHuaRow({ siHua }: { siHua: ChartLiuNian['siHua'] }) {
+function SiHuaRow({ siHua }: { siHua: ChartFortuneLayer['siHua'] }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {SIHUA_ROW.map(([key, label, cls]) => (
@@ -31,7 +31,7 @@ export function LiuNianCard({
   liunian,
   palaces,
 }: {
-  liunian: ChartLiuNian;
+  liunian: ChartFortuneLayer;
   palaces: ChartPalace[];
 }) {
   const ming = palaces.find((p) => p.branch === liunian.mingBranch);
@@ -40,12 +40,12 @@ export function LiuNianCard({
   return (
     <section
       className="panel-ritual p-5"
-      aria-label={`${liunian.year} 年运势`}
-      data-liunian-card={liunian.year}
+      aria-label={`${liunian.label} 运势`}
+      data-liunian-card={liunian.label}
     >
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="font-serif text-title font-semibold text-ink">
-          {liunian.year} {liunian.ganzhi}年
+          {liunian.label}
         </h2>
         <span className="text-2xs text-ink-3">流年</span>
       </header>

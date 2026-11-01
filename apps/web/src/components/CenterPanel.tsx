@@ -1,4 +1,4 @@
-import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
+import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES, STEM_NAMES } from '@/lib/birth';
 
 /** 盘面时间层：本命 / 大限 / 流年（叠加视图） */
@@ -79,9 +79,10 @@ export default function CenterPanel({
   onNavigateTab,
   layer = 'natal',
   onLayerChange,
-  liunian = null,
+  fortune = null,
   currentDaXian = null,
   onAskTime,
+  compact = false,
 }: {
   palaces: ChartPalace[];
   info: ChartCenterInfo;
@@ -93,11 +94,13 @@ export default function CenterPanel({
   /** 时间轴叠加层 */
   layer?: BoardLayer;
   onLayerChange?: (layer: BoardLayer) => void;
-  /** 今年流年（引擎 liuNianLayer 输出） */
-  liunian?: ChartLiuNian | null;
+  /** 运限层：流年或大限（含该层十二宫名与四化落宫） */
+  fortune?: ChartFortuneLayer | null;
   currentDaXian?: CurrentDaXianInfo | null;
   /** 「就这步运追问」 */
   onAskTime?: (time: 'liunian' | 'daxian') => void;
+  /** 紧凑版：移动端中宫只留局名/命主/虚岁 + 时间轴，省掉生辰/四柱/落宫 */
+  compact?: boolean;
 }) {
   const branchOf = (b: number) =>
     palaces.find((p) => p.branch === b)?.branchName ?? SHICHEN_NAMES[b] ?? '—';
@@ -106,10 +109,10 @@ export default function CenterPanel({
 
   return (
     // 中宫比宫卡更深一档（paper）—— 造成「洞 / 虚空」的层次
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-paper px-4 py-4">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2.5 bg-paper px-4 py-3">
       {/* 中宫主视觉：局名 display 居中 → 命主/身主一行 → 虚岁一行（§B4） */}
       <div className="text-center">
-        <p className="font-serif text-display text-ink">{info.wuxingJuName}</p>
+        <p className="font-serif text-title font-semibold text-ink">{info.wuxingJuName}</p>
         {(info.mingZhu || info.shenZhu) && (
           <p className="mt-1.5 text-xs text-ink-2">
             {info.mingZhu ? `命主 ${info.mingZhu}` : ''}
@@ -154,54 +157,25 @@ export default function CenterPanel({
       )}
 
       {/* 运限事实：切到大限/流年时，中宫给出这一层的摘要（引擎真实计算） */}
-      {layer === 'daxian' && currentDaXian && (
-        <div className="w-full space-y-1.5 rounded-lg border border-lineSoft bg-surface px-3 py-2.5 text-left">
+      {layer !== 'natal' && fortune && (
+        <div className="w-full space-y-0.5 rounded-lg border border-hua-ke/30 bg-surface px-2.5 py-2 text-left">
           <p className="text-2xs text-ink-3">
-            当前大限 <span className="tabular-nums text-ink">{currentDaXian.startAge}–{currentDaXian.endAge}</span> 岁
+            {fortune.kind === 'liunian' ? '流年' : '当前大限'}{' '}
+            <span className="text-ink">{fortune.label}</span> ·{' '}
+            {fortune.kind === 'liunian' ? '命宫在' : '命宫在'}
+            {palaces.find((p) => p.branch === fortune.mingBranch)?.name ?? ''}
           </p>
-          <p className="text-xs text-ink">
-            大限命宫在{currentDaXian.palaceName}
-            {currentDaXian.stemName ? `（${currentDaXian.stemName}）` : ''}
-          </p>
-          {currentDaXian.siHua && (
-            <p className="text-2xs leading-relaxed text-ink-2">
-              大限四化：禄 {currentDaXian.siHua.lu} · 权 {currentDaXian.siHua.quan} · 科{' '}
-              {currentDaXian.siHua.ke} · 忌 {currentDaXian.siHua.ji}
-            </p>
-          )}
-          {onAskTime && (
-            <button
-              type="button"
-              onClick={() => onAskTime('daxian')}
-              className="mt-1 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              就这步大限追问
-            </button>
-          )}
-        </div>
-      )}
-
-      {layer === 'liunian' && liunian && (
-        <div className="w-full space-y-1.5 rounded-lg border border-hua-ke/30 bg-surface px-3 py-2.5 text-left">
-          <p className="text-2xs text-ink-3">
-            {liunian.year} <span className="text-ink">{liunian.ganzhi}年</span> · 流年
-          </p>
-          <p className="text-xs text-ink">
-            流年命宫在
-            {palaces.find((p) => p.branch === liunian.mingBranch)?.name ?? ''}
-            {palaces.find((p) => p.branch === liunian.mingBranch)?.branchName ?? ''}
-          </p>
-          <p className="text-2xs leading-relaxed text-ink-2">
-            流年四化：禄 {liunian.siHua.lu} · 权 {liunian.siHua.quan} · 科 {liunian.siHua.ke} · 忌{' '}
-            {liunian.siHua.ji}
+          <p className="text-2xs leading-snug text-ink-2">
+            四化：禄 {fortune.siHua.lu} · 权 {fortune.siHua.quan} · 科 {fortune.siHua.ke} · 忌{' '}
+            {fortune.siHua.ji}
           </p>
           {onAskTime && (
             <button
               type="button"
-              onClick={() => onAskTime('liunian')}
-              className="mt-1 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              onClick={() => onAskTime(fortune.kind)}
+              className="mt-0.5 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              就今年追问
+              {fortune.kind === 'liunian' ? '就今年追问' : '就这步大限追问'}
             </button>
           )}
         </div>
@@ -218,7 +192,7 @@ export default function CenterPanel({
                   type="button"
                   onClick={() => onJumpBranch?.(chip.branch)}
                   aria-pressed={chip.active}
-                  className={`rounded-full border px-2.5 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  className={`rounded-full border px-2 py-1 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                     chip.active
                       ? 'border-zhu bg-zhu-soft text-ink'
                       : 'border-line bg-surface text-ink-2 hover:border-ink-3'
@@ -234,14 +208,14 @@ export default function CenterPanel({
               <button
                 type="button"
                 onClick={() => onNavigateTab('reading')}
-                className="rounded-full border border-line bg-surface px-2.5 py-1.5 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 看解读
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('ask')}
-                className="rounded-full border border-line bg-surface px-2.5 py-1.5 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 去追问
               </button>
@@ -250,49 +224,61 @@ export default function CenterPanel({
         </div>
       )}
 
-      {/* 细节退后：生辰、落宫 */}
-      <div className="text-center">
-        <p className="font-serif text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
-        <p className="mt-1 text-2xs text-ink-3">
-          {STEM_NAMES[info.yearStem]}
-          {SHICHEN_NAMES[info.yearBranch]}年
-          {info.isLeapMonth ? '闰' : ''}
-          {CN_MONTHS[info.lunarMonth - 1]}月{cnDay(info.lunarDay)}
-        </p>
-      </div>
+      {/* 专业层：四柱 / 落宫 / 生辰 —— 默认折叠，中宫不再被撑高 */}
+      {!compact && (
+        <details className="group w-full">
+          <summary className="cursor-pointer list-none text-center text-2xs text-ink-3 transition-colors hover:text-ink-2 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-1">
+              专业层 · 四柱与落宫
+              <span aria-hidden="true" className="transition-transform group-open:rotate-180">
+                ▾
+              </span>
+            </span>
+          </summary>
+          <div className="mt-2 space-y-3">
+            <div className="text-center">
+              <p className="font-serif text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
+              <p className="mt-1 text-2xs text-ink-3">
+                {STEM_NAMES[info.yearStem]}
+                {SHICHEN_NAMES[info.yearBranch]}年
+                {info.isLeapMonth ? '闰' : ''}
+                {CN_MONTHS[info.lunarMonth - 1]}月{cnDay(info.lunarDay)}
+              </p>
+            </div>
 
-      {pillars && (
-        <div className="w-full">
-          <p className="mb-1.5 text-center text-2xs text-ink-3">四柱</p>
-          {/* 一行四个等宽的字 + 下面一行干支：无边框、无格子墙 */}
-          <div className="grid grid-cols-4 gap-x-2 gap-y-1">
-            {PILLAR_LABELS.map((label) => (
-              <span key={label} className="text-center text-2xs text-ink-3">
-                {label}
-              </span>
-            ))}
-            {pillars.map((p, i) => (
-              <span
-                key={`${p}-${i}`}
-                className="text-center font-mono text-xs text-ink"
-              >
-                {p}
-              </span>
-            ))}
+            {pillars && (
+              <div className="w-full">
+                <p className="mb-1.5 text-center text-2xs text-ink-3">四柱</p>
+                {/* 一行四个等宽的字 + 下面一行干支：无边框、无格子墙 */}
+                <div className="grid grid-cols-4 gap-x-2 gap-y-1">
+                  {PILLAR_LABELS.map((label) => (
+                    <span key={label} className="text-center text-2xs text-ink-3">
+                      {label}
+                    </span>
+                  ))}
+                  {pillars.map((p, i) => (
+                    <span
+                      key={`${p}-${i}`}
+                      className="text-center font-mono text-xs text-ink"
+                    >
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 细节退后：只留「落宫」这类不重复的信息 */}
+            <div className="w-full space-y-2">
+              <Row label="命宫" accent>
+                {branchOf(info.mingGongBranch)}宫
+              </Row>
+              <Row label="身宫">{branchOf(info.shenGongBranch)}宫</Row>
+              <Row label="紫微">在{branchOf(info.ziweiPos)}宫</Row>
+            </div>
           </div>
-        </div>
+        </details>
       )}
-
-      {/* 细节退后：只留「落宫」这类不重复的信息 */}
-      <div className="w-full space-y-2">
-        <Row label="命宫" accent>
-          {branchOf(info.mingGongBranch)}宫
-        </Row>
-        <Row label="身宫">{branchOf(info.shenGongBranch)}宫</Row>
-        <Row label="紫微">
-          在{branchOf(info.ziweiPos)}宫
-        </Row>
-      </div>
     </div>
   );
 }

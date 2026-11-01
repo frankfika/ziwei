@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import type { ChartLiuNian, ChartPalace } from '@ziwei/chart-engine';
+import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import ChartBoard from './ChartBoard';
 import ReadingPanel from './ReadingPanel';
 import AskPanel, { type AskSeed } from './AskPanel';
@@ -50,8 +50,10 @@ export interface ChartCitationNotice {
 export interface ChartTabsProps {
   palaces: ChartPalace[];
   center: ChartCenterInfo;
-  /** 今年流年（引擎 liuNianLayer 输出，服务端算好） */
-  liunian?: ChartLiuNian | null;
+  /** 流年运限层（引擎 liuNianLayer 输出，服务端算好） */
+  liunian?: ChartFortuneLayer | null;
+  /** 大限运限层（引擎 daXianLayer 输出） */
+  daXian?: ChartFortuneLayer | null;
   /** 当前大限摘要 */
   currentDaXian?: CurrentDaXianInfo | null;
   reading: {
@@ -97,6 +99,7 @@ export default function ChartTabs({
   palaces,
   center,
   liunian = null,
+  daXian = null,
   currentDaXian = null,
   reading,
   ask,
@@ -225,6 +228,7 @@ export default function ChartTabs({
             palaces={palaces}
             center={center}
             liunian={liunian}
+            daXian={daXian}
             daXianInfo={currentDaXian}
             onNavigateTab={(t) => selectTab(t === 'ask' && !reading.ok ? 'reading' : t)}
             {...(reading.ok ? { onAskPalace: seedFromPalace, onAskTime: seedFromTime } : {})}

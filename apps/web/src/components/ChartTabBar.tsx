@@ -48,8 +48,10 @@ export interface ChartCitationNotice {
 export interface ChartTabsProps {
   palaces: ChartPalace[];
   center: ChartCenterInfo;
-  /** 流年运限层（引擎 liuNianLayer 输出，服务端算好） */
+  /** 流年运限层（今年，引擎 liuNianLayer 输出） */
   liunian?: ChartFortuneLayer | null;
+  /** 流年 5 年层（前年~后年，可选年份） */
+  liunianYears?: Array<ChartFortuneLayer & { year?: number }>;
   /** 大限运限层（引擎 daXianLayer 输出） */
   daXian?: ChartFortuneLayer | null;
   /** 12 个流月层（引擎 liuYueLayer 输出，服务端算好） */
@@ -101,6 +103,7 @@ export default function ChartTabs({
   palaces,
   center,
   liunian = null,
+  liunianYears,
   daXian = null,
   liuyueMonths,
   reportUrl,
@@ -230,6 +233,7 @@ export default function ChartTabs({
             palaces={palaces}
             center={center}
             liunian={liunian}
+            liunianYears={liunianYears}
             daXian={daXian}
             liuyueMonths={liuyueMonths}
             {...(reportUrl ? { reportUrl } : {})}

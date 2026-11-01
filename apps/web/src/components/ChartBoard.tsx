@@ -14,6 +14,8 @@ interface ChartBoardProps {
   onAskPalace?: (palaceName: string) => void;
   /** 流年运限层（引擎生成，含该层十二宫名与四化落宫） */
   liunian?: ChartFortuneLayer | null;
+  /** 流年 5 年层（前年~后年可选） */
+  liunianYears?: Array<ChartFortuneLayer & { year?: number }>;
   /** 大限运限层 */
   daXian?: ChartFortuneLayer | null;
   /** 12 个流月层 */
@@ -42,6 +44,7 @@ export default function ChartBoard({
   onNavigateTab,
   onAskPalace,
   liunian = null,
+  liunianYears,
   daXian = null,
   liuyueMonths,
   reportUrl,
@@ -53,10 +56,12 @@ export default function ChartBoard({
   const [layer, setLayer] = useState<BoardLayer>('natal');
   /** 流月选中月份（1–12），默认当前农历月 */
   const [liuyueMonth, setLiuyueMonth] = useState(center.lunarMonth);
-  /** 当前叠加的运限层：本命=空，大限=大限层，流年=流年层，流月=选中月层 */
+  /** 流年选中年份（liunianYears 下标），默认今年（2 = 中间） */
+  const [liunianIdx, setLiunianIdx] = useState(2);
+  /** 当前叠加的运限层：本命=空，大限=大限层，流年=选中流年，流月=选中月层 */
   const fortune =
     layer === 'daxian' ? daXian
-      : layer === 'liunian' ? liunian
+      : layer === 'liunian' ? liunianYears?.[liunianIdx] ?? liunian
         : layer === 'liuyue' ? liuyueMonths?.[liuyueMonth - 1] ?? null
           : null;
 
@@ -110,6 +115,9 @@ export default function ChartBoard({
       liuyueMonth={liuyueMonth}
       onLiuyueMonthChange={setLiuyueMonth}
       liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
+      liunianIdx={liunianIdx}
+      onLiunianIdxChange={setLiunianIdx}
+      liunianLabels={liunianYears?.map((ly) => ly.label) ?? []}
       {...(reportUrl ? { reportUrl } : {})}
     />
   );
@@ -130,6 +138,9 @@ export default function ChartBoard({
       liuyueMonth={liuyueMonth}
       onLiuyueMonthChange={setLiuyueMonth}
       liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
+      liunianIdx={liunianIdx}
+      onLiunianIdxChange={setLiunianIdx}
+      liunianLabels={liunianYears?.map((ly) => ly.label) ?? []}
       {...(reportUrl ? { reportUrl } : {})}
       compact
     />

@@ -64,18 +64,10 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
 
   return (
     <div>
-      {/* AI 未配置：一行小字 + 配置入口 */}
+      {/* AI 未配置：一行引导 */}
       {!aiReady && !showConfig && (
         <p className="mb-3 text-2xs text-ink-3">
-          想用 AI 追问？{' '}
-          <button
-            type="button"
-            onClick={() => setShowConfig(true)}
-            className="text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            填一个 API Key 就行 →
-          </button>
-          {' '}（配置只存本机）
+          AI 还没配置 —— 点右上角「⚙ AI 设置」填一个 API Key（只存本机）。
         </p>
       )}
       {showConfig && (
@@ -84,9 +76,9 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         </div>
       )}
 
-      {/* 档案选择：星册即「我的人」 */}
+      {/* 档案选择：星册即「我的人」；末尾常驻 AI 设置入口 */}
       <div
-        className="-mx-2 flex gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="选择档案"
       >
@@ -109,6 +101,20 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
             </button>
           );
         })}
+        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line" />
+        <button
+          type="button"
+          onClick={() => setShowConfig((v) => !v)}
+          aria-expanded={showConfig}
+          aria-label="AI 设置"
+          className={`${PROFILE_CHIP_CLASS} shrink-0 ${
+            userAi
+              ? 'border-zhu/40 text-zhu hover:border-zhu'
+              : 'border-line bg-surface text-ink-2 hover:border-ink-3'
+          }`}
+        >
+          ⚙ AI 设置
+        </button>
       </div>
 
       {/* 查看命盘：紧跟档案芯片，不占一整行 */}

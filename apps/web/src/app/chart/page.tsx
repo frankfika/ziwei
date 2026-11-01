@@ -120,16 +120,21 @@ export default async function ChartPage({
   const chartDate = formatDate(year, month, day);
   const readingOk = reading.status === 'ok';
 
-  // 运限层：流年与大限各一层，引擎真实计算（宫名 + 四化落宫）
-  const liunianRaw = liuNianLayer(chart, new Date().getFullYear());
-  const liunian = {
-    kind: 'liunian' as const,
-    label: `${liunianRaw.year} ${liunianRaw.ganzhi}年`,
-    mingBranch: liunianRaw.mingBranch,
-    palaces: liunianRaw.palaces,
-    siHua: liunianRaw.siHua,
-    siHuaPalaces: liunianRaw.siHuaPalaces,
-  };
+  // 运限层：流年 5 年（前年~后年，可选），大限一层。引擎真实计算（宫名 + 四化落宫）
+  const nowYear = new Date().getFullYear();
+  const liunianYears = [-2, -1, 0, 1, 2].map((offset) => {
+    const ly = liuNianLayer(chart, nowYear + offset);
+    return {
+      kind: 'liunian' as const,
+      label: `${ly.ganzhi} ${ly.year}`,
+      year: ly.year,
+      mingBranch: ly.mingBranch,
+      palaces: ly.palaces,
+      siHua: ly.siHua,
+      siHuaPalaces: ly.siHuaPalaces,
+    };
+  });
+  const liunian = liunianYears[2]; // 今年，解读 tab 运势卡与追问上下文用它
 
   // 12 个流月层（当前农历年），时间轴流月层与月份切换的数据源
   const CN_MONTH_NAMES = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
@@ -186,6 +191,7 @@ export default async function ChartPage({
         palaces={chart.palaces}
         center={center}
         liunian={liunian}
+        liunianYears={liunianYears}
         daXian={daXian}
         liuyueMonths={liuyueMonths}
         reportUrl={reportUrl}

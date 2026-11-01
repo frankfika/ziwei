@@ -86,6 +86,9 @@ export default function CenterPanel({
   liuyueMonth,
   onLiuyueMonthChange,
   liuyueLabels,
+  liunianIdx,
+  onLiunianIdxChange,
+  liunianLabels,
   reportUrl,
   compact = false,
 }: {
@@ -108,6 +111,10 @@ export default function CenterPanel({
   liuyueMonth?: number;
   onLiuyueMonthChange?: (month: number) => void;
   liuyueLabels?: string[];
+  /** 流年 5 年：选中下标与切换回调、年份标签 */
+  liunianIdx?: number;
+  onLiunianIdxChange?: (idx: number) => void;
+  liunianLabels?: string[];
   /** 年度报告页链接（含本盘参数） */
   reportUrl?: string;
   /** 紧凑版：移动端中宫只留局名/命主/虚岁 + 时间轴，省掉生辰/四柱/落宫 */
@@ -193,6 +200,32 @@ export default function CenterPanel({
         </div>
       )}
 
+      {/* 流年年份选择：只在流年层显示（前年~后年，替换本命跳转芯片行） */}
+      {layer === 'liunian' && onLiunianIdxChange && (liunianLabels?.length ?? 0) > 0 && (
+        <div
+          role="radiogroup"
+          aria-label="流年年份"
+          className="flex max-w-full flex-wrap items-center justify-center gap-1"
+        >
+          {liunianLabels!.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              role="radio"
+              aria-checked={liunianIdx === i}
+              onClick={() => onLiunianIdxChange(i)}
+              className={`rounded-full border px-1.5 py-1 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                liunianIdx === i
+                  ? 'border-zhu bg-zhu-soft text-ink'
+                  : 'border-line bg-surface text-ink-3 hover:text-ink-2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 流月月份选择：只在流月层显示（替换本命跳转芯片，高度不涨） */}
       {layer === 'liuyue' && onLiuyueMonthChange && liuyueLabels?.length === 12 && (
         <div
@@ -219,8 +252,8 @@ export default function CenterPanel({
         </div>
       )}
 
-      {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作）；流月层时隐藏，给月份 chips 让位 */}
-      {layer !== 'liuyue' && (chips.length > 0 || onNavigateTab) && (
+      {/* 控制区：跳转芯片 + 解读/追问入口（中宫负责操作）；流年/流月层时隐藏，给选择 chips 让位 */}
+      {(layer === 'natal' || layer === 'daxian') && (chips.length > 0 || onNavigateTab) && (
         <div className="flex w-full flex-col items-center gap-2">
           {chips.length > 0 && (
             <div className="flex flex-wrap items-center justify-center gap-1.5">

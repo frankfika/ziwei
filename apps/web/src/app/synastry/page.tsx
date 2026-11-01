@@ -3,6 +3,7 @@ import { getService } from '@/lib/service';
 import { SI_HUA_TABLE } from '@ziwei/chart-engine';
 import type { ChartJSON } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES } from '@/lib/birth';
+import SynastryForm from '@/components/SynastryForm';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '双人合盘' };
@@ -38,20 +39,6 @@ function readPerson(
   return { year, month, day, hour, gender, name: one(sp[`${prefix}n`]).trim() };
 }
 
-/** A 的生年四化四星落在 B 盘的哪宫（确定性事实：星名在 B 盘找宫） */
-function siHuaCross(a: ChartJSON, b: ChartJSON): Array<{ label: string; starName: string; palace: string; branchName: string }> {
-  const rows: Array<{ label: string; starName: string; palace: string; branchName: string }> = [];
-  const stems = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
-  const stemIdx = a.lunar.yearStem;
-  const starOf: Array<[string, string]> = [
-    ['禄', '', ''], ['权', '', ''], ['科', '', ''], ['忌', '', ''],
-  ] as never;
-  void stems;
-  void stemIdx;
-  void starOf;
-  return rows;
-}
-
 export default async function SynastryPage({
   searchParams,
 }: {
@@ -60,56 +47,23 @@ export default async function SynastryPage({
   const sp = await searchParams;
   const a = readPerson(sp, 'a');
   const b = readPerson(sp, 'b');
+  // edit=1 时显示表单（带回填），结果页「修改参数」用
+  const edit = one(sp.edit) === '1';
 
-  if (!a || !b) {
+  if (!a || !b || edit) {
+    // 部分参数也回填进表单（结果页「修改参数」回来不用重输）
+    const toDate = (p: ReturnType<typeof readPerson>) =>
+      p ? `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}` : undefined;
     return (
       <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
         <h1 className="mb-2 font-serif text-title font-semibold text-ink">双人合盘</h1>
         <p className="mb-6 text-2xs leading-relaxed text-ink-3">
-          输入两个人的生辰，看双方四化互飞与夫妻宫对照。互飞只列确定性的盘面事实，不做吉凶断语。
+          输入两个人的生辰（或从档案直接选），看双方四化互飞与夫妻宫对照。互飞只列确定性的盘面事实，不做吉凶断语。
         </p>
-        <form method="get" className="space-y-6" data-synastry-form>
-          {(['a', 'b'] as const).map((prefix, idx) => (
-            <fieldset key={prefix} className="panel p-5">
-              <legend className="px-1 text-xs font-medium tracking-wide2 text-ink">
-                {idx === 0 ? '甲方' : '乙方'}
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="field-label">姓名（可选）</span>
-                  <input name={`${prefix}n`} className="field-input" placeholder={idx === 0 ? '如：小张' : '如：小李'} />
-                </label>
-                <label className="block">
-                  <span className="field-label">性别</span>
-                  <select name={`${prefix}g`} className="field-input" defaultValue="male">
-                    <option value="male">男</option>
-                    <option value="female">女</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="field-label">出生日期（公历）</span>
-                  <input name={`${prefix}d`} type="date" required className="field-input" />
-                </label>
-                <label className="block">
-                  <span className="field-label">出生时辰</span>
-                  <select name={`${prefix}h`} className="field-input" defaultValue="4">
-                    {['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'].map((s, i) => (
-                      <option key={s} value={i}>
-                        {s}时（{SHICHEN_NAMES[i]}）
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {/* 日期拆成 y/m/d 供服务端读取 */}
-              <input type="hidden" name={`${prefix}y`} value="" id={`${prefix}-y`} />
-              <input type="hidden" name={`${prefix}m`} value="" id={`${prefix}-m`} />
-            </fieldset>
-          ))}
-          <button type="submit" className="btn-primary">
-            看合盘
-          </button>
-        </form>
+        <SynastryForm
+          initialA={a ? { name: a.name, gender: a.gender, date: toDate(a), hour: String(a.hour) } : undefined}
+          initialB={b ? { name: b.name, gender: b.gender, date: toDate(b), hour: String(b.hour) } : undefined}
+        />
       </div>
     );
   }
@@ -156,7 +110,13 @@ export default async function SynastryPage({
           {labelOf(a)} × {labelOf(b)}
         </h1>
         <p className="mt-1.5 text-2xs text-ink-3">
-          {a.year}-{a.month}-{a.day} × {b.year}-{b.month}-{b.day}
+          {a.year}-{a.month}-{a.day} × {b.year}-{b.month}-{b.day} ·{' '}
+          <Link
+            href={`/synastry?an=${encodeURIComponent(a.name)}&ag=${a.gender}&ad=${a.year}-${String(a.month).padStart(2, '0')}-${String(a.day).padStart(2, '0')}&ah=${a.hour}&edit=1&bn=${encodeURIComponent(b.name)}&bg=${b.gender}&bd=${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}&bh=${b.hour}`}
+            className="underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            修改参数
+          </Link>
         </p>
       </header>
 

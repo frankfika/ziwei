@@ -54,6 +54,8 @@ export interface ChartTabsProps {
   daXian?: ChartFortuneLayer | null;
   /** 12 个流月层（引擎 liuYueLayer 输出，服务端算好） */
   liuyueMonths?: ChartFortuneLayer[];
+  /** 年度报告页链接 */
+  reportUrl?: string;
   /** 当前大限摘要 */
   currentDaXian?: CurrentDaXianInfo | null;
   reading: {
@@ -101,6 +103,7 @@ export default function ChartTabs({
   liunian = null,
   daXian = null,
   liuyueMonths,
+  reportUrl,
   currentDaXian = null,
   reading,
   ask,
@@ -229,6 +232,7 @@ export default function ChartTabs({
             liunian={liunian}
             daXian={daXian}
             liuyueMonths={liuyueMonths}
+            {...(reportUrl ? { reportUrl } : {})}
             daXianInfo={currentDaXian}
             onNavigateTab={(t) => selectTab(t === 'ask' ? 'reading' : t)}
             {...(reading.ok ? { onAskPalace: seedFromPalace, onAskTime: seedFromTime } : {})}

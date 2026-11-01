@@ -18,6 +18,8 @@ interface ChartBoardProps {
   daXian?: ChartFortuneLayer | null;
   /** 12 个流月层 */
   liuyueMonths?: ChartFortuneLayer[];
+  /** 年度报告页链接 */
+  reportUrl?: string;
   /** 当前大限摘要 */
   daXianInfo?: CurrentDaXianInfo | null;
   /** 「就这步运追问」 */
@@ -42,6 +44,7 @@ export default function ChartBoard({
   liunian = null,
   daXian = null,
   liuyueMonths,
+  reportUrl,
   daXianInfo = null,
   onAskTime,
 }: ChartBoardProps) {
@@ -107,6 +110,7 @@ export default function ChartBoard({
       liuyueMonth={liuyueMonth}
       onLiuyueMonthChange={setLiuyueMonth}
       liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
+      {...(reportUrl ? { reportUrl } : {})}
     />
   );
 
@@ -126,6 +130,7 @@ export default function ChartBoard({
       liuyueMonth={liuyueMonth}
       onLiuyueMonthChange={setLiuyueMonth}
       liuyueLabels={liuyueMonths?.map((m) => m.label) ?? []}
+      {...(reportUrl ? { reportUrl } : {})}
       compact
     />
   );

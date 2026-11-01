@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES, STEM_NAMES } from '@/lib/birth';
 
@@ -85,6 +86,7 @@ export default function CenterPanel({
   liuyueMonth,
   onLiuyueMonthChange,
   liuyueLabels,
+  reportUrl,
   compact = false,
 }: {
   palaces: ChartPalace[];
@@ -106,6 +108,8 @@ export default function CenterPanel({
   liuyueMonth?: number;
   onLiuyueMonthChange?: (month: number) => void;
   liuyueLabels?: string[];
+  /** 年度报告页链接（含本盘参数） */
+  reportUrl?: string;
   /** 紧凑版：移动端中宫只留局名/命主/虚岁 + 时间轴，省掉生辰/四柱/落宫 */
   compact?: boolean;
 }) {
@@ -253,6 +257,14 @@ export default function CenterPanel({
               >
                 去追问
               </button>
+              {reportUrl && (
+                <Link
+                  href={reportUrl}
+                  className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  年报
+                </Link>
+              )}
             </div>
           )}
         </div>

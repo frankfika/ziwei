@@ -10,6 +10,7 @@
 
 export * from './types';
 export { chart, chartSummary, validateBirth, palaceAt, liuNianLayer, daXianLayer, liuYueLayer } from './adapter';
+export { SI_HUA_TABLE, STEMS, BRANCHES } from './engine/constants';
 
 /** 时辰序号 → 钟点区间文案 */
 export { calcTrueSolarBranch } from './engine/share';

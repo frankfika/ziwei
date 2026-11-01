@@ -40,6 +40,12 @@ export default async function HomePage({
       {/* 对话主壳：选人 → 对话线程 + 意图芯片 */}
       <HomeChat providerConfigured={provider.ok} />
 
+      <p className="mt-4 text-2xs text-ink-3">
+        <Link href="/synastry" className="underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu">
+          双人合盘 →
+        </Link>
+      </p>
+
       {/* 新建档案：手动排盘收在折叠里，首页主角是对话 */}
       <details id="new-profile" className="group mt-10 scroll-mt-6 border-t border-lineSoft pt-4">
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">

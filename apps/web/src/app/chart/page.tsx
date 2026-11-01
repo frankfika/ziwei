@@ -115,6 +115,8 @@ export default async function ChartPage({
     currentAge: chart.currentAge,
   };
 
+  const reportUrl = `/report?y=${year}&m=${month}&d=${day}&h=${hour}&g=${gender}${name ? `&n=${encodeURIComponent(name)}` : ''}`;
+
   const chartDate = formatDate(year, month, day);
   const readingOk = reading.status === 'ok';
 
@@ -186,6 +188,7 @@ export default async function ChartPage({
         liunian={liunian}
         daXian={daXian}
         liuyueMonths={liuyueMonths}
+        reportUrl={reportUrl}
         currentDaXian={currentDaXian}
         reading={{
           ok: readingOk,

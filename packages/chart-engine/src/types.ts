@@ -134,6 +134,25 @@ export interface ChartDaXian {
 }
 
 /**
+ * 流年运限层（对外公共类型）。
+ * 流年命宫 = 流年地支；流年十二宫自命宫起按十二宫序逐宫地支减 1（模 12）。
+ */
+export interface ChartLiuNian {
+  /** 流年公历年 */
+  year: number;
+  /** 流年干支，如「甲辰」 */
+  ganzhi: string;
+  /** 流年命宫地支索引（= 流年地支） */
+  mingBranch: number;
+  /** 流年十二宫 */
+  palaces: Array<{ branch: number; name: string }>;
+  /** 流年四化（流年天干查表） */
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化四星落宫地支索引；星不在任何宫时省略该键 */
+  siHuaPalaces: Record<string, number>;
+}
+
+/**
  * 一张盘的完整结构化结果。
  * 这是排盘引擎 → 展示层 / 追问层 的唯一传递形式。
  */

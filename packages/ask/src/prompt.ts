@@ -39,7 +39,23 @@ export interface BuildAskPromptInput {
   turns?: AskTurn[];
   /** 注入材料的上下文预算（字符数）。默认 8000 */
   maxContextChars?: number;
+  /**
+   * 页内追问的显式焦点（用户从某个解读维度/宫位发起追问）。
+   * 给了就不再只靠关键词猜：焦点维度无条件置顶注入。
+   */
+  focus?: AskFocus;
 }
+
+/** 页内追问焦点：来自哪个解读维度 / 哪个宫位。 */
+export interface AskFocus {
+  /** 解读维度 key（如 'love'）；未知 key 会被忽略 */
+  dimension?: string;
+  /** 宫位名（如 '夫妻'）；经 PALACE_TO_DIMENSION 映射到维度 */
+  palace?: string;
+}
+
+/** 焦点维度的加分：压过一切关键词命中，确保置顶注入。 */
+const FOCUS_SCORE = 100;
 
 /** 一条维度在本次追问中的使用情况。 */
 export interface SelectedDimension {
@@ -252,6 +268,7 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     dimensions,
     turns,
     maxContextChars = DEFAULT_MAX_CONTEXT_CHARS,
+    focus,
   } = input;
 
   const q = (question ?? '').trim();
@@ -269,6 +286,25 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
         s.matched = true;
         if (!s.keywords.includes(`宫位:${palace}`)) s.keywords.push(`宫位:${palace}`);
       }
+    }
+  }
+
+  // ①b 显式焦点：页内追问传来的维度/宫位无条件置顶（不再靠关键词猜）
+  if (focus?.dimension) {
+    const target = scored.find((s) => s.dim.key === focus.dimension);
+    if (target) {
+      target.score += FOCUS_SCORE;
+      target.matched = true;
+      if (!target.keywords.includes('焦点维度')) target.keywords.push('焦点维度');
+    }
+  }
+  if (focus?.palace && PALACE_TO_DIMENSION[focus.palace]) {
+    const target = scored.find((s) => s.dim.key === PALACE_TO_DIMENSION[focus.palace!]);
+    if (target) {
+      target.score += FOCUS_SCORE;
+      target.matched = true;
+      if (!target.keywords.includes(`焦点宫位:${focus.palace}`))
+        target.keywords.push(`焦点宫位:${focus.palace}`);
     }
   }
 

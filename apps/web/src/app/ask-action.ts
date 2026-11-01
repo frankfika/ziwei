@@ -119,10 +119,18 @@ export async function askChart(formData: FormData): Promise<AskActionResult> {
   try {
     const service = new AskService();
     const turns = parseTurns(str(formData, 'turns'));
+    // 页内追问焦点：来自哪个解读维度 / 宫位（未知值在 prompt 层会被忽略）
+    const focus = {
+      ...(str(formData, 'dimension').trim()
+        ? { dimension: str(formData, 'dimension').trim() }
+        : {}),
+      ...(str(formData, 'palace').trim() ? { palace: str(formData, 'palace').trim() } : {}),
+    };
     const result = await service.ask(
       { year, month, day, hour, gender },
       question,
       turns,
+      Object.keys(focus).length > 0 ? { focus } : undefined,
     );
 
     if (result.status === 'not-covered') {

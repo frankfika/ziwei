@@ -22,11 +22,14 @@ export interface CitationNotice {
 export default function ReadingPanel({
   dimensions,
   citationNotice,
+  onAskFollowUp,
 }: {
   dimensions: ReadingDimensionData[];
   /** 保留：父组件仍在传。面板只展示「本维」字数，不再展示总字数。 */
   totalChars: number;
   citationNotice?: CitationNotice;
+  /** 「就此追问」：带着当前解读维度跳到追问 tab */
+  onAskFollowUp?: (dim: { key: string; label: string }) => void;
 }) {
   const [active, setActive] = useState(dimensions[0]?.key ?? '');
   const current = dimensions.find((d) => d.key === active) ?? dimensions[0];
@@ -198,6 +201,18 @@ export default function ReadingPanel({
               </div>
             )}
           </div>
+
+          {onAskFollowUp && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => onAskFollowUp({ key: current.key, label: current.label })}
+                className="inline-flex min-h-9 items-center rounded-full border border-zhu/30 bg-surface px-4 py-2 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                就此追问 · 带着「{current.label}」继续问
+              </button>
+            </div>
+          )}
           <div className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
             <div className="flex flex-wrap items-center gap-2">
               <button

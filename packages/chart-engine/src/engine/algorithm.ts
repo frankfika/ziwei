@@ -11,7 +11,7 @@ import { schoolStarBrightness, type BrightnessSchool } from './school-data';
 import { SCHOOL_AX } from './school-tables.generated';
 import { DEFAULT_LEAP_MONTH } from './school-config';
 // 飞星派工具仅供导出，不再在排盘时调用（倪师《天纪 03》：四化星永远固定不动）
-// import { detectSelfSihua, getSiHuaByStem } from './sihua';
+import { getSiHuaByStem } from './sihua';
 
 // 紫微斗数主流派（中州派/全书派/主流排盘软件）采用"正月初一换年"规则（农历年口径）。
 // 例：1999/2/11 立春已过（立春=2/4），但春节(2/16)未到 → 仍属戊寅年腊月，非己卯年。
@@ -612,17 +612,31 @@ export function generateChart(
   const ziweiPalace = palaces.find(p => p.stars.some(s => s.name === '紫微' && s.type === 'major'));
   const ziweiPos    = ziweiPalace?.branch ?? 0;
 
-  // ── 大限数组（倪师《天纪》正统：四化永远固定，大限只看宫位移动）──
-  // 不再生成 daXians[].siHua / stemIndex / stemName（飞星派字段已下线）
+  // ── 大限数组（含大限宫干四化）──
+  // 每个实际大限项回填宫干索引/干名与四化四星（由大限宫的宫干查表得出）；
+  // 童限不插入本数组，其四化仍经 getDaXianSiHua(chart, CHILDHOOD_DAXIAN_INDEX, year) 获取。
   const daXians: DaXian[] = palaces
     .filter(p => p.daXianAge)
     .sort((a, b) => a.daXianAge![0] - b.daXianAge![0])
-    .map(p => ({
-      startAge:    p.daXianAge![0],
-      endAge:      p.daXianAge![1],
-      palaceBranch: p.branch,
-      palaceName:   p.name,
-    }));
+    .map(p => {
+      const sh = getSiHuaByStem(p.stem);
+      return {
+        startAge:    p.daXianAge![0],
+        endAge:      p.daXianAge![1],
+        palaceBranch: p.branch,
+        palaceName:   p.name,
+        stemIndex:   p.stem,
+        stemName:    STEMS[p.stem] ?? '',
+        siHua: {
+          stemIndex: p.stem,
+          stemName:  STEMS[p.stem] ?? '',
+          lu:   sh.禄,
+          quan: sh.权,
+          ke:   sh.科,
+          ji:   sh.忌,
+        } as DaXianSiHua,
+      };
+    });
 
   // 宫干自化已下线（倪师不主张飞星派宫干自化论）
 

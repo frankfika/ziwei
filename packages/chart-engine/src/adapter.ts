@@ -1,5 +1,10 @@
 import { generateChart } from './engine/algorithm';
-import { BRANCHES, STEMS } from './engine/constants';
+import { BRANCHES, PALACE_NAMES_ORDER, STEMS } from './engine/constants';
+import {
+  getLiuNianSiHua,
+  getYearBranchIndex,
+  getYearStemIndex,
+} from './engine/sihua';
 import type { ZiweiChart, Palace, Star } from './engine/types';
 import {
   HOUR_BRANCHES,
@@ -7,6 +12,7 @@ import {
   type Birth,
   type ChartDaXian,
   type ChartJSON,
+  type ChartLiuNian,
   type ChartPalace,
   type ChartStar,
   type StarType,
@@ -162,6 +168,50 @@ export function chart(birth: Birth): ChartJSON {
 /** 按地支索引取宫；不存在返回 null */
 export function palaceAt(c: ChartJSON, branch: number): ChartPalace | null {
   return c.palaces.find((p) => p.branch === branch) ?? null;
+}
+
+/**
+ * 流年运限层。
+ *
+ * 直接基于已排出的 ChartJSON 的宫支/星曜计算，不重新排盘：
+ *   年干支按 sihua.ts 的公历年柱口径（(year - 4) % N）；
+ *   流年命宫 = 流年地支；流年十二宫自命宫起逐宫地支减 1（模 12）；
+ *   四化取流年天干查表；落宫在 c.palaces[].stars 里找四化星所在宫支。
+ */
+export function liuNianLayer(c: ChartJSON, year: number): ChartLiuNian {
+  const y = Math.trunc(year);
+  const yearStem = getYearStemIndex(y);
+  const yearBranch = getYearBranchIndex(y);
+  const ganzhi = `${STEMS[yearStem] ?? ''}${BRANCHES[yearBranch] ?? ''}`;
+
+  // 流年命宫 = 流年地支
+  const mingBranch = yearBranch;
+
+  // 流年十二宫：自命宫起按 PALACE_NAMES_ORDER 每下一宫地支索引减 1（模 12）
+  const palaces = PALACE_NAMES_ORDER.map((name, i) => ({
+    branch: (((mingBranch - i) % 12) + 12) % 12,
+    name,
+  }));
+
+  // 流年四化（流年天干查表）
+  const t = getLiuNianSiHua(y).transforms;
+  const siHua = { lu: t.禄, quan: t.权, ke: t.科, ji: t.忌 };
+
+  // 四化星落宫；星不在任何宫则省略该键
+  const siHuaPalaces: Record<string, number> = {};
+  const starOf: Array<[string, string]> = [
+    ['禄', siHua.lu],
+    ['权', siHua.quan],
+    ['科', siHua.ke],
+    ['忌', siHua.ji],
+  ];
+  for (const [key, starName] of starOf) {
+    if (!starName) continue;
+    const palace = c.palaces.find((p) => p.stars.some((s) => s.name === starName));
+    if (palace) siHuaPalaces[key] = palace.branch;
+  }
+
+  return { year: y, ganzhi, mingBranch, palaces, siHua, siHuaPalaces };
 }
 
 /**

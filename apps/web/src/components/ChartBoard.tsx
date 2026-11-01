@@ -11,6 +11,8 @@ interface ChartBoardProps {
   center: ChartCenterInfo;
   /** 中宫「看解读 / 去追问」跳到底部 tab */
   onNavigateTab?: (tab: 'reading' | 'ask') => void;
+  /** 宫位详情 sheet 里「就此追问」本宫 */
+  onAskPalace?: (palaceName: string) => void;
 }
 
 /** 四化图例（桌面一行 / 移动端 sheet 顶部共用） */
@@ -23,7 +25,7 @@ const SIHUA_LEGEND = (
   </>
 );
 
-export default function ChartBoard({ palaces, center, onNavigateTab }: ChartBoardProps) {
+export default function ChartBoard({ palaces, center, onNavigateTab, onAskPalace }: ChartBoardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   /** 移动端：中宫详情 sheet */
   const [centerOpen, setCenterOpen] = useState(false);
@@ -328,6 +330,15 @@ export default function ChartBoard({ palaces, center, onNavigateTab }: ChartBoar
                           );
                         })}
                       </div>
+                      {onAskPalace && (
+                        <button
+                          type="button"
+                          onClick={() => onAskPalace(selectedPalace.name)}
+                          className="mt-2.5 inline-flex min-h-9 w-full items-center justify-center rounded-lg border border-zhu/30 bg-surface px-3 py-2 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          就此追问 · {selectedPalace.name}
+                        </button>
+                      )}
                     </div>
                   </>
                 )

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { ChartPalace } from '@ziwei/chart-engine';
 import ChartBoard from './ChartBoard';
 import ReadingPanel from './ReadingPanel';
-import AskPanel from './AskPanel';
+import AskPanel, { type AskSeed } from './AskPanel';
 import NotCoveredNotice from './NotCoveredNotice';
 import ChartShareButton, {
   SUMMARY_CHIP_CLASS,
@@ -99,7 +99,30 @@ export default function ChartTabs({
   share,
 }: ChartTabsProps) {
   const [tab, setTab] = useState<ChartTabKey>('chart');
+  /** 页内追问种子：解读维度 / 宫格「就此追问」带过来的焦点与首问 */
+  const [askSeed, setAskSeed] = useState<AskSeed | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const seedFromDimension = (dim: { key: string; label: string }) => {
+    setAskSeed({
+      id: Date.now(),
+      dimension: dim.key,
+      label: dim.label,
+      question: `帮我看看${dim.label}方面，原文是怎么说的？`,
+    });
+    selectTab('ask');
+  };
+
+  const seedFromPalace = (palaceName: string) => {
+    const short = palaceName.replace(/宫$/, '');
+    setAskSeed({
+      id: Date.now(),
+      palace: short,
+      label: palaceName,
+      question: `帮我看看我的${palaceName}。`,
+    });
+    selectTab('ask');
+  };
 
   const tabs = useMemo(() => {
     const list: Array<{ key: ChartTabKey; label: string }> = [
@@ -183,6 +206,7 @@ export default function ChartTabs({
             palaces={palaces}
             center={center}
             onNavigateTab={(t) => selectTab(t === 'ask' && !reading.ok ? 'reading' : t)}
+            {...(reading.ok ? { onAskPalace: seedFromPalace } : {})}
           />
         </div>
 
@@ -192,6 +216,7 @@ export default function ChartTabs({
               dimensions={reading.dimensions ?? []}
               totalChars={reading.totalChars}
               {...(reading.citationNotice ? { citationNotice: reading.citationNotice } : {})}
+              {...(reading.ok ? { onAskFollowUp: seedFromDimension } : {})}
             />
           ) : (
             <NotCoveredNotice
@@ -203,7 +228,7 @@ export default function ChartTabs({
 
         {reading.ok && (
           <div {...panelProps('ask')}>
-            <AskPanel {...ask} />
+            <AskPanel {...ask} {...(askSeed ? { seed: askSeed } : {})} />
           </div>
         )}
       </div>

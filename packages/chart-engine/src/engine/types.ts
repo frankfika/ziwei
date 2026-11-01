@@ -119,3 +119,19 @@ export interface ZiweiChart {
   /** 阴阳性别（阳男/阴男/阳女/阴女） */
   yinYangGender?: string;
 }
+
+/** 流年运限层：流年干支、流年命宫、流年十二宫、流年四化及其落宫 */
+export interface LiuNianLayer {
+  /** 流年公历年（年柱口径：(year - 4) % N，正月初一/公历年份换年） */
+  year: number;
+  /** 流年干支，如「甲辰」 */
+  ganzhi: string;
+  /** 流年命宫地支索引（= 流年地支） */
+  mingBranch: number;
+  /** 流年十二宫：自流年命宫起按 PALACE_NAMES_ORDER 逐宫地支索引减 1（模 12） */
+  palaces: Array<{ branch: number; name: string }>;
+  /** 流年四化（流年天干查表） */
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化四星各自落宫的地支索引；星不在任何宫时省略该键 */
+  siHuaPalaces: Record<'禄' | '权' | '科' | '忌', number>;
+}

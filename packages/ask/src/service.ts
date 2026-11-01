@@ -13,6 +13,7 @@ import { ZiweiService, chartSummary, type Birth } from '@ziwei/core';
 import {
   buildAskPrompt,
   DEFAULT_MAX_CONTEXT_CHARS,
+  type AskFocus,
   type AskTurn,
   type BuiltPrompt,
 } from './prompt';
@@ -113,7 +114,12 @@ export class AskService {
    * @throws {AskProviderNotConfiguredError} 未配置任何 provider 时（message 里列出要设的环境变量）
    * @throws {AskProviderError} provider 调用失败
    */
-  async ask(birth: Birth, question: string, turns?: AskTurn[]): Promise<AskResult> {
+  async ask(
+    birth: Birth,
+    question: string,
+    turns?: AskTurn[],
+    options?: { focus?: AskFocus },
+  ): Promise<AskResult> {
     // ① 解读检索 —— 未覆盖就到此为止，绝不让模型自由发挥
     const reading = this.service.reading(birth);
     if (reading.status === 'not-covered') {
@@ -137,6 +143,7 @@ export class AskService {
       chartSummary: summary,
       dimensions: reading.dimensions,
       ...(turns && turns.length > 0 ? { turns } : {}),
+      ...(options?.focus ? { focus: options.focus } : {}),
       maxContextChars: this.maxContextChars,
     });
 

@@ -28,6 +28,19 @@ export interface AskPanelProps {
   available: boolean;
   /** provider 是否已配置；未配置时仍可提交，服务端会返回明确指引 */
   providerConfigured?: boolean;
+  /**
+   * 页内追问种子（从解读维度/宫格「就此追问」进来）。
+   * id 去重：同一颗种子只消费一次；带 question 则自动提交，否则只做焦点并聚焦输入框。
+   */
+  seed?: AskSeed;
+}
+
+export interface AskSeed {
+  id: number;
+  question?: string;
+  dimension?: string;
+  palace?: string;
+  label?: string;
 }
 
 const PRESETS = [
@@ -72,6 +85,12 @@ function MessageMeta({ message }: { message: AskMessage }) {
           minute: '2-digit',
         })}
       </span>
+      {message.cited && message.cited.length > 0 && (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>依据：{message.cited.join('、')}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -107,6 +126,7 @@ export default function AskPanel({
   gender,
   available,
   providerConfigured = true,
+  seed,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const { messages, append, clear } = useAskThread(identity);
@@ -114,11 +134,14 @@ export default function AskPanel({
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
+  /** 下一条问题的页内焦点（维度/宫位），发出即清 */
+  const [focus, setFocus] = useState<{ dimension?: string; palace?: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const resultId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
+  const consumedSeedRef = useRef<number | null>(null);
 
   useEffect(() => {
     function expandFromHash() {
@@ -132,6 +155,22 @@ export default function AskPanel({
     window.addEventListener('hashchange', expandFromHash);
     return () => window.removeEventListener('hashchange', expandFromHash);
   }, []);
+
+  // 页内追问种子：消费一次。带问题自动提交，否则只做焦点并聚焦输入框
+  useEffect(() => {
+    if (!seed || seed.id === consumedSeedRef.current) return;
+    consumedSeedRef.current = seed.id;
+    setExpanded(true);
+    if (seed.dimension || seed.palace) {
+      setFocus({ dimension: seed.dimension, palace: seed.palace });
+    }
+    if (seed.question) {
+      submit(seed.question);
+    } else {
+      window.requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- submit 逐渲染闭包，只响应 seed 变化
+  }, [seed]);
 
   // 新回答进线程后跟随：block: 'nearest' 只做最小滚动，不会把整页往下推
   useEffect(() => {
@@ -160,6 +199,9 @@ export default function AskPanel({
     fd.set('day', String(day));
     fd.set('hour', String(hour));
     fd.set('gender', gender);
+    if (focus?.dimension) fd.set('dimension', focus.dimension);
+    if (focus?.palace) fd.set('palace', focus.palace);
+    setFocus(null);
     fd.set(
       'turns',
       JSON.stringify(

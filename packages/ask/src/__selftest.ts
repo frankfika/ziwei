@@ -198,6 +198,52 @@ const prompt = buildAskPrompt({
 }
 
 // ═══════════════════════════════════════════════════════════
+section('2c. buildAskPrompt：页内焦点（focus）置顶注入');
+
+{
+  // 问题里不含任何关键词，但显式焦点是事业维 → 事业必须被选中且排最前
+  const focused = buildAskPrompt({
+    birth: BIRTH,
+    question: '帮我看看这方面原文怎么说的？',
+    chartSummary: summary,
+    dimensions,
+    focus: { dimension: 'career' },
+    maxContextChars: 8000,
+  });
+  okWithData(
+    '焦点维度无关键词也命中',
+    focused.selected.some((d) => d.key === 'career' && d.matched),
+    JSON.stringify(focused.selected.map((d) => [d.key, d.matched])),
+  );
+  ok('焦点维度排第一', focused.selected[0]?.key === 'career', focused.selected[0]?.key);
+
+  // 宫位焦点：夫妻 → 映射到 love 维置顶
+  const byPalace = buildAskPrompt({
+    birth: BIRTH,
+    question: '帮我看看我的夫妻宫。',
+    chartSummary: summary,
+    dimensions,
+    focus: { palace: '夫妻' },
+    maxContextChars: 8000,
+  });
+  ok('宫位焦点映射到对应维度', byPalace.selected[0]?.key === 'love', byPalace.selected[0]?.key);
+
+  // 未知焦点值不报错、不影响正常选择
+  const unknown = buildAskPrompt({
+    birth: BIRTH,
+    question: '我的感情运怎么样？',
+    chartSummary: summary,
+    dimensions,
+    focus: { dimension: 'no-such-dim', palace: '不存在的宫' },
+    maxContextChars: 8000,
+  });
+  ok(
+    '未知焦点被忽略、走关键词命中',
+    unknown.selected.some((d) => d.key === 'love' && d.matched),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 section('2b. buildAskPrompt：对话上文注入与预算');
 
 {

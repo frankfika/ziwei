@@ -33,19 +33,22 @@ export function dispatchZiweiAsk(detail: ZiweiAskEventDetail): void {
 
 type PanelBirth = { year: number; month: number; day: number; hour: number; gender: 'male' | 'female' };
 
-export default function FloatingAsk() {
+export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [seed, setSeed] = useState<AskSeed | null>(null);
   const [eventBirth, setEventBirth] = useState<PanelBirth | null>(null);
   const { history } = useHistory();
-  const [aiConfigured, setAiConfigured] = useState(false);
+  const [userAi, setUserAi] = useState(false);
 
   // 打开面板时刷新 AI 配置状态（设置完回来不用刷新）
   useEffect(() => {
-    if (open) setAiConfigured(!!readUserConfig());
+    if (open) setUserAi(!!readUserConfig());
   }, [open, showConfig]);
+
+  // 内置 AI（服务端默认）或自配 Key 任一可用即可对话
+  const aiConfigured = serverAiReady || userAi;
 
   // 监听全局追问事件：打开面板 + 自动提交
   useEffect(() => {
@@ -104,74 +107,86 @@ export default function FloatingAsk() {
           onClick={() => setOpen(true)}
           aria-label="打开追问助手"
           data-floating-ask-toggle
-          className="fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-3 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface text-xl shadow-[0_8px_24px_rgba(46,42,35,0.2)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:bottom-6 md:left-6"
+          className="fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-3 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-zhu text-base font-medium text-white shadow-[0_8px_24px_rgba(46,42,35,0.3)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:bottom-6 md:left-6"
         >
-          <span aria-hidden="true">💬</span>
+          <span aria-hidden="true">问</span>
         </button>
       )}
 
-      {/* 对话面板 */}
+      {/* 对话面板：全屏接管，避免与盘页信息叠在一起 */}
       {open && (
         <div
           role="dialog"
           aria-label="追问助手"
           data-floating-ask-panel
-          className="fixed bottom-[calc(64px+env(safe-area-inset-bottom,0px))] left-2 right-2 z-50 max-h-[70vh] overflow-y-auto overscroll-contain rounded-2xl border border-line bg-paper p-3 shadow-[0_16px_48px_rgba(46,42,35,0.25)] sm:left-auto sm:w-[26rem] md:bottom-24 md:left-6"
+          className="fixed inset-0 z-50 flex flex-col bg-paper"
         >
-          <div className="mb-1 flex items-center justify-end gap-1">
-            <button
-              type="button"
-              onClick={() => setShowConfig((v) => !v)}
-              aria-label={aiConfigured ? 'AI 已配置' : '配置 AI'}
-              title={aiConfigured ? 'AI 已配置' : '配置 AI'}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-                aiConfigured ? 'text-zhu' : 'text-ink-3 hover:text-ink'
-              }`}
-            >
-              ⚙
-            </button>
-            <button
-              type="button"
-              onClick={close}
-              aria-label="收起追问助手"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-2xs text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              ✕
-            </button>
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-lineSoft px-4 pt-[env(safe-area-inset-top)] sm:px-6">
+            <span className="text-sm tracking-[0.2em] text-ink">命盘追问</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowConfig((v) => !v)}
+                aria-label={aiConfigured ? 'AI 已配置' : '配置 AI'}
+                title={aiConfigured ? 'AI 已配置' : '配置 AI'}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
+                  aiConfigured ? 'text-zhu' : 'text-ink-3 hover:text-ink'
+                }`}
+              >
+                ⚙
+              </button>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="收起追问助手"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {showConfig && (
-            <div className="mb-3">
-              <AiConfigPanel onClose={() => setShowConfig(false)} />
+            <div className="border-b border-lineSoft px-4 py-3 sm:px-6">
+              <div className="mx-auto w-full max-w-2xl">
+                <AiConfigPanel onClose={() => setShowConfig(false)} />
+              </div>
             </div>
           )}
 
           {!aiConfigured && (
-            <p className="mb-2 text-2xs text-ink-3">
+            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-3 sm:px-6">
               AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
+            </p>
+          )}
+          {serverAiReady && !userAi && (
+            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-3 sm:px-6">
+              当前用内置 AI 提问，每天 10 次免费；点右上角 ⚙ 可换成自己的 Key（不限量）。
             </p>
           )}
 
           {birth ? (
-            <AskPanel
-              key={identity}
-              year={birth.year}
-              month={birth.month}
-              day={birth.day}
-              hour={birth.hour}
-              gender={birth.gender}
-              available
-              seed={seed ?? undefined}
-              quickPrompts={[
-                { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian' },
-                { label: '这十年', question: '当前这步大限整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
-                { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
-                { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },
-              ]}
-              bare
-            />
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col px-4 sm:px-6">
+              <AskPanel
+                key={identity}
+                year={birth.year}
+                month={birth.month}
+                day={birth.day}
+                hour={birth.hour}
+                gender={birth.gender}
+                available
+                seed={seed ?? undefined}
+                quickPrompts={[
+                  { label: '我现在如何', question: '我现在这步运走得怎么样？今年要注意什么？', time: 'liunian' },
+                  { label: '这十年', question: '当前这步大限整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
+                  { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
+                  { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },
+                ]}
+                bare
+              />
+            </div>
           ) : (
-            <p className="p-4 text-center text-xs text-ink-3">
+            <p className="flex flex-1 items-center justify-center p-4 text-center text-xs text-ink-3">
               还没有档案。先在首页录入一张命盘，再来追问。
             </p>
           )}

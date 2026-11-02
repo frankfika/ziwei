@@ -12,7 +12,6 @@ import {
   SHICHEN_RANGES,
   clockToShichen,
   formatClock,
-  formatDate,
   resolveForm,
   shichenToClock,
 } from '@/lib/birth';
@@ -106,16 +105,14 @@ export default function BirthForm({
     indexedYears.length > 0 &&
     !indexedSet.has(yearNum);
 
-  // 日期输入：值与可选手范围（有索引时限定在覆盖范围内）
-  const dateValue =
-    form.year && form.month && form.day
-      ? formatDate(Number(form.year), Number(form.month), Number(form.day))
-      : '';
-  const minDate = indexedYears.length > 0 ? `${indexedYears[0]}-01-01` : '1900-01-01';
-  const maxDate =
-    indexedYears.length > 0
-      ? `${indexedYears[indexedYears.length - 1]}-12-31`
-      : '2100-12-31';
+  // 日期选择：年/月/日 三个下拉（原生 date 输入在部分浏览器是 mm/dd/yyyy 顺序，不适合中文用户）
+  const yearMin = indexedYears.length > 0 ? indexedYears[0] : 1900;
+  const yearMax = indexedYears.length > 0 ? indexedYears[indexedYears.length - 1] : 2100;
+  const yearOptions = Array.from({ length: yearMax - yearMin + 1 }, (_, i) => yearMax - i);
+  const daysInMonth =
+    form.year && form.month && Number.isInteger(Number(form.year)) && Number(form.month) >= 1 && Number(form.month) <= 12
+      ? new Date(Number(form.year), Number(form.month), 0).getDate()
+      : 31;
 
   const resolved = useMemo(() => resolveForm(form), [form]);
 
@@ -212,34 +209,57 @@ export default function BirthForm({
           />
         </div>
 
-        {/* 出生日期 */}
+        {/* 出生日期：年/月/日 三联下拉，月份定了之后天数跟着收窄 */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-date">
             出生日期（公历）
           </label>
-          <input
-            id="zi-date"
-            type="date"
-            className="field-input"
-            value={dateValue}
-            min={minDate}
-            max={maxDate}
-            aria-invalid={attemptedSubmit && (!form.year || dateValueInvalid) ? true : undefined}
-            aria-describedby={attemptedSubmit && !resolved.ok ? 'birth-date-error' : undefined}
-            onChange={(e) => {
-              const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value);
-              patch(
-                m
-                  ? { year: m[1], month: String(Number(m[2])), day: String(Number(m[3])) }
-                  : { year: '', month: '', day: '' },
-              );
-            }}
-          />
-          {/* 隐藏字段保持 Server Action 入参契约不变 */}
-          <input type="hidden" name="year" value={form.year} />
-          <input type="hidden" name="month" value={form.month} />
-          <input type="hidden" name="day" value={form.day} />
-          {attemptedSubmit && resolved.ok === false && (
+          <div className="flex gap-2">
+            <select
+              id="zi-date"
+              name="year"
+              aria-label="出生年份"
+              className="field-input min-w-0 flex-1"
+              value={form.year}
+              onChange={(e) => patch({ year: e.target.value })}
+            >
+              <option value="">年</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}年</option>
+              ))}
+            </select>
+            <select
+              name="month"
+              aria-label="出生月份"
+              className="field-input w-20 shrink-0"
+              value={form.month}
+              onChange={(e) => {
+                const month = e.target.value;
+                // 已选日期超出新月份的天数时一并收掉（如 1 月 31 日 → 2 月改 28 日）
+                const maxDay = month && form.year ? new Date(Number(form.year), Number(month), 0).getDate() : 31;
+                patch({
+                  month,
+                  ...(form.day && Number(form.day) > maxDay ? { day: '' } : {}),
+                });
+              }}
+            >
+              <option value="">月</option>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>{m}月</option>
+              ))}
+            </select>
+            <select
+              name="day"
+              aria-label="出生日期"
+              className="field-input w-20 shrink-0"
+              value={form.day}
+              onChange={(e) => patch({ day: e.target.value })}
+            >
+              <option value="">日</option>
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}日</option>)}
+            </select>
+          </div>
+          {attemptedSubmit && (!form.year || dateValueInvalid) && (
             <p
               id="birth-date-error"
               className="mt-2 text-xs text-danger"

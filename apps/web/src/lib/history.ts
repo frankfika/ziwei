@@ -78,9 +78,13 @@ function readStore(): HistoryEntry[] {
   }
 }
 
+/** 档案库变更事件：写入方广播，订阅方（如常驻布局的悬浮面板）据此重读 */
+export const HISTORY_EVENT = 'ziwei:history';
+
 function writeStore(list: HistoryEntry[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    window.dispatchEvent(new Event(HISTORY_EVENT));
   } catch {
     /* 忽略写入失败（隐私模式 / 配额满） */
   }
@@ -103,7 +107,15 @@ export function useHistory() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
-    setHistory(readStore());
+    const reread = () => setHistory(readStore());
+    reread();
+    // 常驻布局组件跨软导航不重挂载：监听写入广播与跨 tab 的 storage 事件，保持最新
+    window.addEventListener(HISTORY_EVENT, reread);
+    window.addEventListener('storage', reread);
+    return () => {
+      window.removeEventListener(HISTORY_EVENT, reread);
+      window.removeEventListener('storage', reread);
+    };
   }, []);
 
   const save = useCallback((form: BirthFormState) => {

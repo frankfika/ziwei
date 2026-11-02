@@ -25,6 +25,7 @@ export default function ReadingPanel({
   dimensions,
   citationNotice,
   onAskFollowUp,
+  onAskTime,
   liunian = null,
   palaces = [],
 }: {
@@ -34,6 +35,8 @@ export default function ReadingPanel({
   citationNotice?: CitationNotice;
   /** 「就此追问」：带着当前解读维度跳到追问 tab */
   onAskFollowUp?: (dim: { key: string; label: string }) => void;
+  /** 「就今年追问」：带流年时间焦点发起追问 */
+  onAskTime?: (time: 'liunian' | 'daxian') => void;
   /** 今年流年：解读 tab 顶部先给一张运势卡 */
   liunian?: ChartFortuneLayer | null;
   palaces?: ChartPalace[];
@@ -112,31 +115,14 @@ export default function ReadingPanel({
         <p className="text-2xs tabular-nums text-ink-3">共 {dimensions.length} 维</p>
       </div>
 
-      {/* 引文声明：一行 tip（不再占整块盒子） */}
-      {citationNotice && citationNotice.totalCitations > 0 && (
-        <p className="mb-4 flex flex-wrap items-baseline gap-x-2 text-2xs leading-relaxed text-ink-3">
-          <span>
-            {citationNotice.mode === 'full' ? (
-              <>
-                解读中含《天纪》引文 {citationNotice.totalCitations} 处，授权范围仅限非商业用途；商用或对外分发前需切换为引文降级。
-              </>
-            ) : (
-              <>解读中的《天纪》引文已做降级处理（{citationNotice.totalCitations} 处）。</>
-            )}
-          </span>
-          <Link
-            href="/about"
-            className="shrink-0 text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            关于与口径
-          </Link>
-        </p>
-      )}
-
       {/* 今年运势卡：解读 tab 顶部 —— 先看时间层，再看维度 */}
       {liunian && palaces.length > 0 && (
         <div className="mb-6">
-          <LiuNianCard liunian={liunian} palaces={palaces} />
+          <LiuNianCard
+            liunian={liunian}
+            palaces={palaces}
+            {...(onAskTime ? { onAsk: () => onAskTime('liunian') } : {})}
+          />
         </div>
       )}
 
@@ -198,6 +184,15 @@ export default function ReadingPanel({
               <span className="text-2xs tabular-nums text-ink-3">
                 本维 {current.chars.toLocaleString('zh-CN')} 字
               </span>
+              {onAskFollowUp && (
+                <button
+                  type="button"
+                  onClick={() => onAskFollowUp({ key: current.key, label: current.label })}
+                  className="ml-auto inline-flex min-h-8 shrink-0 items-center rounded-full border border-zhu/30 bg-surface px-3 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  就此追问
+                </button>
+              )}
             </div>
             {/* 阅读行宽收在 40em 左右：长文不再拉满整屏，一眼能扫完一行 */}
             {current.text.trim() ? (
@@ -226,6 +221,27 @@ export default function ReadingPanel({
                 就此追问 · 带着「{current.label}」继续问
               </button>
             </div>
+          )}
+
+          {/* 引文声明：读完正文后才出现，不把内容往下推 */}
+          {citationNotice && citationNotice.totalCitations > 0 && (
+            <p className="mt-8 flex flex-wrap items-baseline gap-x-2 border-t border-lineSoft pt-4 text-2xs leading-relaxed text-ink-3">
+              <span>
+                {citationNotice.mode === 'full' ? (
+                  <>
+                    解读中含《天纪》引文 {citationNotice.totalCitations} 处，授权范围仅限非商业用途；商用或对外分发前需切换为引文降级。
+                  </>
+                ) : (
+                  <>解读中的《天纪》引文已做降级处理（{citationNotice.totalCitations} 处）。</>
+                )}
+              </span>
+              <Link
+                href="/about"
+                className="shrink-0 text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                关于与口径
+              </Link>
+            </p>
           )}
           <div className="mt-8 border-t border-lineSoft pt-4 lg:hidden">
             <div className="flex flex-wrap items-center gap-2">

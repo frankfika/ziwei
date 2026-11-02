@@ -30,9 +30,12 @@ function SiHuaRow({ siHua }: { siHua: ChartFortuneLayer['siHua'] }) {
 export function LiuNianCard({
   liunian,
   palaces,
+  onAsk,
 }: {
   liunian: ChartFortuneLayer;
   palaces: ChartPalace[];
+  /** 提供时就显示「就今年追问」按钮 */
+  onAsk?: () => void;
 }) {
   const ming = palaces.find((p) => p.branch === liunian.mingBranch);
   const natalStars = ming?.majorStars ?? [];
@@ -67,8 +70,18 @@ export function LiuNianCard({
 
       <SiHuaRow siHua={liunian.siHua} />
 
+      {onAsk && (
+        <button
+          type="button"
+          onClick={onAsk}
+          className="mt-3 inline-flex min-h-9 items-center rounded-full border border-zhu/30 bg-surface px-4 py-2 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          就今年追问 →
+        </button>
+      )}
+
       <p className="mt-3 text-2xs leading-relaxed text-ink-3">
-        流年四化由流年天干推出，落在本命盘对应宫位。点击「就今年追问」可让助手结合解读原文细说。
+        流年四化由流年天干推出，落在本命盘对应宫位。点上方「就今年追问」可让助手结合解读原文细说。
       </p>
     </section>
   );

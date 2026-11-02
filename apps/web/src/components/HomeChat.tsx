@@ -45,12 +45,19 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     [selected],
   );
 
+  // 没有档案时：把「新建档案」折叠区自动展开 —— 首屏第一件事就是录入生辰
+  useEffect(() => {
+    if (history.length === 0) {
+      document.getElementById('new-profile')?.setAttribute('open', '');
+    }
+  }, [history.length]);
+
   if (history.length === 0) {
     return (
-      <div className="panel-ritual p-6 text-center sm:p-8">
+      <div className="panel-ritual p-5 text-center sm:p-6">
         <p className="text-sm text-ink">还没有档案</p>
         <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-          先在下方「新建档案」录入一张命盘，之后打开首页就能直接接着聊。
+          在下方录入生辰排一张盘，之后打开首页就能直接接着聊。
         </p>
       </div>
     );
@@ -64,11 +71,18 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
 
   return (
     <div>
-      {/* AI 未配置：一行引导 */}
-      {!aiReady && !showConfig && (
+      {/* AI 状态：内置 AI 可用时告诉用户额度，别让「⚙ AI 设置」看起来像必填项 */}
+      {providerConfigured && !userAi && !showConfig ? (
         <p className="mb-3 text-2xs text-ink-3">
-          AI 还没配置 —— 点右上角「⚙ AI 设置」填一个 API Key（只存本机）。
+          已内置 AI，每天 10 次免费提问；点上方「⚙ AI 设置」可换成自己的 Key（不限量）。
         </p>
+      ) : (
+        !aiReady &&
+        !showConfig && (
+          <p className="mb-3 text-2xs text-ink-3">
+            AI 还没配置 —— 点上方「⚙ AI 设置」填一个 API Key（只存本机）。
+          </p>
+        )
       )}
       {showConfig && (
         <div className="mb-4">

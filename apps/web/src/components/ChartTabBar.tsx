@@ -95,9 +95,9 @@ const SUMMARY_CLASS = 'relative z-20 flex h-14 shrink-0 items-center gap-2 px-3 
 const CONTENT_CLASS =
   'flex min-h-0 flex-1 flex-col overflow-y-auto px-2 md:px-0 print:flex-none print:overflow-visible';
 
-/** 署名行：底栏正上方，≤24px。实底，避免与上方滚动正文糊在一起。 */
+/** 署名行：底栏正上方，≤24px。实底，避免与上方滚动正文糊在一起。左侧留出悬浮球的位置。 */
 const CREDIT_CLASS =
-  'flex h-4 shrink-0 items-center gap-1 truncate bg-paper px-3 text-2xs leading-4 text-ink-3 md:px-0 print:hidden';
+  'flex h-4 shrink-0 items-center gap-1 truncate bg-paper pl-16 pr-3 text-2xs leading-4 text-ink-3 md:px-0 print:hidden';
 
 export default function ChartTabs({
   palaces,
@@ -251,7 +251,7 @@ export default function ChartTabs({
               liunian={liunian}
               palaces={palaces}
               {...(reading.citationNotice ? { citationNotice: reading.citationNotice } : {})}
-              {...(reading.ok ? { onAskFollowUp: seedFromDimension } : {})}
+              {...(reading.ok ? { onAskFollowUp: seedFromDimension, onAskTime: seedFromTime } : {})}
             />
           ) : (
             <NotCoveredNotice

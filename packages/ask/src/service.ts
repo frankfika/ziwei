@@ -135,7 +135,8 @@ export class AskService {
     const chart = this.service.chart(birth);
     const summary = chartSummary(chart);
 
-    // ②b 运限事实：时间层焦点（流年/大限）由引擎真实计算，绝不编造
+    // ②b 运限事实：时间层焦点（流年/大限）由引擎真实计算，绝不编造；
+    // 无焦点时也附「当下定位」（当前虚岁 + 所走大限 + 今年流年），让每个回答都能先落在"你现在"
     let fortuneNote: string | undefined;
     if (options?.focus?.time === 'liunian') {
       const y = options.focus.targetYear ?? new Date().getFullYear();
@@ -179,6 +180,16 @@ export class AskService {
           `大限十二宫落位：${placements}。`,
         ].join('\n');
       }
+    } else {
+      const y = new Date().getFullYear();
+      const xuSui = y - birth.year + 1;
+      const dxPalace = chart.palaces.find((p) => p.isCurrentDaXian);
+      const ln = liuNianLayer(chart, y);
+      const natal = chart.palaces.find((p) => p.branch === ln.mingBranch);
+      fortuneNote = [
+        `当下定位：命主今年虚岁${xuSui}，正走${dxPalace?.daXianAge?.[0] ?? '?'}–${dxPalace?.daXianAge?.[1] ?? '?'}岁的大限（大限命宫落在本命${dxPalace?.name ?? ''}）。`,
+        `${y} ${ln.ganzhi}流年：流年命宫在本命${natal?.name ?? ''}（${natal?.branchName ?? ''}），流年四化：化禄 ${ln.siHua.lu}、化权 ${ln.siHua.quan}、化科 ${ln.siHua.ke}、化忌 ${ln.siHua.ji}。`,
+      ].join('\n');
     }
 
     // ③ 拼提示词

@@ -79,6 +79,21 @@ const CHIP_CLASS =
 const ASK_MARK_CLASS =
   'mr-1.5 inline-flex min-w-6 items-center justify-center rounded-sm bg-surface px-1.5 py-0.5 text-2xs text-zhu';
 
+/** 回答者身份行：紫圆「紫」字头像 + 名字 +  tiny 引用维度（替代单独的依据行） */
+function AnswerAvatar({ cited }: { cited?: string[] }) {
+  return (
+    <p className="mb-1 flex items-center gap-1.5">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zhu text-[10px] leading-none text-white">
+        紫
+      </span>
+      <span className="text-2xs font-medium text-ink-2">紫微</span>
+      {cited && cited.length > 0 && (
+        <span className="text-2xs text-ink-3">· 参 {cited.join('、')}</span>
+      )}
+    </p>
+  );
+}
+
 /** 服务端返回的非 ok 状态 / 本地失败 —— 不进线程，作为临时提示展示 */
 type Transient =
   | { kind: 'not-covered' | 'not-configured'; message: string }
@@ -96,6 +111,7 @@ function suspectsOf(result: Extract<AskActionResult, { status: 'ok' }>): string[
 function MessageMeta({ message }: { message: AskMessage }) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-3">
+      <span className={ASK_MARK_CLASS}>答</span>
       <span>
         {new Date(message.at).toLocaleString('zh-CN', {
           month: 'numeric',
@@ -311,7 +327,10 @@ export default function AskPanel({
   const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
 
   return (
-    <div className="print:hidden" id="ask-panel">
+    <div
+      className={bare ? 'flex min-h-0 flex-1 flex-col print:hidden' : 'print:hidden'}
+      id="ask-panel"
+    >
       {!bare && (
       <div className="mb-5 border-b border-line pb-3">
         <h2>
@@ -378,7 +397,7 @@ export default function AskPanel({
       <div
         id="ask-panel-content"
         hidden={!bare && !expanded}
-        className={bare ? '' : 'panel p-5 sm:p-6'}
+        className={bare ? 'flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
       >
         {!providerConfigured && !bare && (
           <div
@@ -393,7 +412,12 @@ export default function AskPanel({
         )}
 
         {/* 对话线程 */}
-        <div id={resultId} aria-live="polite" aria-busy={pending}>
+        <div
+          id={resultId}
+          aria-live="polite"
+          aria-busy={pending}
+          className={bare ? 'min-h-0 flex-1 overflow-y-auto' : undefined}
+        >
           {messages.length === 0 && !pending && !transient && !bare && (
             <div role="status">
               <p className="text-xs leading-relaxed text-ink-2">
@@ -436,15 +460,15 @@ export default function AskPanel({
                         {m.question}
                       </span>
                     </p>
-                    <div
-                      className="max-w-[95%] text-sm leading-[1.9] text-ink-2"
-                      data-ask-answer=""
-                    >
-                      <Markdown text={m.answer} />
+                    <div className="max-w-[95%]">
+                      <AnswerAvatar cited={m.cited} />
+                      <div
+                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
+                        data-ask-answer=""
+                      >
+                        <Markdown text={m.answer} />
+                      </div>
                     </div>
-                    {m.cited.length > 0 && (
-                      <p className="text-2xs text-ink-3">依据：{m.cited.join('、')}</p>
-                    )}
                     <MessageVerification suspects={m.suspects} isLatest={isLatest} />
                     {embedChart && miniChart && (
                       chartOpenFor === m.id ? (
@@ -488,7 +512,7 @@ export default function AskPanel({
                   <div className="mt-3 border-t border-lineSoft pt-3">
                     <MessageMeta message={m} />
                     <div
-                      className="text-sm leading-[1.95] text-ink-2"
+                      className="text-sm leading-[1.95] text-ink-2 [&_p:first-of-type]:mt-0"
                       data-ask-answer=""
                     >
                       <Markdown text={m.answer} />
@@ -535,15 +559,24 @@ export default function AskPanel({
 
           {pending && pendingQuestion && (bare ? (
             <div
-              className="chart-submit flex items-center gap-2"
+              className="chart-submit mt-4 space-y-1.5"
               style={motionStyle(DURATION.sanfang)}
               role="status"
             >
-              <span
-                className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              <p className="text-2xs text-ink-3">{pendingQuestion} · 查证中…</p>
+              <span className="sr-only">查证中</span>
+              <p className="text-right">
+                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                  {pendingQuestion}
+                </span>
+              </p>
+              <div>
+                <AnswerAvatar />
+                <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:150ms] motion-reduce:animate-none" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:300ms] motion-reduce:animate-none" />
+                </div>
+              </div>
             </div>
           ) : (
             <div
@@ -593,7 +626,7 @@ export default function AskPanel({
 
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
-          <div className="mt-3">
+          <div className="mt-4 shrink-0 border-t border-lineSoft pt-3 pb-[env(safe-area-inset-bottom)]">
             <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="问点什么">
               {presets.map((p) => (
                 <button
@@ -745,7 +778,7 @@ export default function AskPanel({
 
       {!bare && (
         <p className="mt-3 text-2xs leading-relaxed text-ink-3">
-          回答只依据这张盘的已有材料，没写到的会直说「材料里没有写」。内容仅供参考，不构成医疗、法律或投资建议。
+          回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。
         </p>
       )}
     </div>

@@ -168,13 +168,13 @@ const prompt = buildAskPrompt({
   ok('注入了命盘事实（十二宫 + 命主/身主）', prompt.user.includes('十二宫：'));
   ok(
     '注入了硬约束（禁止发明星曜/宫位）',
-    prompt.system.includes('不得提及') && prompt.system.includes('材料里没有写'),
+    prompt.system.includes('不得提及') && prompt.system.includes('【命盘事实】'),
   );
   ok(
-    '注入了「只依据材料」与「不做医疗/投资/法律建议」约束',
-    prompt.system.includes('材料里没有写') && prompt.system.includes('医疗'),
+    '注入了「不做医疗/投资/法律建议」约束',
+    prompt.system.includes('医疗') && prompt.system.includes('法律'),
   );
-  ok('注入了「不得自称占卜大师」约束', prompt.system.includes('占卜大师'));
+  ok('注入了「不断言注定」约束', prompt.system.includes('注定'));
   okWithData(
     '注入了原文节选并带来源标注',
     prompt.user.includes('[来源：') && prompt.user.includes('key='),

@@ -345,7 +345,10 @@ export function chartSummary(c: ChartJSON): string {
       p.isEmpty ? '空宫' : '',
     ].filter(Boolean).join('/');
     lines.push(
-      `- ${p.name}（${p.branchName}宫${marks ? `·${marks}` : ''}）：${stars || '无主星'}`,
+      `- ${p.name}（${p.branchName}宫${marks ? `·${marks}` : ''}` +
+        `${p.daXianAge ? `·大限${p.daXianAge[0]}–${p.daXianAge[1]}岁` : ''}）：${
+          stars || '无主星'
+        }`,
     );
   }
   return lines.join('\n');

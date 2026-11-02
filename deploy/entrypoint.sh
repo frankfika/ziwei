@@ -15,6 +15,7 @@ set -euo pipefail
 
 DATA_DIR="${ZIWEI_DATA_DIR:-/app/data}"
 RAW_DIR="${DATA_DIR}/raw"
+COMPACT_DIR="${DATA_DIR}/compact"
 INDEX_DIR="${DATA_DIR}/index"
 PORT="${PORT:-3000}"
 NEXT_BIN="/app/node_modules/next/dist/bin/next"
@@ -43,11 +44,13 @@ count_files() {
 }
 
 raw_years="$(count_files "$RAW_DIR" '^year-[0-9]{4}\.jsonl$')"
+compact_years="$(count_files "$COMPACT_DIR" '^year-[0-9]{4}\.bin$')"
 idx_years="$(count_files "$INDEX_DIR" '^year-[0-9]{4}\.idx\.json$')"
 
 log "启动前数据检查"
 log "  ZIWEI_DATA_DIR      : ${DATA_DIR}"
 log "  解压后的原始数据    : ${raw_years} 个年份（raw/）"
+log "  压缩数据            : ${compact_years} 个年份（compact/，优先使用）"
 log "  偏移索引            : ${idx_years} 个年份（index/）"
 
 # ── 情况 A：索引缺失，且没有原始数据 ─────────────────────────────
@@ -115,18 +118,19 @@ EOF
   exit 1
 fi
 
-# ── 情况 C：索引在，原始数据不在 ─────────────────────────────────
-if [ "$raw_years" -eq 0 ]; then
+# ── 情况 C：索引在，但正文数据（raw 和 compact）都不在 ────────────
+if [ "$raw_years" -eq 0 ] && [ "$compact_years" -eq 0 ]; then
   cat >&2 <<EOF
 
 ════════════════════════════════════════════════════════════════════
-❌ 原始数据缺失：${RAW_DIR} 下没有 year-YYYY.jsonl
+❌ 正文数据缺失：${RAW_DIR} 与 ${COMPACT_DIR} 下都没有 year-YYYY 数据
 ════════════════════════════════════════════════════════════════════
 
-检测到 ${INDEX_DIR} 下已有 ${idx_years} 份索引，但对应的原始 JSONL 不在。
+检测到 ${INDEX_DIR} 下已有 ${idx_years} 份索引，但正文数据不在。
 
-偏移索引只存字节偏移，正文仍然躺在 raw/year-YYYY.jsonl 里 ——
-索引和原始数据必须成对存在，缺一不可。
+正文数据有两种形态，有其一即可：
+  · raw/year-YYYY.jsonl        解压后的原始数据（查询会按需走偏移索引）
+  · compact/year-YYYY.bin      zstd 字典压缩版（优先使用，全量 77 年约 1.5GB）
 
 请重新下载并解压：
 
@@ -139,7 +143,11 @@ EOF
 fi
 
 # ── 数据就绪 ────────────────────────────────────────────────────
-log "✅ 数据就绪（${idx_years} 个年份已建索引）"
+if [ "$compact_years" -gt 0 ]; then
+  log "✅ 数据就绪（${idx_years} 个年份已建索引，${compact_years} 个年份走压缩数据）"
+else
+  log "✅ 数据就绪（${idx_years} 个年份已建索引）"
+fi
 log "启动 Next.js：监听 0.0.0.0:${PORT}"
 cd /app/apps/web
 exec node "$NEXT_BIN" start -H 0.0.0.0 -p "$PORT"

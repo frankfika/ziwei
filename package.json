@@ -12,6 +12,7 @@
   "scripts": {
     "typecheck": "bash scripts/typecheck.sh",
     "index:build": "tsx packages/reading-index/src/cli.ts",
+    "data:compact": "tsx packages/reading-index/src/compact-cli.ts",
     "chart": "tsx apps/cli/src/index.ts",
     "test": "tsx tests/run.ts",
     "web:dev": "npm run dev --workspace @ziwei/web",

@@ -26,6 +26,16 @@ export interface YearIndex {
   count: number;
   /** key → [byteOffset, byteLength] */
   records: Record<string, [number, number]>;
+  /**
+   * 压缩数据源（存在时查询优先走它）。每条记录是独立 zstd 帧，
+   * 用 data/compact/dict 字典压缩，可随机 seek 单条解压。
+   */
+  compact?: {
+    /** 相对 data 目录的路径 */
+    source: string;
+    /** key → [byteOffset, byteLength]（压缩后） */
+    records: Record<string, [number, number]>;
+  };
 }
 
 /** 查询结果：命中或未命中 */

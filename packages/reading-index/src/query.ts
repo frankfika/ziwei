@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { buildKey, keyOf, parseKey, yearOfKey } from './key';
 import type { ChartKeyParts } from './key';
@@ -27,7 +28,9 @@ export function resolveDataDir(explicit?: string): string {
   if (env) return path.resolve(env);
 
   const isDataDir = (p: string) =>
-    fs.existsSync(path.join(p, 'index')) || fs.existsSync(path.join(p, 'raw'));
+    fs.existsSync(path.join(p, 'index')) ||
+    fs.existsSync(path.join(p, 'raw')) ||
+    fs.existsSync(path.join(p, 'compact'));
 
   // 3. 从 cwd 向上找
   // turbopackIgnore: 避免 Next.js 构建时把整个项目纳入 fs tracing
@@ -69,6 +72,8 @@ export class ReadingIndex {
   private readonly cacheEnabled: boolean;
   private yearIndexes = new Map<number, YearIndex>();
   private fileHandles = new Map<number, number>();
+  private compactHandles = new Map<number, number>();
+  private dict: Buffer | null | undefined;
 
   constructor(opts: ReadingIndexOptions = {}) {
     this.dataDir = resolveDataDir(opts.dataDir);
@@ -115,11 +120,41 @@ export class ReadingIndex {
     return fd;
   }
 
+  /** 压缩字典；没有 dict 文件时退化为无字典解压（兼容未用字典压的数据） */
+  private loadDict(): Buffer | null {
+    if (this.dict !== undefined) return this.dict;
+    const p = path.join(this.dataDir, 'compact', 'dict');
+    this.dict = fs.existsSync(p) ? fs.readFileSync(p) : null;
+    return this.dict;
+  }
+
+  private compactHandleFor(year: number): number {
+    const cached = this.compactHandles.get(year);
+    if (cached !== undefined) return cached;
+    const p = path.join(this.dataDir, 'compact', `year-${year}.bin`);
+    if (!fs.existsSync(p)) {
+      throw new Error(`压缩数据源不存在：${p}`);
+    }
+    const fd = fs.openSync(p, 'r');
+    this.compactHandles.set(year, fd);
+    return fd;
+  }
+
   /** 按 key 取一条解读 */
   getByKey(key: string): LookupResult {
     const year = yearOfKey(key);
     const idx = this.getYearIndex(year);
     if (!idx) return { found: false, reason: 'year-not-indexed', key, year };
+    const compactRec = idx.compact?.records[key];
+    if (compactRec) {
+      const [offset, length] = compactRec;
+      const buf = Buffer.alloc(length);
+      fs.readSync(this.compactHandleFor(year), buf, 0, length, offset);
+      const record = JSON.parse(
+        zlib.zstdDecompressSync(buf, { dictionary: this.loadDict() ?? undefined }).toString('utf8'),
+      ) as ReadingRecord;
+      return { found: true, record };
+    }
     const rec = idx.records[key];
     if (!rec) return { found: false, reason: 'key-not-found', key, year };
     const [offset, length] = rec;
@@ -164,7 +199,7 @@ export class ReadingIndex {
 
   /** 释放文件句柄 */
   close(): void {
-    for (const fd of this.fileHandles.values()) {
+    for (const fd of [...this.fileHandles.values(), ...this.compactHandles.values()]) {
       try {
         fs.closeSync(fd);
       } catch {
@@ -172,6 +207,7 @@ export class ReadingIndex {
       }
     }
     this.fileHandles.clear();
+    this.compactHandles.clear();
   }
 }
 

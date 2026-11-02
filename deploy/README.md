@@ -8,13 +8,14 @@
 ## 0. 一句话架构
 
 ```
-[浏览器] → :3000 → [Next.js 16 生产服务] → /app/data/raw/*.jsonl
+[浏览器] → :3000 → [Next.js 16 生产服务] → /app/data/compact/*.bin（压缩形态，优先）
+                                       → /app/data/raw/*.jsonl（原始形态，兜底）
                               └→ /app/data/index/*.idx.json
                                     （解读正文在这里，按字节偏移 seek）
 ```
 
 - **镜像里只有代码**（Next.js 构建产物 + workspace 源码 + node_modules）。
-- **解读数据集在镜像外**，53GB 全部落在 volume `/app/data`。
+- **解读数据集在镜像外**：全量压缩形态 1.5GB（推荐）/ 原始形态 53GB，落在 volume `/app/data`。
 - **镜像里没有任何 API key**，追问 provider 运行时注入。
 
 | 组件 | 版本 | 说明 |
@@ -28,7 +29,7 @@
 ## 1. 前置条件
 
 - Docker ≥ 20.10（`docker compose` v2）或 Docker Desktop
-- 磁盘：镜像 ~1GB + 数据（只铺 3 年约 2.1GB / 全量 77 年约 53GB）
+- 磁盘：镜像 ~1GB + 数据（压缩形态全量 1.5GB / 原始形态全量 53GB，见第 4.7 节）
 - 网络：构建时要能拉 `node:22-slim`；下载数据时要能访问 GitHub Release
 
 ---
@@ -213,6 +214,22 @@ docker run --rm -v /tmp/ziwei-test-data:/app/data ziwei-assistant:latest \
 > 上面那段中文指引）。这不是故障循环 —— 数据一灌好它就自动起来了。
 > 不想看它刷屏就把 `restart` 改成 `"no"`，或直接用 `docker compose run` 灌完数据再 `up -d`。
 
+### 4.7 压缩数据形态（compact/，推荐）
+
+正文数据有两种形态，**有其一即可**，两者都在时查询优先 compact、raw 兜底：
+
+| 形态 | 位置 | 全量体积 | 说明 |
+|---|---|---|---|
+| 原始 | `raw/year-YYYY.jsonl` | 53GB | 下载解压产物，偏移索引按字节 seek |
+| 压缩 | `compact/year-YYYY.bin` | **1.5GB** | 每条记录独立 zstd 帧 + 共享字典 `compact/dict`，索引带压缩后偏移 |
+
+压缩形态由 `npm run data:compact -- --all` 从 raw 生成（真·子进程并行，幂等跳过已完成年份，
+`--force` 重做）。压缩比实测约 **35x**，抽验一致性用
+`npx tsx packages/reading-index/src/verify-compact.ts --year 2021`。
+
+磁盘紧张的小服务器（VPS ≤ 20G 盘）建议：volume 里只放 `compact/` + `index/`，
+raw 留在本地当源数据，`entrypoint.sh` 的数据检查两种形态都认。
+
 ---
 
 ## 5. 运行
@@ -295,7 +312,8 @@ docker compose -f deploy/docker-compose.yml run --rm ziwei \
 | 容器起来又退出，日志有中文指引 | 数据没就位 | 按日志里的三条命令准备数据（第 4 节） |
 | 页面显示「样本库未覆盖」 | 该年份没建索引 | `npm run index:build -- --years <年>` |
 | 页面显示「样本库未覆盖（key 不存在）」 | 该日期/时辰/性别不在数据集覆盖内 | 换生辰；数据集是真实日期全覆盖，理论上不会发生 |
-| 首页 500，日志有 `数据源不存在` | 索引在、`raw/` 不在 | 索引和原始数据必须成对，重新下载解压 |
+| 首页 500，日志有 `数据源不存在` | 索引在、`raw/` 与 `compact/` 都不在 | 正文数据两种形态有其一即可（第 4.7 节） |
+| 镜像构建卡在 apt-get update | 国内直连 `deb.debian.org` 挂起 | 加 `--build-arg DEBIAN_MIRROR=mirrors.aliyun.com` |
 | `curl` 首页超时 | 端口被占 | 改 `ZIWEI_PORT`；容器内端口恒为 3000 |
 | 磁盘写满 | 全量数据 53GB | 只铺需要的年份；`docker system df` 清理 |
 | 镜像构建卡在 `transferring context` | `.dockerignore` 没生效 | 确认用的是 `deploy/Dockerfile.dockerignore`（`-f deploy/Dockerfile` 时才生效） |
@@ -321,3 +339,85 @@ docker logs --tail=100 ziwei
 - **不做真太阳时 / 夏令时**：数据集本身没做，校正会让检索键错位。
 - **数据许可 CC BY 4.0**：页脚与 `/about` 页已带署名，容器化不改变这一点。
 - **倪师《天纪》引文**：数据集中密度很高，商业化前须按 `docs/LEGAL_NOTES.md` 处理。
+
+---
+
+## 9. 生产环境（secondplanet）标准发布流程
+
+> **生产**：https://ziwei.secondplanet.cc —— 腾讯云上海 CVM `49.234.25.35`（用户 `ubuntu`），
+> 与 SecondPlanet Enterprise 的其它服务共机。2026-11-02 起按本节流程发布，**后续都这样**。
+
+### 9.1 环境一览
+
+| 项 | 值 |
+|---|---|
+| SSH | `ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35`（sshd 只认 RSA） |
+| 代码目录 | `/opt/ziwei/`（rsync 同步，非 git checkout） |
+| 数据 volume | 具名卷 `ziwei-data` → `/app/data`（`compact/` + `index/`，共 1.6GB，raw 不上服务器） |
+| 容器 | `ziwei-assistant`，`--restart unless-stopped`，端口 `3000:3000` |
+| 镜像 | `ziwei-assistant:compact`（当前生产 tag） |
+| 反代 | 宿主机 Nginx `/etc/nginx/sites-enabled/ziwei` → `127.0.0.1:3000` |
+| TLS | Let's Encrypt（`certbot certonly --webroot -w /var/www/html -d ziwei.secondplanet.cc`），证书自动续期走系统 certbot timer |
+| DNS | DNSPod `secondplanet.cc` 的 A 记录 `ziwei → 49.234.25.35`（API Token 见用户，不在仓库） |
+
+### 9.2 发布步骤（代码有更新时）
+
+```bash
+# ① 同步代码（排除数据/依赖/构建产物）
+rsync -az --rsync-path='sudo rsync' \
+  --exclude=data --exclude=node_modules --exclude=.next --exclude=.git \
+  --exclude=shots --exclude='.DS_Store' --exclude='*.log' \
+  -e "ssh -i ~/.ssh/sp-deploy-rsa" \
+  /Users/fangchen/Baidu/GitHub/ziwei/ ubuntu@49.234.25.35:/opt/ziwei/
+
+# ② 服务器上构建（DEBIAN_MIRROR 必带，否则 apt 卡死）
+ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
+  sudo docker build -f /opt/ziwei/deploy/Dockerfile \
+    --build-arg DEBIAN_MIRROR=mirrors.aliyun.com \
+    -t ziwei-assistant:compact /opt/ziwei'
+
+# ③ 冒烟测试（临时容器，3001 若被占换 3002）
+ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
+  docker run -d --name ziwei-test --rm -p 127.0.0.1:3002:3000 \
+    -v ziwei-data:/app/data ziwei-assistant:compact && sleep 8 \
+    && curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3002/ \
+    && docker rm -f ziwei-test'
+
+# ④ 切换生产容器
+ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
+  docker stop ziwei-assistant && docker rm ziwei-assistant
+  docker run -d --name ziwei-assistant --restart unless-stopped -p 3000:3000 \
+    -v ziwei-data:/app/data ziwei-assistant:compact
+  docker image prune -f'
+
+# ⑤ 公网验证
+curl -s -o /dev/null -w "%{http_code}\n" https://ziwei.secondplanet.cc/
+curl -s "https://ziwei.secondplanet.cc/chart?y=2021&m=6&d=15&h=4&g=male" | grep -c 【命格总览】
+```
+
+### 9.3 数据更新（补年份 / 重压缩）
+
+数据在**本地**生成，只推压缩形态：
+
+```bash
+# 本地：压缩新年份（幂等，跳过已完成的）
+npm run data:compact -- --all
+# 本地：抽验一致
+npx tsx packages/reading-index/src/verify-compact.ts --year <新年份>
+
+# 推送到服务器 volume（sudo rsync，因为 volume 属 root）
+rsync -az --rsync-path='sudo rsync' -e "ssh -i ~/.ssh/sp-deploy-rsa" \
+  data/compact/ ubuntu@49.234.25.35:/var/lib/docker/volumes/ziwei-data/_data/compact/
+rsync -az --rsync-path='sudo rsync' -e "ssh -i ~/.ssh/sp-deploy-rsa" \
+  data/index/ ubuntu@49.234.25.35:/var/lib/docker/volumes/ziwei-data/_data/index/
+
+# 重启容器加载新索引
+ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 'docker restart ziwei-assistant'
+```
+
+### 9.4 排障要点
+
+- 容器起不来先看 `docker logs ziwei-assistant`——entrypoint 会打中文指引。
+- 服务器磁盘 40G 已用 87%，构建镜像前先 `df -h` 确认余量 ≥ 3G，切完 `docker image prune -f`。
+- 3000 端口属 ziwei；8088 属 enterprise API；3001 被别的进程占用，冒烟测试用 3002。
+- HTTPS 证书续期失败时手动跑：`sudo certbot renew --dry-run` 排查（webroot 模式，Nginx 必须在线）。

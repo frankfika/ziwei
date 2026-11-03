@@ -384,9 +384,12 @@ ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
     && docker rm -f ziwei-test'
 
 # ④ 切换生产容器
+#   ⚠️ --env-file 必带：镜像出于安全不含 .env.local，追问的 MiniMax 配置靠运行时注入。
+#   漏了的话容器里 0 个 ZIWEI_ASK_* 变量，界面会退回「AI 还没配置」。
 ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
   docker stop ziwei-assistant && docker rm ziwei-assistant
   docker run -d --name ziwei-assistant --restart unless-stopped -p 3000:3000 \
+    --env-file /opt/ziwei/apps/web/.env.local \
     -v ziwei-data:/app/data ziwei-assistant:compact
   docker image prune -f'
 

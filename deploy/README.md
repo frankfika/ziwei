@@ -371,10 +371,13 @@ rsync -az --rsync-path='sudo rsync' \
   /Users/fangchen/Baidu/GitHub/ziwei/ ubuntu@49.234.25.35:/opt/ziwei/
 
 # ② 服务器上构建（DEBIAN_MIRROR 必带，否则 apt 卡死）
+#   ⚠️ 必须看 BUILD_EXIT：构建失败时旧镜像还在，冒烟与切换会「全部正常」，
+#      但线上跑的是上一版代码（2026-11-03 踩过）。
 ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
   sudo docker build -f /opt/ziwei/deploy/Dockerfile \
     --build-arg DEBIAN_MIRROR=mirrors.aliyun.com \
-    -t ziwei-assistant:compact /opt/ziwei'
+    -t ziwei-assistant:compact /opt/ziwei 2>&1 | tail -3
+  echo "BUILD_EXIT=${PIPESTATUS[0]}"'
 
 # ③ 冒烟测试（临时容器，3001 若被占换 3002）
 ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '

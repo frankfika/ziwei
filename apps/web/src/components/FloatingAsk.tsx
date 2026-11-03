@@ -98,6 +98,12 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
   // 首页本身就是对话，悬浮球只出现在其余页面
   if (pathname === '/') return null;
 
+  // 盘面页底部有「命盘 | 解读」底栏，球要抬到栏之上；其余页面贴底
+  const onChartPage = pathname.startsWith('/chart');
+  const bottomClass = onChartPage
+    ? 'md:bottom-[calc(var(--chart-tab)+4rem)]'
+    : 'md:bottom-6';
+
   return (
     <>
       {/* 悬浮球：左下角，避开移动端底 tab */}
@@ -107,7 +113,7 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
           onClick={() => setOpen(true)}
           aria-label="打开追问助手"
           data-floating-ask-toggle
-          className="fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-3 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-zhu text-base font-medium text-white shadow-[0_8px_24px_rgba(46,42,35,0.3)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:bottom-6 md:left-auto md:right-6"
+          className={`fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-3 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-zhu text-base font-medium text-white shadow-[0_8px_24px_rgba(46,42,35,0.3)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:left-auto md:right-6 ${bottomClass}`}
         >
           <span aria-hidden="true">问</span>
         </button>

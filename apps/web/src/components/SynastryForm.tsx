@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import DateSelects from './DateSelects';
 import { useHistory } from '@/lib/history';
 import { resolveForm, SHICHEN_NAMES } from '@/lib/birth';
 
@@ -96,15 +97,18 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
           <option value="female">女</option>
         </select>
       </label>
-      <label className="block">
+      <label className="block sm:col-span-2">
         <span className="field-label">出生日期（公历）</span>
-        <input
-          name={`${prefix}d`}
-          type="date"
-          required
-          value={person.date}
-          onChange={(e) => set({ ...person, date: e.target.value })}
-          className="field-input"
+        <DateSelects
+          value={{ year: person.date.slice(0, 4), month: String(Number(person.date.slice(5, 7)) || ''), day: String(Number(person.date.slice(8, 10)) || '') }}
+          onChange={(v) =>
+            set({
+              ...person,
+              date: v.year && v.month && v.day
+                ? `${v.year}-${v.month.padStart(2, '0')}-${v.day.padStart(2, '0')}`
+                : '',
+            })
+          }
         />
       </label>
       <label className="block">

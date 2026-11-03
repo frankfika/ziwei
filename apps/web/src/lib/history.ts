@@ -105,9 +105,14 @@ function nextList(prev: HistoryEntry[], entry: HistoryEntry): HistoryEntry[] {
  */
 export function useHistory() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  /** 首次读盘完成。挂载第一帧 history 恒为 []，不能拿它判断"用户没有档案" */
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const reread = () => setHistory(readStore());
+    const reread = () => {
+      setHistory(readStore());
+      setReady(true);
+    };
     reread();
     // 常驻布局组件跨软导航不重挂载：监听写入广播与跨 tab 的 storage 事件，保持最新
     window.addEventListener(HISTORY_EVENT, reread);
@@ -156,5 +161,5 @@ export function useHistory() {
     setHistory([]);
   }, []);
 
-  return { history, save, remove, rename, clear };
+  return { history, ready, save, remove, rename, clear };
 }

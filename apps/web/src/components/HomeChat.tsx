@@ -29,7 +29,7 @@ const PROFILE_CHIP_CLASS =
   'shrink-0 rounded-full border px-3 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
 export default function HomeChat({ providerConfigured = true }: { providerConfigured?: boolean }) {
-  const { history } = useHistory();
+  const { history, ready } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
@@ -45,12 +45,13 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     [selected],
   );
 
-  // 没有档案时：把「新建档案」折叠区自动展开 —— 首屏第一件事就是录入生辰
+  // 没有档案时：把「新建档案」折叠区自动展开 —— 首屏第一件事就是录入生辰。
+  // 必须等档案库读完（ready）再判断，否则挂载第一帧 history=[] 会误展开
   useEffect(() => {
-    if (history.length === 0) {
+    if (ready && history.length === 0) {
       document.getElementById('new-profile')?.setAttribute('open', '');
     }
-  }, [history.length]);
+  }, [ready, history.length]);
 
   if (history.length === 0) {
     return (

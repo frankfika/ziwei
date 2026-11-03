@@ -95,7 +95,38 @@ npm run index:build
 ✅ 完成：77 个年份，共 674,976 条记录，用时 210.8s
 ```
 
-### 4.3 扩展覆盖年份
+### 4.3 压缩形态（compact）：1.5GB 顶替 53GB raw
+
+`data/compact/` 是每条记录压成一个独立 zstd 帧（共享字典，约 **34 倍**压缩）。
+查询时**优先走 compact**，缺帧才回退 raw —— 所以 raw 解压完可以删掉。
+
+```bash
+# 全量压缩（幂等：已完成的年份会跳过）
+npm run data:compact -- --all
+
+# 只压指定年份
+npm run data:compact -- --years 1990,2000,2020
+
+# 并行（默认 6 进程）
+npm run data:compact -- --all --jobs 8
+```
+
+压完的目录布局：
+
+```
+data/compact/
+├── dict                     ← 共享字典（zstd 训练得出）
+├── year-1950.bin            ← 每条记录一个独立帧，可随机 seek
+└── …
+```
+
+体积：全年代 raw 53GB → compact **1.5GB**（`data/index/` 15MB 不变）。
+部署只需挂 compact + index，详见 `deploy/README.md` 第 9 节。
+
+> 前提是 raw 已经解压过 —— compact 是从 raw 压出来的。
+> 只想留 compact 的机器：压完删 `data/raw/`，查询自动走 compact。
+
+### 4.4 扩展覆盖年份
 
 **当前状态：已全年代覆盖（1950–2026，674,976 条）。**
 
@@ -103,9 +134,10 @@ npm run index:build
 |---|---|---|
 | `data/zst/` | 77 个压缩包 | 164MB |
 | `data/raw/` | 77 个解压后的 JSONL | 53GB |
+| `data/compact/` | 77 份压缩形态（推荐部署用） | 1.5GB |
 | `data/index/` | 77 份偏移索引 | 15MB |
 
-> 索引总���只有 15MB —— 这是偏移索引方案的价值：
+> 索引总共只有 15MB —— 这是偏移索引方案的价值：
 > 53GB 的正文原地读，索引只存 `key → [offset, length]`。
 
 **如果需要重新铺一遍**（例如换机器 / 清理磁盘）：

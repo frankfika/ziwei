@@ -83,7 +83,7 @@ For cultural interest and study only. Not medical, legal, or investment advice.
 
 ---
 
-## 5. 二��分发数据集时
+## 5. 二次分发数据集时
 
 如果本项目未来要对外分发数据集本身（例如提供全量下载）：
 

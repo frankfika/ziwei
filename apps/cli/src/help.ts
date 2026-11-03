@@ -34,10 +34,12 @@ export function helpText(): string {
 
 追问（ask）需要先配置模型 provider（默认不联网）：
   export ZIWEI_ASK_PROVIDER=openai
-  export ZIWEI_ASK_BASE_URL=https://api.minimax.cn/v1
+  export ZIWEI_ASK_BASE_URL=https://api.minimaxi.com/v1
   export ZIWEI_ASK_API_KEY=sk-...
-  export ZIWEI_ASK_MODEL=MiniMax-M3
+  export ZIWEI_ASK_MODEL=MiniMax-M1
   # 可选：export ZIWEI_ASK_MAX_TOKENS=8000
+  # ⚠️ 别用思维链模型（M3 / R1 / QwQ…）：思考 token 与正文共用 max_tokens 预算，
+  #    思考一长就撞上 180s 超时（实测 M3 同一问题 281s，M1 只要 12s）。
 
 示例：
   ziwei read --date 1990-01-01 --hour 子 --gender male

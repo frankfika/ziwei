@@ -105,11 +105,11 @@ export default function FloatingAsk({
   // 首页本身就是对话，悬浮球只出现在其余页面；排盘表单页也要让位，别压住表单
   if (pathname === '/' || pathname === '/new') return null;
 
-  // 盘面页底部有「命盘 | 解读」底栏，球要抬到栏之上；其余页面贴底
+  // 盘面页底部有「命盘 | 解读」底栏 + 图例行，球要抬到图例之上；其余页面贴底
   const onChartPage = pathname.startsWith('/chart');
   const bottomClass = onChartPage
-    ? 'md:bottom-[calc(var(--chart-tab)+4rem)]'
-    : 'md:bottom-6';
+    ? 'bottom-[calc(var(--chart-tab)+3.5rem)] md:bottom-[calc(var(--chart-tab)+4rem)]'
+    : 'bottom-[calc(72px+env(safe-area-inset-bottom,0px))] md:bottom-6';
 
   return (
     <>

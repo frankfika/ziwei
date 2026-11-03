@@ -232,9 +232,9 @@ export default async function ChartPage({
         }}
         /* 摘要行：单行 H1（不再是大标题块） */
         summary={
-          <h1 className="truncate text-xs font-medium tracking-wide text-ink md:text-sm">
+          <h1 className="truncate text-sm font-medium tracking-wide text-ink md:text-base">
             {name ? `${name} · ` : ''}
-            {chartDate} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]}
+            {`${year}年${month}月${day}日`} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]}
             {lateFlag && (
               <span className="ml-1.5 text-zhu" title="晚子时已按传统规则顺延排盘日">
                 晚子时顺延
@@ -246,7 +246,7 @@ export default async function ChartPage({
         details={
           <div className="space-y-2 text-2xs leading-relaxed text-ink-2">
             <p>
-              排盘日 <span className="tabular-nums text-ink">{chartDate}</span>
+              排盘日 <span className="tabular-nums text-ink">{`${year}年${month}月${day}日`}</span>
             </p>
             <p>
               {SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）

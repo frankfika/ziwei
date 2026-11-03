@@ -97,8 +97,8 @@ export default function HomeChat({
         </div>
       )}
 
-      {/* 状态 + 入口一行摆平：左边说清「现在用谁」，右边给排盘入口 */}
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      {/* 状态胶囊独占一行：说清「现在用谁」，点它开 AI 设置（设置入口只留这一处） */}
+      <div className="mb-2.5">
         <button
           type="button"
           onClick={() => setShowConfig((v) => !v)}
@@ -121,17 +121,9 @@ export default function HomeChat({
             ⚙
           </span>
         </button>
-        <div className="flex items-center gap-2">
-          <Link href="/new" className={TOOL_LINK_CLASS}>
-            ＋ 新建档案
-          </Link>
-          <Link href="/synastry" className={TOOL_LINK_CLASS}>
-            双人合盘 →
-          </Link>
-        </div>
       </div>
 
-      {/* 档案选择：星册即「我的人」；末尾常驻 AI 设置入口 */}
+      {/* 档案行：档案芯片 + 新建/合盘 —— 都是「管档案」的动作，放一行横向滚动 */}
       <div
         className="-mx-2 mb-3 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
@@ -158,19 +150,12 @@ export default function HomeChat({
           );
         })}
         <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line" />
-        <button
-          type="button"
-          onClick={() => setShowConfig((v) => !v)}
-          aria-expanded={showConfig}
-          aria-label="AI 设置"
-          className={`${PROFILE_CHIP_CLASS} shrink-0 ${
-            userAi
-              ? 'border-zhu/40 text-zhu hover:border-zhu'
-              : 'border-line bg-surface text-ink-2 hover:border-ink-3'
-          }`}
-        >
-          ⚙ AI 设置
-        </button>
+        <Link href="/new" className={TOOL_LINK_CLASS}>
+          ＋ 新建档案
+        </Link>
+        <Link href="/synastry" className={TOOL_LINK_CLASS}>
+          双人合盘 →
+        </Link>
       </div>
 
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。

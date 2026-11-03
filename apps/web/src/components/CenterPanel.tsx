@@ -279,21 +279,21 @@ export default function CenterPanel({
               <button
                 type="button"
                 onClick={() => onNavigateTab('reading')}
-                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 看解读
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('ask')}
-                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 去追问
               </button>
               {reportUrl && (
                 <Link
                   href={reportUrl}
-                  className="rounded-full border border-line bg-surface px-2 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
                   年报
                 </Link>

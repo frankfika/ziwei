@@ -451,7 +451,7 @@ export default function AskPanel({
                   回答只依据这张盘的数据集原文 —— 材料里没写的，它会直说没有；对话只存在本机浏览器。
                 </p>
               </div>
-              <div className="grid max-w-2xl gap-2.5 sm:grid-cols-2">
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 {presets
                   .filter((p) => p.featured)
                   .map((p) => (

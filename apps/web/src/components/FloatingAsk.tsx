@@ -33,7 +33,14 @@ export function dispatchZiweiAsk(detail: ZiweiAskEventDetail): void {
 
 type PanelBirth = { year: number; month: number; day: number; hour: number; gender: 'male' | 'female' };
 
-export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?: boolean }) {
+export default function FloatingAsk({
+  serverAiReady = false,
+  serverModel,
+}: {
+  serverAiReady?: boolean;
+  /** 服务端内置 AI 的模型名（展示用，不含密钥） */
+  serverModel?: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -155,19 +162,26 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
           {showConfig && (
             <div className="border-b border-lineSoft px-4 py-3 sm:px-6">
               <div className="mx-auto w-full max-w-2xl">
-                <AiConfigPanel onClose={() => setShowConfig(false)} />
+                <AiConfigPanel
+                  onClose={() => setShowConfig(false)}
+                  serverAiReady={serverAiReady}
+                  serverModel={serverModel}
+                />
               </div>
             </div>
           )}
 
-          {!aiConfigured && (
-            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
+          {!aiConfigured ? (
+            <p className="shrink-0 px-4 pt-2 text-2xs text-danger sm:px-6">
               AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
             </p>
-          )}
-          {serverAiReady && !userAi && (
+          ) : userAi ? (
             <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              当前用内置 AI 提问，每天 10 次免费；点右上角 ⚙ 可换成自己的 Key（不限量）。
+              正在用：你的 Key（{readUserConfig()?.model}）—— 右上角 ⚙ 可更换或测试。
+            </p>
+          ) : (
+            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
+              正在用：内置 AI{serverModel ? `（${serverModel}）` : ''} · 每天 10 次 —— 右上角 ⚙ 可换成自己的 Key。
             </p>
           )}
 

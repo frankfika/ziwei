@@ -32,7 +32,14 @@ const PROFILE_CHIP_CLASS =
 const TOOL_LINK_CLASS =
   'inline-flex min-h-9 items-center gap-1 rounded-full border border-zhu/30 bg-zhu-soft/50 px-3 py-1.5 text-xs text-zhu transition-colors hover:border-zhu hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
-export default function HomeChat({ providerConfigured = true }: { providerConfigured?: boolean }) {
+export default function HomeChat({
+  providerConfigured = true,
+  serverModel,
+}: {
+  providerConfigured?: boolean;
+  /** 服务端内置 AI 的模型名（展示用，不含密钥） */
+  serverModel?: string;
+}) {
   const { history, ready } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
@@ -76,27 +83,53 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
   const aiReady = providerConfigured || userAi;
   const name = displayName(selected!);
   const chart = chartUrl(selected!.form);
+  const userCfg = userAi ? readUserConfig() : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* AI 状态：内置 AI 可用时告诉用户额度，别让「⚙ AI 设置」看起来像必填项 */}
-      {providerConfigured && !userAi && !showConfig ? (
-        <p className="mb-3 text-xs text-ink-2">
-          已内置 AI，每天 10 次免费提问；点「⚙ AI 设置」可换成自己的 Key（不限量）。
-        </p>
-      ) : (
-        !aiReady &&
-        !showConfig && (
-          <p className="mb-3 text-xs text-ink-2">
-            AI 还没配置 —— 点「⚙ AI 设置」填一个 API Key（只存本机）。
-          </p>
-        )
-      )}
       {showConfig && (
         <div className="mb-3">
-          <AiConfigPanel onClose={() => setShowConfig(false)} />
+          <AiConfigPanel
+            onClose={() => setShowConfig(false)}
+            serverAiReady={providerConfigured}
+            serverModel={serverModel}
+          />
         </div>
       )}
+
+      {/* 状态 + 入口一行摆平：左边说清「现在用谁」，右边给排盘入口 */}
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <button
+          type="button"
+          onClick={() => setShowConfig((v) => !v)}
+          data-ai-status
+          title="点开 AI 设置"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          <span
+            aria-hidden="true"
+            className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
+          />
+          {userCfg ? (
+            <>正在用：你的 Key（{userCfg.model}）</>
+          ) : providerConfigured ? (
+            <>正在用：内置 AI{serverModel ? `（${serverModel}）` : ''} · 每天 10 次</>
+          ) : (
+            <span className="text-danger">AI 还没配置 —— 点这里填 Key</span>
+          )}
+          <span aria-hidden="true" className="text-ink-3">
+            ⚙
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/new" className={TOOL_LINK_CLASS}>
+            ＋ 新建档案
+          </Link>
+          <Link href="/synastry" className={TOOL_LINK_CLASS}>
+            双人合盘 →
+          </Link>
+        </div>
+      </div>
 
       {/* 档案选择：星册即「我的人」；末尾常驻 AI 设置入口 */}
       <div
@@ -138,16 +171,6 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         >
           ⚙ AI 设置
         </button>
-      </div>
-
-      {/* 排盘入口：新建档案 / 双人合盘 —— 单独一行，永远不被裁掉 */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <Link href="/new" className={TOOL_LINK_CLASS}>
-          ＋ 新建档案
-        </Link>
-        <Link href="/synastry" className={TOOL_LINK_CLASS}>
-          双人合盘 →
-        </Link>
       </div>
 
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。

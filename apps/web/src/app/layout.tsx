@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SiteHeader } from '@/components/SiteHeader';
 import FloatingAsk from '@/components/FloatingAsk';
-import { describeProviderEnv } from '@ziwei/ask';
+import { describeProviderEnv, readProviderEnv } from '@ziwei/ask';
 
 export const metadata: Metadata = {
   title: {
@@ -41,9 +41,15 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const provider = describeProviderEnv();
+  const serverModel = provider.ok ? readProviderEnv().model : undefined;
+
   return (
     <html lang="zh-CN">
-      <body className="flex min-h-[100dvh] flex-col">
+      {/* App-shell：body 锁定视口高（100vh，支持的浏览器升级到 100dvh），
+          各页面的滚动都发生在 main 内部 —— 对话再长也不会把页面越拖越长。
+          用 supports 渐进增强，老浏览器回落 100vh；不用 env()/自定义属性，不会整条失效 */}
+      <body className="flex h-screen flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh]">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-zhu focus:px-4 focus:py-2 focus:text-sm focus:text-white focus:shadow-lg"
@@ -51,10 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           跳到主要内容
         </a>
         <SiteHeader />
-        <main id="main-content" className="flex flex-1 flex-col">
+        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {children}
         </main>
-        <FloatingAsk serverAiReady={describeProviderEnv().ok} />
+        <FloatingAsk serverAiReady={describeProviderEnv().ok} serverModel={serverModel} />
       </body>
     </html>
   );

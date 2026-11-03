@@ -146,7 +146,8 @@ export default function BirthForm({
 
   const onPickHistory = (entry: BirthFormState) => {
     setForm({ ...EMPTY_FORM, ...entry });
-    window.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
+    // app-shell 布局下页面滚动发生在 main 里（window 不滚）
+    document.getElementById('main-content')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
   };
 
   /** 提交：先记入本地历史，再由 Server Action 用引擎口径算出排盘日并跳转 */

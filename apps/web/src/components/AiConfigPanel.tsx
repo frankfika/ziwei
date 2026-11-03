@@ -3,6 +3,8 @@
 /**
  * AI 配置面板 —— 让用户自己填 provider / base URL / key / 模型。
  * 配置存本机 localStorage；key 不上传到任何第三方，只在提问时随请求送到我们自己的服务端。
+ *
+ * 「现在到底在用谁」在面板顶部一行说清楚；「配的 key 有没有效」用测试连接一键验证。
  */
 
 import { useEffect, useState } from 'react';
@@ -15,7 +17,23 @@ import {
   type UserProviderKind,
 } from '@/lib/aiConfig';
 
-export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
+type TestState =
+  | { phase: 'idle' }
+  | { phase: 'testing' }
+  | { phase: 'ok'; model: string }
+  | { phase: 'fail'; error: string };
+
+export default function AiConfigPanel({
+  onClose,
+  serverAiReady = false,
+  serverModel,
+}: {
+  onClose: () => void;
+  /** 服务端有没有配内置 AI（决定「清除后用什么」的提示） */
+  serverAiReady?: boolean;
+  /** 服务端内置 AI 的模型名（展示用） */
+  serverModel?: string;
+}) {
   const [cfg, setCfg] = useState<UserProviderConfig>({
     kind: 'openai',
     baseUrl: 'https://api.openai.com/v1',
@@ -25,6 +43,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
   });
   const [saved, setSaved] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
+  const [test, setTest] = useState<TestState>({ phase: 'idle' });
 
   useEffect(() => {
     const existing = readUserConfig();
@@ -37,6 +56,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
   const update = (patch: Partial<UserProviderConfig>) => {
     setCfg((prev) => ({ ...prev, ...patch }));
     setSaved(false);
+    setTest({ phase: 'idle' });
   };
 
   const applyPreset = (p: (typeof PRESETS)[number]) => {
@@ -51,16 +71,33 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
     window.setTimeout(() => setSaved(false), 2000);
   };
 
+  const runTest = async () => {
+    setTest({ phase: 'testing' });
+    try {
+      const fd = new FormData();
+      fd.set('kind', cfg.kind);
+      fd.set('key', cfg.apiKey);
+      fd.set('model', cfg.model);
+      fd.set('baseUrl', cfg.baseUrl);
+      const r = await fetch('/api/ai-test', { method: 'POST', body: fd });
+      const j = (await r.json()) as { ok: boolean; model?: string; error?: string };
+      setTest(j.ok ? { phase: 'ok', model: j.model ?? cfg.model } : { phase: 'fail', error: j.error ?? '未知错误' });
+    } catch {
+      setTest({ phase: 'fail', error: '请求失败 —— 网络不通或服务暂不可用' });
+    }
+  };
+
   const clear = () => {
     clearUserConfig();
     setHasConfig(false);
     setCfg((prev) => ({ ...prev, apiKey: '' }));
+    setTest({ phase: 'idle' });
   };
 
   return (
     <div className="rounded-xl border border-line bg-surface p-4" data-ai-config>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-medium tracking-wide text-ink">AI 配置</h3>
+        <h3 className="text-xs font-medium tracking-wide text-ink">AI 设置</h3>
         <button
           type="button"
           onClick={onClose}
@@ -70,8 +107,24 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
+      {/* 现在到底在用谁 —— 先回答这个问题，再谈配置 */}
+      <div className="mb-3 rounded-lg border border-lineSoft bg-paper/60 px-3 py-2.5" data-ai-active>
+        {hasConfig ? (
+          <p className="text-xs leading-relaxed text-ink">
+            正在用：<span className="font-medium">你的 Key</span>（{cfg.model}）
+          </p>
+        ) : serverAiReady ? (
+          <p className="text-xs leading-relaxed text-ink">
+            正在用：<span className="font-medium">内置 AI</span>
+            {serverModel && <span className="text-ink-2">（{serverModel}）</span>} · 每天免费 10 次
+          </p>
+        ) : (
+          <p className="text-xs leading-relaxed text-ink">正在用：无 —— 下面填一个 Key 才能追问</p>
+        )}
+      </div>
+
       <p className="mb-3 text-2xs leading-relaxed text-ink-2">
-        自己填一个模型端点就能用追问。配置只存在这台设备的浏览器里，不上传。
+        换成自己的 Key 就不限量。配置只存在这台设备的浏览器里，不上传。
       </p>
 
       {/* 预设 */}
@@ -183,6 +236,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {/* 操作行：保存 + 测试连接 */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -192,19 +246,36 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
         >
           {saved ? '已保存' : '保存配置'}
         </button>
+        <button
+          type="button"
+          onClick={runTest}
+          disabled={cfg.kind !== 'echo' && (!cfg.apiKey.trim() || !cfg.model.trim()) || test.phase === 'testing'}
+          data-ai-test-button
+          className="inline-flex min-h-9 items-center rounded-lg border border-zhu/30 bg-zhu-soft/60 px-3 py-2 text-xs text-zhu transition-colors hover:border-zhu disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          {test.phase === 'testing' ? '测试中…' : '测试连接'}
+        </button>
         {hasConfig && (
           <button
             type="button"
             onClick={clear}
             className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            清除，改用服务端默认
+            清除，改用{serverAiReady ? '内置 AI' : '默认'}
           </button>
         )}
       </div>
 
-      {hasConfig && (
-        <p className="mt-2 text-2xs text-ink-2">已启用自配模型：{cfg.model}</p>
+      {/* 测试结果：直接告诉用户 key 有没有效 */}
+      {test.phase === 'ok' && (
+        <p className="mt-2.5 rounded-lg border border-hua-lu/30 bg-hua-lu/10 px-3 py-2 text-xs text-hua-lu" data-ai-test-ok role="status">
+          ✓ 连通有效 —— 端点返回了模型 {test.model}。保存后追问就走这个 Key（不限量）。
+        </p>
+      )}
+      {test.phase === 'fail' && (
+        <p className="mt-2.5 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs leading-relaxed text-danger" data-ai-test-fail role="alert">
+          ✗ 没连通：{test.error}
+        </p>
       )}
     </div>
   );

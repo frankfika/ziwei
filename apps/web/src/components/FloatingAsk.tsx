@@ -95,8 +95,8 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
     setSeed(null);
   }, []);
 
-  // 首页本身就是对话，悬浮球只出现在其余页面
-  if (pathname === '/') return null;
+  // 首页本身就是对话，悬浮球只出现在其余页面；排盘表单页也要让位，别压住表单
+  if (pathname === '/' || pathname === '/new') return null;
 
   // 盘面页底部有「命盘 | 解读」底栏，球要抬到栏之上；其余页面贴底
   const onChartPage = pathname.startsWith('/chart');

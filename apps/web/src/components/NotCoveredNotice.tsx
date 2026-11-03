@@ -49,7 +49,7 @@ export default function NotCoveredNotice({
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
-          href="/"
+          href="/new"
           className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           换一个年份重试

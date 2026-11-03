@@ -40,6 +40,8 @@ export interface AskPanelProps {
   quickPrompts?: AskQuickPrompt[];
   /** 嵌入模式（首页对话）：去掉「命盘追问」折叠头，芯片条固定在输入区上方 */
   bare?: boolean;
+  /** 这张盘的显示名：空态里点名「围绕 XX 的盘提问」，别让用户猜是哪张盘 */
+  subjectName?: string;
   /** 对话内嵌命盘：回答后就地渲染迷你盘，不跳走 */
   embedChart?: boolean;
 }
@@ -164,6 +166,7 @@ export default function AskPanel({
   seed,
   quickPrompts,
   bare = false,
+  subjectName,
   embedChart = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
@@ -419,8 +422,10 @@ export default function AskPanel({
           className={bare ? 'min-h-0 flex-1 overflow-y-auto' : undefined}
         >
           {messages.length === 0 && !pending && !transient && bare && (
-            <div className="flex h-full flex-col items-center justify-center gap-1 text-center" role="status">
-              <p className="text-sm text-ink-2">围绕这张盘提问</p>
+            <div className="flex h-full flex-col items-center justify-start gap-1 pt-12 text-center" role="status">
+              <p className="text-sm text-ink-2">
+                {subjectName ? `围绕 ${subjectName} 的盘提问` : '围绕这张盘提问'}
+              </p>
               <p className="text-2xs leading-relaxed text-ink-3">
                 回答只依据数据集原文，对话只存在本机。
               </p>

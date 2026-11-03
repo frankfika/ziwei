@@ -162,7 +162,7 @@ export default async function AboutPage() {
 
       <div className="mt-12">
         <Link
-          href="/"
+          href="/new"
           className="inline-flex items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           去排一张盘

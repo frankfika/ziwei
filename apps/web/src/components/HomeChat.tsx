@@ -12,7 +12,7 @@ import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
 import { readUserConfig } from '@/lib/aiConfig';
-import { useHistory, chartUrl } from '@/lib/history';
+import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
@@ -27,6 +27,10 @@ const INTENT_CHIPS: AskQuickPrompt[] = [
 
 const PROFILE_CHIP_CLASS =
   'shrink-0 rounded-full border px-3 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+
+/** 顶部小链接：新建档案 / 双人合盘 —— 都在聊天区之外，不挤对话 */
+const TOOL_LINK_CLASS =
+  'inline-flex min-h-8 items-center rounded-md px-1 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
 export default function HomeChat({ providerConfigured = true }: { providerConfigured?: boolean }) {
   const { history, ready } = useHistory();
@@ -45,21 +49,22 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     [selected],
   );
 
-  // 没有档案时：把「新建档案」折叠区自动展开 —— 首屏第一件事就是录入生辰。
-  // 必须等档案库读完（ready）再判断，否则挂载第一帧 history=[] 会误展开
-  useEffect(() => {
-    if (ready && history.length === 0) {
-      document.getElementById('new-profile')?.setAttribute('open', '');
-    }
-  }, [ready, history.length]);
+  // 档案库还没读完（挂载第一帧 history 恒为 []）：先别渲染，免得闪一下「还没有档案」
+  if (!ready) return null;
 
   if (history.length === 0) {
     return (
-      <div className="panel-ritual p-5 text-center sm:p-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
         <p className="text-sm text-ink">还没有档案</p>
-        <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-          在下方录入生辰排一张盘，之后打开首页就能直接接着聊。
+        <p className="max-w-xs text-2xs leading-relaxed text-ink-3">
+          先排一张盘，之后打开首页就能直接接着聊。
         </p>
+        <Link
+          href="/new"
+          className="inline-flex min-h-10 items-center rounded-lg bg-zhu px-5 py-2 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          去排一张盘
+        </Link>
       </div>
     );
   }
@@ -69,24 +74,26 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     : selected?.id ?? 'none';
 
   const aiReady = providerConfigured || userAi;
+  const name = displayName(selected!);
+  const chart = chartUrl(selected!.form);
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* AI 状态：内置 AI 可用时告诉用户额度，别让「⚙ AI 设置」看起来像必填项 */}
       {providerConfigured && !userAi && !showConfig ? (
-        <p className="mb-3 text-2xs text-ink-3">
-          已内置 AI，每天 10 次免费提问；点上方「⚙ AI 设置」可换成自己的 Key（不限量）。
+        <p className="mb-2 text-2xs text-ink-3">
+          已内置 AI，每天 10 次免费提问；点「⚙ AI 设置」可换成自己的 Key（不限量）。
         </p>
       ) : (
         !aiReady &&
         !showConfig && (
-          <p className="mb-3 text-2xs text-ink-3">
-            AI 还没配置 —— 点上方「⚙ AI 设置」填一个 API Key（只存本机）。
+          <p className="mb-2 text-2xs text-ink-3">
+            AI 还没配置 —— 点「⚙ AI 设置」填一个 API Key（只存本机）。
           </p>
         )
       )}
       {showConfig && (
-        <div className="mb-4">
+        <div className="mb-3">
           <AiConfigPanel onClose={() => setShowConfig(false)} />
         </div>
       )}
@@ -105,6 +112,7 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
               type="button"
               role="tab"
               aria-selected={active}
+              title={entry.label}
               onClick={() => setSelectedId(entry.id)}
               className={`${PROFILE_CHIP_CLASS} ${
                 active
@@ -112,7 +120,7 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
                   : 'border-line bg-surface text-ink-2 hover:border-ink-3'
               }`}
             >
-              {entry.label}
+              {shortLabel(entry)}
             </button>
           );
         })}
@@ -132,23 +140,36 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         </button>
       </div>
 
-      {/* 查看命盘：紧跟档案芯片，不占一整行 */}
-      {selected && chartUrl(selected.form) && (
-        <p className="mb-3">
-          <Link
-            href={chartUrl(selected.form)!}
-            className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            查看命盘 →
-          </Link>
-        </p>
-      )}
+      {/* 排盘入口：新建档案 / 双人合盘 —— 收在聊天区之上，不占对话的地盘 */}
+      <div className="mb-2 flex shrink-0 items-center justify-end gap-4">
+        <Link href="/new" className={TOOL_LINK_CLASS}>
+          ＋ 新建档案
+        </Link>
+        <Link href="/synastry" className={TOOL_LINK_CLASS}>
+          双人合盘 →
+        </Link>
+      </div>
 
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。
-          桌面端限定高度让线程内部滚动 —— 输入框始终钉在聊天区底部，
-          不再被长回答推走，也和下方「新建档案」拉开主次 */}
+          面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部 */}
       {resolved?.ok && resolved.resolved ? (
-        <div className="flex min-h-0 flex-col rounded-2xl border border-lineSoft bg-surface-2/30 px-2 py-3 sm:px-4 md:h-[calc(100dvh-17.5rem)] md:px-5">
+        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-lineSoft bg-surface-2/30 px-2 py-3 sm:px-4">
+          {/* 面板头：说清现在问的是哪张盘 */}
+          <div className="mb-2 flex shrink-0 items-baseline justify-between gap-3 border-b border-lineSoft pb-2">
+            <p className="min-w-0 truncate text-xs text-ink">
+              {name && <span className="font-medium">{name}</span>}
+              {name && ' · '}
+              <span className="text-ink-2">{detailLabel(selected!.form)}</span>
+            </p>
+            {chart && (
+              <Link
+                href={chart}
+                className="shrink-0 text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                查看命盘 →
+              </Link>
+            )}
+          </div>
           <AskPanel
             key={identity}
             year={resolved.resolved.year}
@@ -159,11 +180,12 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
             available
             providerConfigured={providerConfigured}
             quickPrompts={INTENT_CHIPS}
+            subjectName={name || undefined}
             bare
           />
         </div>
       ) : (
-        <div className="panel p-5 text-center" role="status">
+        <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
           <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
         </div>
       )}

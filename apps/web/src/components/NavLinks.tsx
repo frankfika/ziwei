@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const NAV = [
-  { href: '/', label: '开始排盘' },
+  { href: '/new', label: '开始排盘' },
   { href: '/about', label: '关于与口径' },
 ] as const;
 

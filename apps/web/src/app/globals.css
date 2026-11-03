@@ -8,6 +8,8 @@
 
     /* 盘页顶区预算：header + 单行摘要 */
     --chart-chrome: 112px;
+    /* 站点头部总高（h-14 + 1px 分隔线 + iPhone 安全区）—— 首页全屏聊天用它算可视高度 */
+    --site-header-h: calc(3.5rem + 1px + env(safe-area-inset-top, 0px));
     /* 底 Tab 高度（不含 safe-area） */
     --chart-tab: 56px;
     /* 三方高亮底色（zhu-soft / 45）—— .is-sanfang 与 sanfang-fade keyframes 共用这一份 */

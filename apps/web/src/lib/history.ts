@@ -53,18 +53,30 @@ export function chartUrl(form: BirthFormState): string | null {
 }
 
 function buildLabel(form: BirthFormState): string {
+  return [form.name, detailLabel(form)].filter(Boolean).join(' · ');
+}
+
+/** 档案详情行：生辰 + 时辰 + 性别（不含名字） */
+export function detailLabel(form: BirthFormState): string {
   const time =
     form.timeMode === 'clock'
       ? formatClock(Number(form.clockHour), Number(form.clockMinute))
       : `${SHICHEN_NAMES[form.shichen]}时`;
-  return [
-    form.name,
-    `${form.year}年${form.month}月${form.day}日`,
-    time,
-    GENDER_LABEL[form.gender],
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  return `${form.year}年${form.month}月${form.day}日 · ${time} · ${GENDER_LABEL[form.gender]}`;
+}
+
+/**
+ * 档案显示名：录入时起的名字优先；没名字时若被改过名就用改后的名字，否则空。
+ */
+export function displayName(entry: HistoryEntry): string {
+  const named = entry.form.name.trim();
+  if (named) return named;
+  return entry.label === buildLabel(entry.form) ? '' : entry.label;
+}
+
+/** 芯片上的短名：显示名优先，没有就用生辰 */
+export function shortLabel(entry: HistoryEntry): string {
+  return displayName(entry) || `${entry.form.year}/${entry.form.month}/${entry.form.day}`;
 }
 
 function readStore(): HistoryEntry[] {

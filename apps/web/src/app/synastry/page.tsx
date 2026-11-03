@@ -105,11 +105,11 @@ export default async function SynastryPage({
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
       <header className="mb-8 text-center">
-        <p className="text-2xs tracking-[0.35em] text-ink-3">双人合盘</p>
+        <p className="text-2xs tracking-[0.35em] text-ink-2">双人合盘</p>
         <h1 className="mt-2 font-serif text-title font-semibold text-ink">
           {labelOf(a)} × {labelOf(b)}
         </h1>
-        <p className="mt-1.5 text-2xs text-ink-3">
+        <p className="mt-1.5 text-xs text-ink-2">
           {a.year}-{a.month}-{a.day} × {b.year}-{b.month}-{b.day} ·{' '}
           <Link
             href={`/synastry?an=${encodeURIComponent(a.name)}&ag=${a.gender}&ad=${a.year}-${String(a.month).padStart(2, '0')}-${String(a.day).padStart(2, '0')}&ah=${a.hour}&edit=1&bn=${encodeURIComponent(b.name)}&bg=${b.gender}&bd=${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}&bh=${b.hour}`}

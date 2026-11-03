@@ -62,6 +62,10 @@ export interface AskQuickPrompt {
   dimension?: string;
   /** 时间层焦点：流年（今年）/ 大限（这十年） */
   time?: 'liunian' | 'daxian';
+  /** 空态大卡片用的一句话说明（比 question 短） */
+  hint?: string;
+  /** 是否进空态大卡片（首页第一次进来时给「点哪儿」的提示） */
+  featured?: boolean;
 }
 
 const PRESETS = [
@@ -90,7 +94,7 @@ function AnswerAvatar({ cited }: { cited?: string[] }) {
       </span>
       <span className="text-2xs font-medium text-ink-2">紫微</span>
       {cited && cited.length > 0 && (
-        <span className="text-2xs text-ink-3">· 参 {cited.join('、')}</span>
+        <span className="text-2xs text-ink-2">· 参 {cited.join('、')}</span>
       )}
     </p>
   );
@@ -112,7 +116,7 @@ function suspectsOf(result: Extract<AskActionResult, { status: 'ok' }>): string[
 
 function MessageMeta({ message }: { message: AskMessage }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-3">
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-2">
       <span className={ASK_MARK_CLASS}>答</span>
       <span>
         {new Date(message.at).toLocaleString('zh-CN', {
@@ -348,12 +352,12 @@ export default function AskPanel({
               <span className="block text-sm tracking-[0.2em] text-ink">
                 命盘追问
                 {messages.length > 0 && (
-                  <span className="ml-2 text-2xs font-normal tracking-normal text-ink-3">
+                  <span className="ml-2 text-2xs font-normal tracking-normal text-ink-2">
                     已存 {messages.length} 条对话
                   </span>
                 )}
               </span>
-              <span className="mt-1 block text-2xs font-normal text-ink-3">
+              <span className="mt-1 block text-2xs font-normal text-ink-2">
                 对话只存在本机
               </span>
             </span>
@@ -388,7 +392,7 @@ export default function AskPanel({
                 window.requestAnimationFrame(() => textareaRef.current?.focus());
               }}
               aria-label="展开更多推荐追问"
-              className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3 py-2 text-2xs text-ink-3 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               更多推荐
             </button>
@@ -419,16 +423,43 @@ export default function AskPanel({
           id={resultId}
           aria-live="polite"
           aria-busy={pending}
-          className={bare ? 'min-h-0 flex-1 overflow-y-auto' : undefined}
+          className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
         >
           {messages.length === 0 && !pending && !transient && bare && (
-            <div className="flex h-full flex-col items-center justify-start gap-1 pt-12 text-center" role="status">
-              <p className="text-sm text-ink-2">
-                {subjectName ? `围绕 ${subjectName} 的盘提问` : '围绕这张盘提问'}
-              </p>
-              <p className="text-2xs leading-relaxed text-ink-3">
-                回答只依据数据集原文，对话只存在本机。
-              </p>
+            /* 空态就是「引导」：不给一排灰字链接，直接给几张能点的卡片 ——
+               没人会主动提问，就让人点一下就有回答 */
+            <div className="flex flex-1 flex-col justify-center gap-3" role="status">
+              <div>
+                <p className="text-[1.05rem] font-medium text-ink">
+                  {subjectName ? `想问问 ${subjectName} 这张盘什么？` : '想问问这张盘什么？'}
+                </p>
+                <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-ink-2">
+                  回答只依据这张盘的数据集原文 —— 材料里没写的，它会直说没有；对话只存在本机浏览器。
+                </p>
+              </div>
+              <div className="grid max-w-2xl gap-2.5 sm:grid-cols-2">
+                {presets
+                  .filter((p) => p.featured)
+                  .map((p) => (
+                    <button
+                      key={p.question}
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        submit(
+                          p.question,
+                          p.dimension || p.time
+                            ? { dimension: p.dimension, time: p.time }
+                            : undefined,
+                        )
+                      }
+                      className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="text-sm font-medium text-ink">{p.label}</span>
+                      <span className="text-2xs text-ink-2">{p.hint}</span>
+                    </button>
+                  ))}
+              </div>
             </div>
           )}
           {messages.length === 0 && !pending && !transient && !bare && (
@@ -490,7 +521,7 @@ export default function AskPanel({
                           <button
                             type="button"
                             onClick={() => setChartOpenFor(null)}
-                            className="mt-1.5 text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                            className="mt-1.5 text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                           >
                             收起命盘
                           </button>
@@ -502,7 +533,7 @@ export default function AskPanel({
                             setChartOpenFor(m.id);
                             setChartLayer('natal');
                           }}
-                          className="text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          className="text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
                           在对话里看这张盘
                         </button>
@@ -545,7 +576,7 @@ export default function AskPanel({
                             <button
                               type="button"
                               onClick={() => setChartOpenFor(null)}
-                              className="mt-2 inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                              className="mt-2 inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                             >
                               收起命盘
                             </button>
@@ -609,7 +640,7 @@ export default function AskPanel({
                   />
                   <p className="text-xs text-ink-2">星图检索中…</p>
                 </div>
-                <p className="mt-1.5 text-2xs text-ink-3">
+                <p className="mt-1.5 text-2xs text-ink-2">
                   正在核对盘面并检索数据集原文，通常需要几秒。
                 </p>
               </div>
@@ -640,26 +671,29 @@ export default function AskPanel({
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
           <div className="mt-4 shrink-0 border-t border-lineSoft pt-3 pb-[env(safe-area-inset-bottom)]">
-            <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="问点什么">
-              {presets.map((p) => (
-                <button
-                  key={p.question}
-                  type="button"
-                  onClick={() =>
-                    submit(
-                      p.question,
-                      p.dimension || p.time
-                        ? { dimension: p.dimension, time: p.time }
-                        : undefined,
-                    )
-                  }
-                  disabled={pending}
-                  className="text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            {/* 意图芯片：空态时用大卡片引导（有消息后才收成这排小胶囊） */}
+            {messages.length > 0 && (
+              <div className="mb-2.5 flex flex-wrap gap-1.5" aria-label="问点什么">
+                {presets.map((p) => (
+                  <button
+                    key={p.question}
+                    type="button"
+                    onClick={() =>
+                      submit(
+                        p.question,
+                        p.dimension || p.time
+                          ? { dimension: p.dimension, time: p.time }
+                          : undefined,
+                      )
+                    }
+                    disabled={pending}
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -675,7 +709,7 @@ export default function AskPanel({
                 rows={1}
                 maxLength={500}
                 placeholder="问问感情、事业、今年如何…"
-                className="field-input min-h-11 flex-1 resize-none rounded-full px-4 py-2.5 leading-relaxed"
+                className="chat-input flex-1"
                 disabled={pending}
               />
               <button
@@ -683,7 +717,7 @@ export default function AskPanel({
                 onClick={() => submit(question)}
                 disabled={pending || !question.trim()}
                 aria-label="发送"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zhu text-white transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 ↑
               </button>
@@ -695,7 +729,7 @@ export default function AskPanel({
                   onClick={() => {
                     if (window.confirm('清空这张盘的全部追问对话？')) clear();
                   }}
-                  className="text-2xs text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
                   清空对话
                 </button>
@@ -763,7 +797,7 @@ export default function AskPanel({
           >
             {pending ? '正在查证…' : '追问'}
           </button>
-          <p id="ask-submit-hint" className="mt-2 text-2xs text-ink-3">
+          <p id="ask-submit-hint" className="mt-2 text-2xs text-ink-2">
             {pending
               ? '查证进行中，请稍候。'
               : messages.length > 0
@@ -779,7 +813,7 @@ export default function AskPanel({
               onClick={() => {
                 if (window.confirm('清空这张盘的全部追问对话？')) clear();
               }}
-              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               清空对话
             </button>
@@ -790,7 +824,7 @@ export default function AskPanel({
       </div>
 
       {!bare && (
-        <p className="mt-3 text-2xs leading-relaxed text-ink-3">
+        <p className="mt-3 text-2xs leading-relaxed text-ink-2">
           回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。
         </p>
       )}

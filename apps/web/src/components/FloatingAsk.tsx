@@ -136,7 +136,7 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
                 aria-label={aiConfigured ? 'AI 已配置' : '配置 AI'}
                 title={aiConfigured ? 'AI 已配置' : '配置 AI'}
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-                  aiConfigured ? 'text-zhu' : 'text-ink-3 hover:text-ink'
+                  aiConfigured ? 'text-zhu' : 'text-ink-2 hover:text-ink'
                 }`}
               >
                 ⚙
@@ -145,7 +145,7 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
                 type="button"
                 onClick={close}
                 aria-label="收起追问助手"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 ✕
               </button>
@@ -161,12 +161,12 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
           )}
 
           {!aiConfigured && (
-            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-3 sm:px-6">
+            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
               AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
             </p>
           )}
           {serverAiReady && !userAi && (
-            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-3 sm:px-6">
+            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
               当前用内置 AI 提问，每天 10 次免费；点右上角 ⚙ 可换成自己的 Key（不限量）。
             </p>
           )}
@@ -192,7 +192,7 @@ export default function FloatingAsk({ serverAiReady = false }: { serverAiReady?:
               />
             </div>
           ) : (
-            <p className="flex flex-1 items-center justify-center p-4 text-center text-xs text-ink-3">
+            <p className="flex flex-1 items-center justify-center p-4 text-center text-xs text-ink-2">
               还没有档案。先在首页录入一张命盘，再来追问。
             </p>
           )}

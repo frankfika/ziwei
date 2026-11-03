@@ -8,8 +8,6 @@
 
     /* 盘页顶区预算：header + 单行摘要 */
     --chart-chrome: 112px;
-    /* 站点头部总高（h-14 + 1px 分隔线 + iPhone 安全区）—— 首页全屏聊天用它算可视高度 */
-    --site-header-h: calc(3.5rem + 1px + env(safe-area-inset-top, 0px));
     /* 底 Tab 高度（不含 safe-area） */
     --chart-tab: 56px;
     /* 三方高亮底色（zhu-soft / 45）—— .is-sanfang 与 sanfang-fade keyframes 共用这一份 */
@@ -89,6 +87,20 @@
 
   .field-input[aria-invalid='true'] {
     @apply border-danger/60 bg-danger/10 focus:border-danger focus:ring-danger/25;
+  }
+
+  /* 聊天输入框（首页对话主壳）
+     整页唯一的输入点要比普通表单输入更醒目：抬一层底 + 明确的描边 + 字号大一档。
+     占位文字用 ink-2（对 paper 5.1:1）而不是 ink-3（2.6:1，几乎看不见）。 */
+  .chat-input {
+    @apply min-h-[3.25rem] w-full resize-none rounded-full border border-ink-2/25 bg-surface px-5 py-3 text-sm leading-relaxed text-ink
+      outline-none transition-colors duration-150
+      focus:border-zhu focus:ring-2 focus:ring-zhu/25;
+    box-shadow: 0 1px 2px rgba(46, 42, 35, 0.06);
+  }
+
+  .chat-input::placeholder {
+    @apply text-ink-2;
   }
 
   .btn-primary {

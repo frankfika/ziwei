@@ -98,12 +98,12 @@ export default async function ReportPage({
     <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-12">
       {/* 头 */}
       <header className="mb-8 text-center">
-        <p className="text-2xs tracking-[0.35em] text-ink-3">年度运势报告</p>
+        <p className="text-2xs tracking-[0.35em] text-ink-2">年度运势报告</p>
         <h1 className="mt-2 font-serif text-title font-semibold text-ink">
           {name ? `${name} · ` : ''}
           {nowYear} {ln.ganzhi}年
         </h1>
-        <p className="mt-1.5 text-2xs text-ink-3">
+        <p className="mt-1.5 text-xs text-ink-2">
           {chartDate} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]} ·{' '}
           <Link href={`/chart?y=${year}&m=${month}&d=${day}&h=${hour}&g=${gender}${name ? `&n=${encodeURIComponent(name)}` : ''}`} className="underline underline-offset-2 hover:text-zhu">
             看完整命盘

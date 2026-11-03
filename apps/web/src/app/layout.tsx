@@ -51,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           跳到主要内容
         </a>
         <SiteHeader />
-        <main id="main-content" className="flex-1">
+        <main id="main-content" className="flex flex-1 flex-col">
           {children}
         </main>
         <FloatingAsk serverAiReady={describeProviderEnv().ok} />

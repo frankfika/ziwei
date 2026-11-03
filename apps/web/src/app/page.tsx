@@ -25,10 +25,11 @@ export default async function HomePage({
   const provider = describeProviderEnv();
 
   return (
-    // 聊天壳占满可视高度：输入框钉在屏幕底部，页面本身不滚动
-    <div className="mx-auto flex h-[calc(100dvh-var(--site-header-h))] w-full max-w-6xl flex-col px-5 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-7">
+    // 聊天壳占满剩余高度：用 flex 链算高度，不做 100dvh 减法 ——
+    // 减法一旦算不出来（老浏览器不认 env()），整条 flex 链会塌成一条缝。
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-7">
       {/* 极简：一行标题，剩下的全是对话 */}
-      <h1 className="mb-3 text-sm tracking-[0.3em] text-ink-3">
+      <h1 className="mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:text-[1.6rem]">
         和你的命盘聊聊
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </h1>

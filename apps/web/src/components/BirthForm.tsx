@@ -327,7 +327,7 @@ export default function BirthForm({
                           }`}
                         >
                           <span className="block text-xs font-medium">{opt.label}</span>
-                          <span className="block text-2xs text-ink-3">{opt.hint}</span>
+                          <span className="block text-2xs text-ink-2">{opt.hint}</span>
                         </button>
                       );
                     })}
@@ -357,7 +357,7 @@ export default function BirthForm({
 
           {/* 排盘口径：一行人话，只在信息完整时显示 */}
           {resolved.ok && resolved.resolved && (
-            <p className="mt-3 text-2xs leading-relaxed text-ink-3" role="status">
+            <p className="mt-3 text-xs leading-relaxed text-ink-2" role="status">
               将按 {resolved.resolved.year} 年 {resolved.resolved.month} 月{' '}
               {resolved.resolved.day} 日 {SHICHEN_NAMES[resolved.resolved.hour]}时 排盘
               {resolved.resolved.lateZi && '（晚子时，已顺延到次日）'}
@@ -411,7 +411,7 @@ export default function BirthForm({
         </div>
         <p
           id="chart-submit-status"
-          className="mt-3 min-h-5 text-2xs text-ink-3"
+          className="mt-3 min-h-5 text-xs text-ink-2"
           aria-live={attemptedSubmit && !resolved.ok ? 'polite' : undefined}
         >
           {/* 信息完整时保持安静（「将按 X 年 X 月排盘」已在时辰区显示），别再重复一句 */}
@@ -442,7 +442,7 @@ export default function BirthForm({
                 </span>
               )}
             </h2>
-            <p className="mt-1 text-2xs leading-relaxed text-ink-3">只存在本机，不上传。</p>
+            <p className="mt-1 text-2xs leading-relaxed text-ink-2">只存在本机，不上传。</p>
           </div>
           {history.length > 0 && (
             <button
@@ -452,7 +452,7 @@ export default function BirthForm({
                   clear();
                 }
               }}
-              className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
               清空
             </button>
@@ -462,7 +462,7 @@ export default function BirthForm({
         {history.length === 0 ? (
           <div className="flex items-center gap-3 py-1">
             <StarGlyph className="h-6 w-6 shrink-0 text-ink-3/40" />
-            <p className="text-2xs leading-relaxed text-ink-3">排过的盘会留在这</p>
+            <p className="text-2xs leading-relaxed text-ink-2">排过的盘会留在这</p>
           </div>
         ) : (
           <>
@@ -507,7 +507,7 @@ export default function BirthForm({
                         className="flex min-h-12 min-w-0 flex-1 flex-col justify-center rounded-lg border border-lineSoft bg-paper/50 px-3 py-1.5 text-left transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
                         <span className="block truncate text-xs text-ink">{entry.label}</span>
-                        <span className="mt-0.5 block truncate text-2xs text-ink-3">
+                        <span className="mt-0.5 block truncate text-2xs text-ink-2">
                           {entry.form.year}年{entry.form.month}月{entry.form.day}日
                           {' · '}
                           {entry.form.timeMode === 'clock'
@@ -523,7 +523,7 @@ export default function BirthForm({
                           aria-label={`回填「${entry.label}」到表单`}
                           title="回填到表单修改"
                           onClick={() => onPickHistory(entry.form)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
                           填
                         </button>
@@ -535,7 +535,7 @@ export default function BirthForm({
                             const next = window.prompt('给这张盘起个名字（如「妈妈的盘」）', entry.label);
                             if (next !== null) rename(entry.id, next);
                           }}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
                           名
                         </button>
@@ -544,7 +544,7 @@ export default function BirthForm({
                           aria-label={`删除「${entry.label}」`}
                           title="删除"
                           onClick={() => remove(entry.id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm text-ink-3 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm text-ink-2 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
                           ×
                         </button>

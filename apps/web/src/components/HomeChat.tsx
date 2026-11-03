@@ -16,21 +16,21 @@ import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/li
 import { resolveForm } from '@/lib/birth';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
-  { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian' },
-  { label: '这十年', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
-  { label: '整体格局', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview' },
-  { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
-  { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },
-  { label: '财运', question: '财运方面，原文给了哪些倾向？', dimension: 'wealth' },
-  { label: '健康', question: '健康方面，原文里有没有要留意的地方？', dimension: 'health' },
+  { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化' },
+  { label: '这十年', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian', hint: '当前大限的十年走向' },
+  { label: '整体格局', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview', hint: '原局整体定性' },
+  { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love', featured: true, hint: '婚姻与相处模式' },
+  { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career', featured: true, hint: '适合的方向与特点' },
+  { label: '财运', question: '财运方面，原文给了哪些倾向？', dimension: 'wealth', featured: true, hint: '原文给出的倾向' },
+  { label: '健康', question: '健康方面，原文里有没有要留意的地方？', dimension: 'health', hint: '需要留意的部分' },
 ];
 
 const PROFILE_CHIP_CLASS =
-  'shrink-0 rounded-full border px-3 py-1.5 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+  'shrink-0 rounded-full border px-3.5 py-2 text-xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
 /** 顶部小链接：新建档案 / 双人合盘 —— 都在聊天区之外，不挤对话 */
 const TOOL_LINK_CLASS =
-  'inline-flex min-h-8 items-center rounded-md px-1 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+  'inline-flex min-h-9 items-center gap-1 rounded-full border border-zhu/30 bg-zhu-soft/50 px-3 py-1.5 text-xs text-zhu transition-colors hover:border-zhu hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
 export default function HomeChat({ providerConfigured = true }: { providerConfigured?: boolean }) {
   const { history, ready } = useHistory();
@@ -55,13 +55,13 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
   if (history.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-        <p className="text-sm text-ink">还没有档案</p>
-        <p className="max-w-xs text-2xs leading-relaxed text-ink-3">
+        <p className="text-title text-ink">还没有档案</p>
+        <p className="max-w-xs text-xs leading-relaxed text-ink-2">
           先排一张盘，之后打开首页就能直接接着聊。
         </p>
         <Link
           href="/new"
-          className="inline-flex min-h-10 items-center rounded-lg bg-zhu px-5 py-2 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="mt-1 inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(61,90,133,0.24)] transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           去排一张盘
         </Link>
@@ -81,13 +81,13 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
     <div className="flex min-h-0 flex-1 flex-col">
       {/* AI 状态：内置 AI 可用时告诉用户额度，别让「⚙ AI 设置」看起来像必填项 */}
       {providerConfigured && !userAi && !showConfig ? (
-        <p className="mb-2 text-2xs text-ink-3">
+        <p className="mb-3 text-xs text-ink-2">
           已内置 AI，每天 10 次免费提问；点「⚙ AI 设置」可换成自己的 Key（不限量）。
         </p>
       ) : (
         !aiReady &&
         !showConfig && (
-          <p className="mb-2 text-2xs text-ink-3">
+          <p className="mb-3 text-xs text-ink-2">
             AI 还没配置 —— 点「⚙ AI 设置」填一个 API Key（只存本机）。
           </p>
         )
@@ -100,7 +100,7 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
 
       {/* 档案选择：星册即「我的人」；末尾常驻 AI 设置入口 */}
       <div
-        className="-mx-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-2 mb-3 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="选择档案"
       >
@@ -140,8 +140,8 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         </button>
       </div>
 
-      {/* 排盘入口：新建档案 / 双人合盘 —— 收在聊天区之上，不占对话的地盘 */}
-      <div className="mb-2 flex shrink-0 items-center justify-end gap-4">
+      {/* 排盘入口：新建档案 / 双人合盘 —— 单独一行，永远不被裁掉 */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
         <Link href="/new" className={TOOL_LINK_CLASS}>
           ＋ 新建档案
         </Link>
@@ -153,18 +153,18 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。
           面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部 */}
       {resolved?.ok && resolved.resolved ? (
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-lineSoft bg-surface-2/30 px-2 py-3 sm:px-4">
+        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-line bg-surface-2/40 px-3 py-3 sm:px-4">
           {/* 面板头：说清现在问的是哪张盘 */}
-          <div className="mb-2 flex shrink-0 items-baseline justify-between gap-3 border-b border-lineSoft pb-2">
-            <p className="min-w-0 truncate text-xs text-ink">
+          <div className="mb-2.5 flex shrink-0 items-baseline justify-between gap-3 border-b border-line/70 pb-2.5">
+            <p className="min-w-0 truncate text-sm text-ink">
               {name && <span className="font-medium">{name}</span>}
-              {name && ' · '}
-              <span className="text-ink-2">{detailLabel(selected!.form)}</span>
+              {name && <span className="text-ink-3"> · </span>}
+              <span className="text-xs text-ink-2">{detailLabel(selected!.form)}</span>
             </p>
             {chart && (
               <Link
                 href={chart}
-                className="shrink-0 text-2xs text-ink-3 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 查看命盘 →
               </Link>

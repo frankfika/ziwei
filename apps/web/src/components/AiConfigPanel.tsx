@@ -64,13 +64,13 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex min-h-8 items-center rounded-md px-2 py-1 text-2xs text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="inline-flex min-h-8 items-center rounded-md px-2 py-1 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           收起
         </button>
       </div>
 
-      <p className="mb-3 text-2xs leading-relaxed text-ink-3">
+      <p className="mb-3 text-2xs leading-relaxed text-ink-2">
         自己填一个模型端点就能用追问。配置只存在这台设备的浏览器里，不上传。
       </p>
 
@@ -177,7 +177,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
             onChange={(e) => update({ maxTokens: Number(e.target.value) || 8000 })}
             className="field-input font-mono text-xs"
           />
-          <p className="mt-1 text-2xs leading-relaxed text-ink-3">
+          <p className="mt-1 text-2xs leading-relaxed text-ink-2">
             带思维链的模型（DeepSeek-R1 / QwQ 等）思考 token 与正文共用这份预算，给小了正文会空。默认 8000。
           </p>
         </div>
@@ -196,7 +196,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={clear}
-            className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
             清除，改用服务端默认
           </button>
@@ -204,7 +204,7 @@ export default function AiConfigPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       {hasConfig && (
-        <p className="mt-2 text-2xs text-ink-3">已启用自配模型：{cfg.model}</p>
+        <p className="mt-2 text-2xs text-ink-2">已启用自配模型：{cfg.model}</p>
       )}
     </div>
   );

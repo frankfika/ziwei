@@ -143,20 +143,24 @@ export default function HomeChat({ providerConfigured = true }: { providerConfig
         </p>
       )}
 
-      {/* 对话线程：key 随档案切换，线程按盘隔离存储 */}
+      {/* 对话线程：key 随档案切换，线程按盘隔离存储。
+          桌面端限定高度让线程内部滚动 —— 输入框始终钉在聊天区底部，
+          不再被长回答推走，也和下方「新建档案」拉开主次 */}
       {resolved?.ok && resolved.resolved ? (
-        <AskPanel
-          key={identity}
-          year={resolved.resolved.year}
-          month={resolved.resolved.month}
-          day={resolved.resolved.day}
-          hour={resolved.resolved.hour}
-          gender={selected!.form.gender}
-          available
-          providerConfigured={providerConfigured}
-          quickPrompts={INTENT_CHIPS}
-          bare
-        />
+        <div className="flex min-h-0 flex-col rounded-2xl border border-lineSoft bg-surface-2/30 px-2 py-3 sm:px-4 md:h-[calc(100dvh-17.5rem)] md:px-5">
+          <AskPanel
+            key={identity}
+            year={resolved.resolved.year}
+            month={resolved.resolved.month}
+            day={resolved.resolved.day}
+            hour={resolved.resolved.hour}
+            gender={selected!.form.gender}
+            available
+            providerConfigured={providerConfigured}
+            quickPrompts={INTENT_CHIPS}
+            bare
+          />
+        </div>
       ) : (
         <div className="panel p-5 text-center" role="status">
           <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>

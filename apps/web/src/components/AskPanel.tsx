@@ -418,6 +418,14 @@ export default function AskPanel({
           aria-busy={pending}
           className={bare ? 'min-h-0 flex-1 overflow-y-auto' : undefined}
         >
+          {messages.length === 0 && !pending && !transient && bare && (
+            <div className="flex h-full flex-col items-center justify-center gap-1 text-center" role="status">
+              <p className="text-sm text-ink-2">围绕这张盘提问</p>
+              <p className="text-2xs leading-relaxed text-ink-3">
+                回答只依据数据集原文，对话只存在本机。
+              </p>
+            </div>
+          )}
           {messages.length === 0 && !pending && !transient && !bare && (
             <div role="status">
               <p className="text-xs leading-relaxed text-ink-2">

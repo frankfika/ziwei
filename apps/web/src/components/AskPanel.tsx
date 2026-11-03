@@ -100,6 +100,29 @@ function AnswerAvatar({ cited }: { cited?: string[] }) {
   );
 }
 
+/** 「正在思考」的实时思维链：只用于等待期进度展示，正文开始流出后让位，不进线程、不持久化 */
+function ThinkingBlock({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollTo({ top: ref.current.scrollHeight });
+  }, [text]);
+  return (
+    <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5" role="status">
+      <p className="mb-1 flex items-center gap-1.5 text-2xs text-ink-3">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-zhu/70 motion-reduce:animate-none" aria-hidden="true" />
+        正在思考…（过程仅作参考，以最终回答为准）
+      </p>
+      <div
+        ref={ref}
+        aria-hidden="true"
+        className="max-h-32 overflow-y-auto whitespace-pre-wrap text-2xs leading-relaxed text-ink-3 [scrollbar-width:thin]"
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
 /** 服务端返回的非 ok 状态 / 本地失败 —— 不进线程，作为临时提示展示 */
 type Transient =
   | { kind: 'not-covered' | 'not-configured'; message: string }
@@ -177,8 +200,8 @@ export default function AskPanel({
   const [question, setQuestion] = useState('');
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  /** 正在流式生成的回答（还没进线程） */
-  const [stream, setStream] = useState<{ question: string; text: string } | null>(null);
+  /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
+  const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
   /** 上次的对话默认折叠 —— 每次打开不该被旧记录占满屏 */
   const [showHistory, setShowHistory] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -310,7 +333,18 @@ export default function AskPanel({
     startTransition(async () => {
       try {
         await streamAsk(fd, {
-          onDelta: (t) => setStream((s) => ({ question: text, text: (s?.text ?? '') + t })),
+          onDelta: (t) =>
+            setStream((s) => ({
+              question: text,
+              text: (s?.text ?? '') + t,
+              thinking: s?.thinking ?? '',
+            })),
+          onThinking: (t) =>
+            setStream((s) => ({
+              question: text,
+              text: s?.text ?? '',
+              thinking: (s?.thinking ?? '') + t,
+            })),
           onDone: (p) => {
             append({
               question: text,
@@ -656,6 +690,9 @@ export default function AskPanel({
                       className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 animate-pulse bg-zhu motion-reduce:animate-none"
                     />
                   </div>
+                ) : stream?.thinking ? (
+                  /* 思考期：把思维链实时显示出来 —— 6–8 秒的空白等待变成看得见的进度 */
+                  <ThinkingBlock text={stream.thinking} />
                 ) : (
                   <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
@@ -686,6 +723,8 @@ export default function AskPanel({
                       className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 animate-pulse bg-zhu motion-reduce:animate-none"
                     />
                   </div>
+                ) : stream?.thinking ? (
+                  <ThinkingBlock text={stream.thinking} />
                 ) : (
                   <>
                     <div className="flex items-center gap-3">

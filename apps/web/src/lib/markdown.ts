@@ -20,7 +20,7 @@ export type MdBlock =
   | { kind: 'quote'; lines: string[] }
   | { kind: 'rule' };
 
-const HEADING_RE = /^(#{2,6})\s+(.*)$/;
+const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const BULLET_RE = /^\s*(?:[-*+]|·)\s+(.*)$/;
 const RULE_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 /** `**【命格总览】**` 独占一段时视作小标题 */

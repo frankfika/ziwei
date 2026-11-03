@@ -6,6 +6,7 @@
  * 跑机械防编造自检（结论随 done 事件一起给）。
  *
  * 响应格式（一行一个 JSON，`data:` 前缀）：
+ *   {type:'thinking',   text}                  思维链增量（等待期进度展示，不进正文）
  *   {type:'delta',      text}                  正文增量
  *   {type:'done',       answer, cited, verification, model}   全文 + 自检结论
  *   {type:'not-covered',message}               样本库未覆盖（原样透出 core 的说明）
@@ -128,6 +129,8 @@ export async function POST(request: Request) {
         )) {
           if (ev.type === 'delta') {
             send({ type: 'delta', text: ev.text });
+          } else if (ev.type === 'thinking') {
+            send({ type: 'thinking', text: ev.text });
           } else if (ev.type === 'done') {
             // 成功才计数（失败不消耗额度）
             if (!userProvider) await consumeAskQuota();

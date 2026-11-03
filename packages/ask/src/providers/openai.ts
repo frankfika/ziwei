@@ -117,6 +117,9 @@ export function createOpenAICompatibleProvider(
     if (stream) {
       body.stream = true;
       body.stream_options = { include_usage: true };
+      // MiniMax 的思维链拆分开关：开了之后思考过程走独立的 reasoning_content 增量，
+      // 等待期能实时展示「模型在想什么」。别的 provider 不认这个字段，只在 MiniMax 端点上发。
+      if (/minimax/i.test(baseUrl)) body.reasoning_split = true;
     }
     return body;
   };
@@ -261,7 +264,10 @@ export function createOpenAICompatibleProvider(
             }
             if (json.model) modelName = json.model;
             const delta = json.choices?.[0]?.delta;
-            // reasoning_content 是标准思维链字段，直接丢；<think> 混在 content 里的靠 stripper 剥
+            // 思维链（reasoning_content）作为独立的 thinking 事件透传 —— 只展示进度，不进正文
+            const thinking = typeof delta?.reasoning_content === 'string' ? delta.reasoning_content : '';
+            if (thinking) yield { type: 'thinking', text: thinking };
+            // <think> 混在 content 里的靠 stripper 剥
             const content = typeof delta?.content === 'string' ? delta.content : '';
             if (!content) continue;
             const visible = shouldStripReasoning ? stripper.push(content) : content;

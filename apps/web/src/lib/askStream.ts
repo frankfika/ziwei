@@ -25,6 +25,8 @@ export interface AskStreamDone {
 export interface AskStreamHandlers {
   /** 正文增量 */
   onDelta(text: string): void;
+  /** 思维链增量（等待期进度展示用；不思考的老 provider 不会触发） */
+  onThinking?(text: string): void;
   /** 全文与自检结论 */
   onDone(payload: AskStreamDone): void;
   /** 失败（未覆盖 / provider 报错 / 网络中断） */
@@ -34,7 +36,7 @@ export interface AskStreamHandlers {
 }
 
 interface RawEvent {
-  type: 'delta' | 'done' | 'error' | 'not-covered';
+  type: 'delta' | 'thinking' | 'done' | 'error' | 'not-covered';
   text?: string;
   answer?: string;
   cited?: string[];
@@ -99,6 +101,9 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
   switch (evt.type) {
     case 'delta':
       if (evt.text) handlers.onDelta(evt.text);
+      return;
+    case 'thinking':
+      if (evt.text) handlers.onThinking?.(evt.text);
       return;
     case 'done':
       handlers.onDone({

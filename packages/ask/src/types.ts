@@ -63,6 +63,11 @@ export interface AskProvider {
 export type AskStreamEvent =
   | { type: 'delta'; text: string }
   | {
+      /** 思维链增量（模型「正在想」的过程）——只用于等待期的进度展示，不进正文、不入库 */
+      type: 'thinking';
+      text: string;
+    }
+  | {
       type: 'done';
       /** 完整正文（去思维链后） */
       text: string;
@@ -82,7 +87,8 @@ export interface AskStreamingProvider extends AskProvider {
    * 流式补全。
    *
    * 约定：
-   *  · 只吐**正文**增量（思维链由 provider 内部剥掉）；
+   *  · 正文增量走 `delta`；思维链（若有）走独立的 `thinking` 事件，绝不混进 delta ——
+   *    正文是口径，思维链只是等待期的进度展示；
    *  · 正常结束必须 yield 一个 `done` 事件；
    *  · 出错 yield 一个 `error` 事件（不要直接抛 —— 已经吐出去的字收不回来）。
    */

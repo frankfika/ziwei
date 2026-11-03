@@ -77,6 +77,8 @@ export type AskResult =
 /** 流式出口的事件（`askStream` 产出，路由层转成 SSE）。 */
 export type AskStreamEvent =
   | { type: 'delta'; text: string }
+  /** 思维链增量（等待期进度展示；不进正文、不参与自检） */
+  | { type: 'thinking'; text: string }
   | {
       type: 'done';
       answer: string;
@@ -345,6 +347,8 @@ export class AskService {
         if (event.type === 'delta') {
           full += event.text;
           yield { type: 'delta', text: event.text };
+        } else if (event.type === 'thinking') {
+          yield { type: 'thinking', text: event.text };
         } else if (event.type === 'done') {
           full = event.text || full;
           model = event.model ?? model;

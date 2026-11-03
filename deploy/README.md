@@ -423,6 +423,12 @@ ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 'docker restart ziwei-assistant'
 
 ### 9.4 排障要点
 
+- **追问转圈很久甚至报「请求 … 失败：The operation was aborted due to timeout」** —— 多半是模型选成了思维链模型。
+  2026-11-03 实测（同一提示词，直连 MiniMax）：`MiniMax-M3` 思考 token 吃满 `max_tokens`（11967/12496），
+  **总耗时 281s**，超过 provider 的 180s 超时 → 用户看到的是三分钟转圈后报错；
+  `MiniMax-M1` 同样提示词 **12s**（思考仅 397 token）。生产用 **`MiniMax-M1`**，`max_tokens=8000`。
+  换模型记得 `docker restart` **不生效**（env 是创建容器时注入的），要重建容器。
+  另：`MiniMax-M2` 已下线（404），`MiniMax-Text-01` 虽快但会把大限答错，别用。
 - 容器起不来先看 `docker logs ziwei-assistant`——entrypoint 会打中文指引。
 - 服务器磁盘 40G 已用 87%，构建镜像前先 `df -h` 确认余量 ≥ 3G，切完 `docker image prune -f`。
 - 3000 端口属 ziwei；8088 属 enterprise API；3001 被别的进程占用，冒烟测试用 3002。

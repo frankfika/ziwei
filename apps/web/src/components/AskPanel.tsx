@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
-import { askChart, type AskActionResult } from '@/app/ask-action';
+import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, type AskMessage } from '@/lib/askThreads';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
@@ -105,8 +105,7 @@ type Transient =
   | { kind: 'not-covered' | 'not-configured'; message: string }
   | { kind: 'error' | 'local-error'; message: string; retryQuestion: string };
 
-function suspectsOf(result: Extract<AskActionResult, { status: 'ok' }>): string[] {
-  const v = result.verification;
+function suspectsOf(v: AskStreamVerification): string[] {
   return [
     ...v.suspectStars.map((s) => `星曜「${s}」`),
     ...v.suspectPalaces.map((s) => `宫位「${s}」`),
@@ -174,10 +173,14 @@ export default function AskPanel({
   embedChart = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
-  const { messages, append, clear } = useAskThread(identity);
+  const { messages, loaded, append, clear } = useAskThread(identity);
   const [question, setQuestion] = useState('');
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  /** 正在流式生成的回答（还没进线程） */
+  const [stream, setStream] = useState<{ question: string; text: string } | null>(null);
+  /** 上次的对话默认折叠 —— 每次打开不该被旧记录占满屏 */
+  const [showHistory, setShowHistory] = useState(false);
   const [expanded, setExpanded] = useState(true);
   /** 下一条问题的页内焦点（维度/宫位），发出即清 */
   const [focus, setFocus] = useState<{ dimension?: string; palace?: string } | null>(null);
@@ -192,6 +195,13 @@ export default function AskPanel({
   const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
   /** 展开了迷你盘的消息 id */
   const [chartOpenFor, setChartOpenFor] = useState<string | null>(null);
+
+  /** 挂载时已存在的对话条数（=「上次的对话」） */
+  const historyCountRef = useRef<number | null>(null);
+  if (loaded && historyCountRef.current === null) historyCountRef.current = messages.length;
+  const historyCount = historyCountRef.current ?? 0;
+  /** 没展开历史时，只渲染本次新增的消息 */
+  const visibleMessages = showHistory ? messages : messages.slice(historyCount);
 
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
@@ -291,32 +301,35 @@ export default function AskPanel({
     fd.set(
       'turns',
       JSON.stringify(
-        messages.slice(-CONTEXT_TURNS).map((m) => ({ question: m.question, answer: m.answer })),
+        visibleMessages
+          .slice(-CONTEXT_TURNS)
+          .map((m) => ({ question: m.question, answer: m.answer })),
       ),
     );
 
     startTransition(async () => {
       try {
-        const r = await askChart(fd);
-        if (r.status === 'ok') {
-          append({
-            question: text,
-            answer: r.answer,
-            cited: r.citedDimensions,
-            suspects: suspectsOf(r),
-            ...(r.model ? { model: r.model } : {}),
-          });
-        } else if (r.status === 'not-configured') {
-          // 环境变量名等配置细节给运维看（console），用户只看一句人话
-          console.debug('[ask] not-configured:', r.message, r.missing);
-          setTransient({ kind: 'not-configured', message: '智能追问暂未开启，请稍后再试。' });
-        } else if (r.status === 'not-covered') {
-          setTransient({ kind: 'not-covered', message: r.message });
-        } else if (r.status === 'quota') {
-          setTransient({ kind: 'not-covered', message: r.message });
-        } else {
-          setTransient({ kind: 'error', message: r.message, retryQuestion: text });
-        }
+        await streamAsk(fd, {
+          onDelta: (t) => setStream((s) => ({ question: text, text: (s?.text ?? '') + t })),
+          onDone: (p) => {
+            append({
+              question: text,
+              answer: p.answer,
+              cited: p.cited,
+              suspects: suspectsOf(p.verification),
+              ...(p.model ? { model: p.model } : {}),
+            });
+            setStream(null);
+          },
+          onNotCovered: (message) => {
+            setTransient({ kind: 'not-covered', message });
+            setStream(null);
+          },
+          onError: (message) => {
+            setTransient({ kind: 'error', message, retryQuestion: text });
+            setStream(null);
+          },
+        });
       } catch {
         setTransient({
           kind: 'local-error',
@@ -325,6 +338,7 @@ export default function AskPanel({
         });
       } finally {
         setPendingQuestion(null);
+        setStream(null);
       }
     });
   }
@@ -425,7 +439,7 @@ export default function AskPanel({
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
         >
-          {messages.length === 0 && !pending && !transient && bare && (
+          {visibleMessages.length === 0 && !pending && !transient && bare && (
             /* 空态就是「引导」：不给一排灰字链接，直接给几张能点的卡片 ——
                没人会主动提问，就让人点一下就有回答 */
             <div className="flex flex-1 flex-col justify-center gap-3" role="status">
@@ -488,8 +502,26 @@ export default function AskPanel({
             </div>
           )}
 
-          <div className={bare ? 'space-y-4' : 'space-y-5'}>
-            {messages.map((m) => {
+          {/* 上次的对话：默认折叠成一行，不点开就不占屏 */}
+          {bare && historyCount > 0 && (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-lineSoft bg-surface/70 px-3 py-2">
+              <p className="min-w-0 truncate text-xs text-ink-2">
+                上次这段对话有 {historyCount} 条
+                {!showHistory && ' · 没展开，不算这次对话的上下文'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowHistory((v) => !v)}
+                className="shrink-0 rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                {showHistory ? '收起' : '展开'}
+              </button>
+            </div>
+          )}
+
+          {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
+          <div className={bare ? 'mt-auto space-y-4' : 'space-y-5'}>
+            {visibleMessages.map((m) => {
               const isLatest = m.id === latestId;
               if (bare) {
                 return (
@@ -615,11 +647,24 @@ export default function AskPanel({
               </p>
               <div>
                 <AnswerAvatar />
-                <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:150ms] motion-reduce:animate-none" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:300ms] motion-reduce:animate-none" />
-                </div>
+                {stream?.text ? (
+                  /* 流式：模型吐一个字就显示一个字 */
+                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
+                    <Markdown text={stream.text} />
+                    <span
+                      aria-hidden="true"
+                      className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 animate-pulse bg-zhu motion-reduce:animate-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:150ms] motion-reduce:animate-none" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:300ms] motion-reduce:animate-none" />
+                    {/* 模型在思考时并没有字可吐，明确说清楚在干嘛 */}
+                    <span className="text-xs text-ink-2">正在思考…</span>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -633,16 +678,28 @@ export default function AskPanel({
                 {pendingQuestion}
               </p>
               <div className="mt-3 border-t border-lineSoft pt-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                  <p className="text-xs text-ink-2">星图检索中…</p>
-                </div>
-                <p className="mt-1.5 text-2xs text-ink-2">
-                  正在核对盘面并检索数据集原文，通常需要几秒。
-                </p>
+                {stream?.text ? (
+                  <div className="text-sm leading-[1.95] text-ink-2 [&_p:first-of-type]:mt-0">
+                    <Markdown text={stream.text} />
+                    <span
+                      aria-hidden="true"
+                      className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 animate-pulse bg-zhu motion-reduce:animate-none"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
+                        aria-hidden="true"
+                      />
+                      <p className="text-xs text-ink-2">星图检索中…</p>
+                    </div>
+                    <p className="mt-1.5 text-2xs text-ink-2">
+                      正在核对盘面并检索数据集原文，通常需要几秒。
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           ))}

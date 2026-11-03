@@ -7,6 +7,9 @@
  *   3. 用 buildAskPrompt 把「盘面事实 + 相关维原文节选 + 硬约束」拼成提示词
  *   4. 调 provider（唯一可能联网的一步）
  *   5. 用 verifyAnswer 做机械防编造检查
+ *
+ * 两条出口：`ask()` 一次等到全文；`askStream()` 边生成边吐增量（前端能实时显示）。
+ * 两者共用同一套准备逻辑（prepare）——**检索与排盘口径不允许有第二种写法**。
  */
 
 import { ZiweiService, chartSummary, liuNianLayer, daXianLayer, type Birth } from '@ziwei/core';
@@ -21,6 +24,7 @@ import { resolveProviderFromEnv, describeProviderEnv } from './providers/env';
 import {
   AskProviderNotConfiguredError,
   type AskProvider,
+  type AskStreamingProvider,
   type AskUsage,
 } from './types';
 import { verifyAnswer, type VerifyAnswerResult } from './verify';
@@ -46,7 +50,7 @@ export type AskResult =
       status: 'ok';
       /** 模型回答正文 */
       answer: string;
-      /** 回答的 provider 名 */
+      /** 回答这个问题的 provider 名 */
       provider: string;
       model?: string;
       usage?: AskUsage;
@@ -68,6 +72,34 @@ export type AskResult =
       key: string;
       reason: 'year-not-indexed' | 'key-not-found';
       availableYears: number[];
+    };
+
+/** 流式出口的事件（`askStream` 产出，路由层转成 SSE）。 */
+export type AskStreamEvent =
+  | { type: 'delta'; text: string }
+  | {
+      type: 'done';
+      answer: string;
+      provider: string;
+      model?: string;
+      usage?: AskUsage;
+      /** 机械自检结果（此时全文已齐，才能判定） */
+      verification: VerifyAnswerResult;
+      /** 实际引用到的维度名 */
+      citedDimensions: string[];
+    }
+  | { type: 'not-covered'; message: string }
+  | { type: 'error'; message: string };
+
+/** 准备阶段的结果：覆盖（不出网）或可问（带提示词）。 */
+type Prepared =
+  | { status: 'not-covered'; result: Extract<AskResult, { status: 'not-covered' }> }
+  | {
+      status: 'ready';
+      prompt: BuiltPrompt;
+      chart: ReturnType<ZiweiService['chart']>;
+      readingKey: string;
+      dimensions: Extract<ReturnType<ZiweiService['reading']>, { status: 'ok' }>['dimensions'];
     };
 
 export class AskService {
@@ -107,35 +139,34 @@ export class AskService {
   }
 
   /**
-   * 追问。
-   *
-   * @param turns 本会话此前的问答（时间正序），注入提示词帮助模型理解追问语境
-   * @throws {AskProviderNotConfiguredError} 未配置任何 provider 时（message 里列出要设的环境变量）
-   * @throws {AskProviderError} provider 调用失败
+   * ① 解读检索 ② 盘面事实 ③ 拼提示词 —— `ask` 与 `askStream` 共用。
+   * 未覆盖时**到此为止**，绝不让模型自由发挥。
    */
-  async ask(
+  private prepare(
     birth: Birth,
     question: string,
     turns?: AskTurn[],
     options?: { focus?: AskFocus },
-  ): Promise<AskResult> {
-    // ① 解读检索 —— 未覆盖就到此为止，绝不让模型自由发挥
+  ): Prepared {
     const reading = this.service.reading(birth);
     if (reading.status === 'not-covered') {
       return {
         status: 'not-covered',
-        message: reading.message,
-        key: reading.key,
-        reason: reading.reason,
-        availableYears: reading.availableYears,
+        result: {
+          status: 'not-covered',
+          message: reading.message,
+          key: reading.key,
+          reason: reading.reason,
+          availableYears: reading.availableYears,
+        },
       };
     }
 
-    // ② 盘面事实（确定性引擎）
+    // 盘面事实（确定性引擎）
     const chart = this.service.chart(birth);
     const summary = chartSummary(chart);
 
-    // ②b 运限事实：时间层焦点（流年/大限）由引擎真实计算，绝不编造；
+    // 运限事实：时间层焦点（流年/大限）由引擎真实计算，绝不编造；
     // 无焦点时也附「当下定位」（当前虚岁 + 所走大限 + 今年流年），让每个回答都能先落在"你现在"
     let fortuneNote: string | undefined;
     if (options?.focus?.time === 'liunian') {
@@ -192,7 +223,6 @@ export class AskService {
       ].join('\n');
     }
 
-    // ③ 拼提示词
     const prompt = buildAskPrompt({
       birth,
       question,
@@ -204,13 +234,44 @@ export class AskService {
       maxContextChars: this.maxContextChars,
     });
 
-    // ④ 模型端（唯一可能联网的一步）
+    return {
+      status: 'ready',
+      prompt,
+      chart,
+      readingKey: reading.key,
+      dimensions: reading.dimensions,
+    };
+  }
+
+  /** 解析模型端：注入优先，其次环境变量。 */
+  private resolveProvider(): AskProvider {
     const provider = this.provider ?? resolveProviderFromEnv();
     if (!provider) {
       const status = describeProviderEnv();
       throw new AskProviderNotConfiguredError(status.message, status.missing);
     }
+    return provider;
+  }
 
+  /**
+   * 追问。
+   *
+   * @param turns 此会话此前的问答（时间正序），注入提示词帮助模型理解追问语境
+   * @throws {AskProviderNotConfiguredError} 未配置任何 provider 时（message 里列出要设的环境变量）
+   * @throws {AskProviderError} provider 调用失败
+   */
+  async ask(
+    birth: Birth,
+    question: string,
+    turns?: AskTurn[],
+    options?: { focus?: AskFocus },
+  ): Promise<AskResult> {
+    const prepared = this.prepare(birth, question, turns, options);
+    if (prepared.status === 'not-covered') return prepared.result;
+    const { prompt, chart, readingKey, dimensions } = prepared;
+
+    // ④ 模型端（唯一可能联网的一步）
+    const provider = this.resolveProvider();
     const response = await provider.complete({
       system: prompt.system,
       user: prompt.user,
@@ -219,10 +280,7 @@ export class AskService {
     });
 
     // ⑤ 机械防编造检查
-    const verification = verifyAnswer(response.text, {
-      chart,
-      dimensions: reading.dimensions,
-    });
+    const verification = verifyAnswer(response.text, { chart, dimensions });
 
     return {
       status: 'ok',
@@ -233,7 +291,80 @@ export class AskService {
       verification,
       prompt,
       chart,
-      readingKey: reading.key,
+      readingKey,
+      citedDimensions: prompt.selected.map((d) => d.label),
+    };
+  }
+
+  /**
+   * 流式追问 —— 与 `ask()` 同一条口径，只是模型边写边吐。
+   *
+   * 好处是前端能实时显示，用户不用对着转圈等十几秒。
+   * 注意：**防编造自检要等全文齐了才能判**，所以结论在 `done` 事件里给。
+   *
+   * provider 不支持流式时（没有 `stream` 方法）→ 退化成一次 `complete()`，
+   * 整段作为一个 delta 吐出去，行为与 `ask()` 一致。
+   */
+  async *askStream(
+    birth: Birth,
+    question: string,
+    turns?: AskTurn[],
+    options?: { focus?: AskFocus },
+  ): AsyncGenerator<AskStreamEvent> {
+    const prepared = this.prepare(birth, question, turns, options);
+    if (prepared.status === 'not-covered') {
+      yield { type: 'not-covered', message: prepared.result.message };
+      return;
+    }
+    const { prompt, chart, dimensions } = prepared;
+
+    const provider = this.resolveProvider() as AskStreamingProvider;
+    let full = '';
+    let model: string | undefined;
+    let usage: AskUsage | undefined;
+
+    if (typeof provider.stream !== 'function') {
+      // 不支持流式的老 provider：一次问完，整段吐出去
+      const response = await provider.complete({
+        system: prompt.system,
+        user: prompt.user,
+        maxTokens: this.maxTokens,
+        temperature: this.temperature,
+      });
+      full = response.text;
+      model = response.model;
+      usage = response.usage;
+      yield { type: 'delta', text: full };
+    } else {
+      for await (const event of provider.stream({
+        system: prompt.system,
+        user: prompt.user,
+        maxTokens: this.maxTokens,
+        temperature: this.temperature,
+      })) {
+        if (event.type === 'delta') {
+          full += event.text;
+          yield { type: 'delta', text: event.text };
+        } else if (event.type === 'done') {
+          full = event.text || full;
+          model = event.model ?? model;
+          usage = event.usage ?? usage;
+        } else {
+          yield { type: 'error', message: event.message };
+          return;
+        }
+      }
+    }
+
+    // 全文齐了才判防编造 —— 结论随 done 事件一起给前端
+    const verification = verifyAnswer(full, { chart, dimensions });
+    yield {
+      type: 'done',
+      answer: full,
+      provider: provider.name,
+      model,
+      usage,
+      verification,
       citedDimensions: prompt.selected.map((d) => d.label),
     };
   }

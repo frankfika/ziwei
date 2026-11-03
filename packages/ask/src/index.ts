@@ -57,4 +57,5 @@ export type {
   ProviderEnvStatus,
 } from './providers/env';
 export { AskService } from './service';
-export type { AskResult, AskServiceOptions } from './service';
+export type { AskResult, AskServiceOptions, AskStreamEvent } from './service';
+export { splitReasoning, stripReasoning, ReasoningStripper } from './reasoning';

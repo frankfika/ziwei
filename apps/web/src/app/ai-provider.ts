@@ -1,6 +1,6 @@
 /**
  * 用户自配 AI provider —— 服务端按前端传来的配置临时构造 provider。
- * （工具模块，只被 ask-action 引用，不是 Server Action 文件。）
+ * （工具模块，只被追问路由 /api/ask 引用，不是 Server Action 文件。）
  *
  * 配置只在本机浏览器里（localStorage），每次请求随表单带上来；
  * 服务端**不落盘、不写日志**，用完即弃。

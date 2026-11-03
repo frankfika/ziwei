@@ -53,3 +53,63 @@ export function splitReasoning(text: string): ReasoningSplit {
 export function stripReasoning(text: string): string {
   return splitReasoning(text).text;
 }
+
+/**
+ * 流式思维链剥离器 —— 边收边剥。
+ *
+ * 非流式用 `splitReasoning` 就够了；流式下思维链和正文混在同一个 `content` 里
+ * 逐块到达，必须**边收边判断**：还在 `<think>` 块里的一律不吐给用户，
+ * 只有块后面的正文才吐。
+ *
+ * 用法：`push(chunk)` 返回可安全显示的增量，`flush()` 收尾。
+ */
+export class ReasoningStripper {
+  /** 还没判定归属的尾巴（可能包含跨块切开的标签） */
+  private buf = '';
+  /** 当前是否在思维链块内 */
+  private inThink = false;
+
+  /** 吃进一块增量，返回可以显示给用户的部分 */
+  push(chunk: string): string {
+    this.buf += chunk;
+    let out = '';
+
+    for (;;) {
+      if (this.inThink) {
+        const close = this.buf.search(/<\/(think|thinking|reasoning)>/i);
+        if (close < 0) {
+          // 还没闭合：整块都是思维链，全部扣住
+          this.buf = '';
+          return out;
+        }
+        const end = this.buf.indexOf('>', close) + 1;
+        this.buf = this.buf.slice(end);
+        this.inThink = false;
+        continue;
+      }
+
+      const open = this.buf.search(/<(think|thinking|reasoning)\b[^>]*>/i);
+      if (open >= 0) {
+        out += this.buf.slice(0, open);
+        const end = this.buf.indexOf('>', open) + 1;
+        this.buf = this.buf.slice(end);
+        this.inThink = true;
+        continue;
+      }
+
+      // 没有开标签：可能标签被切在两块之间，末尾留一点缓冲再吐
+      const keep = Math.max(0, this.buf.length - 12);
+      out += this.buf.slice(0, keep);
+      this.buf = this.buf.slice(keep);
+      return out;
+    }
+  }
+
+  /** 流结束：把剩下的正文吐出来（还在思维链里就丢掉） */
+  flush(): string {
+    const rest = this.inThink ? '' : this.buf;
+    this.buf = '';
+    this.inThink = false;
+    return rest;
+  }
+}

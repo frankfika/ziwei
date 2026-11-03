@@ -52,9 +52,12 @@ function writeThread(identity: string, messages: AskMessage[]): void {
 /** 读入指定命盘的追问线程；identity 用 history.ts 的 chartKey 口径 */
 export function useAskThread(identity: string) {
   const [messages, setMessages] = useState<AskMessage[]>([]);
+  /** 存档是否读完（第一帧恒为空，不能据此判断「有没有对话」） */
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setMessages(readThread(identity));
+    setLoaded(true);
   }, [identity]);
 
   const append = useCallback(
@@ -80,5 +83,5 @@ export function useAskThread(identity: string) {
     setMessages([]);
   }, [identity]);
 
-  return { messages, append, clear };
+  return { messages, loaded, append, clear };
 }

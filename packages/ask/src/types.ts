@@ -59,6 +59,36 @@ export interface AskProvider {
   complete(req: AskRequest): Promise<AskResponse>;
 }
 
+/** 流式事件：正文增量 / 收尾（含自检结论）/ 失败。 */
+export type AskStreamEvent =
+  | { type: 'delta'; text: string }
+  | {
+      type: 'done';
+      /** 完整正文（去思维链后） */
+      text: string;
+      model?: string;
+      usage?: AskUsage;
+    }
+  | { type: 'error'; message: string };
+
+/**
+ * 支持流式的模型端。
+ *
+ * 与 `AskProvider` 的区别只在多一个 `stream()`：`complete()` 一次等到全文，
+ * `stream()` 边生成边吐增量 —— 前端才能在模型还在写的时候就把字显示出来。
+ */
+export interface AskStreamingProvider extends AskProvider {
+  /**
+   * 流式补全。
+   *
+   * 约定：
+   *  · 只吐**正文**增量（思维链由 provider 内部剥掉）；
+   *  · 正常结束必须 yield 一个 `done` 事件；
+   *  · 出错 yield 一个 `error` 事件（不要直接抛 —— 已经吐出去的字收不回来）。
+   */
+  stream(req: AskRequest): AsyncGenerator<AskStreamEvent>;
+}
+
 /** provider 调用失败。 */
 export class AskProviderError extends Error {
   readonly provider: string;

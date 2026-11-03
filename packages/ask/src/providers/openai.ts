@@ -8,8 +8,15 @@
  * **构造时不联网**；只有 `complete()` 被调用时才发请求。
  */
 
-import { AskProviderError, type AskProvider, type AskRequest, type AskResponse } from '../types';
-import { splitReasoning } from '../reasoning';
+import {
+  AskProviderError,
+  type AskRequest,
+  type AskResponse,
+  type AskStreamEvent,
+  type AskStreamingProvider,
+  type AskUsage,
+} from '../types';
+import { splitReasoning, ReasoningStripper } from '../reasoning';
 
 export interface OpenAICompatibleProviderOptions {
   /**
@@ -72,7 +79,7 @@ function readContent(data: any): string {
 /** 创建一个 OpenAI 兼容 provider。 */
 export function createOpenAICompatibleProvider(
   opts: OpenAICompatibleProviderOptions,
-): AskProvider {
+): AskStreamingProvider {
   const {
     baseUrl,
     apiKey,
@@ -95,31 +102,40 @@ export function createOpenAICompatibleProvider(
 
   const url = endpoint ?? resolveChatCompletionsEndpoint(baseUrl);
 
-  return {
+  const buildBody = (req: AskRequest, stream: boolean): Record<string, unknown> => {
+    const body: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: 'system', content: req.system },
+        { role: 'user', content: req.user },
+      ],
+    };
+    const maxTokens = req.maxTokens ?? defaultMaxTokens;
+    if (maxTokens !== undefined) body.max_tokens = maxTokens;
+    const temperature = req.temperature ?? defaultTemperature;
+    if (temperature !== undefined) body.temperature = temperature;
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  };
+
+  const buildHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { 'content-type': 'application/json', ...headers };
+    if (apiKey) h.authorization = `Bearer ${apiKey}`;
+    return h;
+  };
+
+  const provider: AskStreamingProvider = {
     name: PROVIDER_NAME,
 
     async complete(req: AskRequest): Promise<AskResponse> {
       const doFetch = fetchImpl ?? fetch;
-      const body: Record<string, unknown> = {
-        model,
-        messages: [
-          { role: 'system', content: req.system },
-          { role: 'user', content: req.user },
-        ],
-      };
-      const maxTokens = req.maxTokens ?? defaultMaxTokens;
-      if (maxTokens !== undefined) body.max_tokens = maxTokens;
-      const temperature = req.temperature ?? defaultTemperature;
-      if (temperature !== undefined) body.temperature = temperature;
+      const body = buildBody(req, false);
+      const requestHeaders = buildHeaders();
 
-      const requestHeaders: Record<string, string> = {
-        'content-type': 'application/json',
-        ...headers,
-      };
-      if (apiKey) requestHeaders.authorization = `Bearer ${apiKey}`;
-
-      const timeoutSignal =
-        req.signal ?? AbortSignal.timeout(timeoutMs);
+      const timeoutSignal = req.signal ?? AbortSignal.timeout(timeoutMs);
 
       let res: Response;
       try {
@@ -171,5 +187,103 @@ export function createOpenAICompatibleProvider(
         raw: { ...data, reasoning: split.reasoning || undefined },
       };
     },
+
+    /**
+     * 流式补全：逐块吐正文增量。
+     *
+     * 思维链的处理是这里的关键：带思维链的模型把思考写进 `content`，
+     * 不剥掉就会一边思考一边把「我需要检查命宫有没有贪狼」显示给用户。
+     */
+    async *stream(req: AskRequest): AsyncGenerator<AskStreamEvent> {
+      const doFetch = fetchImpl ?? fetch;
+      const body = buildBody(req, true);
+      const requestHeaders = buildHeaders();
+      const timeoutSignal = req.signal ?? AbortSignal.timeout(timeoutMs);
+
+      let res: Response;
+      try {
+        res = await doFetch(url, {
+          method: 'POST',
+          headers: requestHeaders,
+          body: JSON.stringify(body),
+          signal: timeoutSignal,
+        });
+      } catch (err) {
+        yield { type: 'error', message: `请求 ${url} 失败：${(err as Error)?.message ?? String(err)}` };
+        return;
+      }
+
+      if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        yield {
+          type: 'error',
+          message: `provider ${PROVIDER_NAME} 返回 HTTP ${res.status}：${raw.slice(0, 500)}`,
+        };
+        return;
+      }
+      if (!res.body) {
+        yield { type: 'error', message: 'provider 没有返回可读的流' };
+        return;
+      }
+
+      const stripper = new ReasoningStripper();
+      let full = '';
+      let usage: AskUsage | undefined;
+      let modelName: string | undefined;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            let json: any;
+            try {
+              json = JSON.parse(payload);
+            } catch {
+              continue;
+            }
+            if (json.usage) {
+              usage = {
+                promptTokens: json.usage.prompt_tokens,
+                completionTokens: json.usage.completion_tokens,
+                totalTokens: json.usage.total_tokens,
+              };
+            }
+            if (json.model) modelName = json.model;
+            const delta = json.choices?.[0]?.delta;
+            // reasoning_content 是标准思维链字段，直接丢；<think> 混在 content 里的靠 stripper 剥
+            const content = typeof delta?.content === 'string' ? delta.content : '';
+            if (!content) continue;
+            const visible = shouldStripReasoning ? stripper.push(content) : content;
+            if (!visible) continue;
+            full += visible;
+            yield { type: 'delta', text: visible };
+          }
+        }
+      } catch (err) {
+        yield { type: 'error', message: `流式读取中断：${(err as Error)?.message ?? String(err)}` };
+        return;
+      }
+
+      const tail = shouldStripReasoning ? stripper.flush() : '';
+      if (tail) {
+        full += tail;
+        yield { type: 'delta', text: tail };
+      }
+
+      yield { type: 'done', text: full, model: modelName ?? model, usage };
+    },
   };
+
+  return provider;
 }

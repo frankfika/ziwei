@@ -127,7 +127,12 @@ export default function AiConfigPanel({
         换成自己的 Key 就不限量。配置只存在这台设备的浏览器里，不上传。
       </p>
 
-      {/* 预设 */}
+      {/* 预设：只是快速填充，不代表「正在用」——没保存过配置时一个都不高亮，避免误会 */}
+      <p className="mb-2 text-2xs text-ink-2">
+        {hasConfig
+          ? '下面是你已保存的 Key（改动后点保存才生效）：'
+          : '想换成自己的 Key？选个预设、填上 Key、保存：'}
+      </p>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
           <button
@@ -136,7 +141,7 @@ export default function AiConfigPanel({
             onClick={() => applyPreset(p)}
             title={p.hint}
             className={`rounded-full border px-2.5 py-1 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
-              cfg.kind === p.kind && cfg.baseUrl === p.baseUrl
+              hasConfig && cfg.kind === p.kind && cfg.baseUrl === p.baseUrl
                 ? 'border-zhu bg-zhu-soft text-ink'
                 : 'border-line bg-paper text-ink-2 hover:border-ink-3'
             }`}

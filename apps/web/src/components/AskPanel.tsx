@@ -228,8 +228,8 @@ export default function AskPanel({
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
   const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
-  /** 挂载时已存在的对话条数（=「上次留下的」，默认折叠）；切换/新建对话时重拍快照 */
-  const [historyCount, setHistoryCount] = useState(0);
+  /** 挂载时已存在的消息 id（=「上次留下的」，默认折叠）；按 id 记，对话满额截断后新问答也不会被误藏 */
+  const [seenIds, setSeenIds] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const messagesRef = useRef<AskMessage[]>([]);
   messagesRef.current = messages;
@@ -240,26 +240,30 @@ export default function AskPanel({
     const cur = activeId ?? null;
     if (activeIdRef.current !== cur) {
       activeIdRef.current = cur;
-      setHistoryCount(messagesRef.current.length);
+      setSeenIds(messagesRef.current.map((m) => m.id));
       setShowHistory(false);
     }
   }, [loaded, activeId]);
   /** 没展开历史时，只渲染本次新增的消息 */
-  const visibleMessages = showHistory ? messages : messages.slice(historyCount);
+  const visibleMessages = showHistory
+    ? messages
+    : messages.filter((m) => !seenIds.includes(m.id));
+  /** 折叠条上「上次这段对话有 N 条」：仍留存的旧消息数（满额截断后会随之减少） */
+  const historyCount = messages.filter((m) => seenIds.includes(m.id)).length;
 
   /** 用户点名切换一段旧对话 → 直接展开（人家就是要看它的） */
   const handleSelectThread = (id: string) => {
     activeIdRef.current = id; // 抢先同步 ref，上面的 effect 不再覆盖展开状态
     selectThread(id);
     const t = threads.find((x) => x.id === id);
-    setHistoryCount(t?.messages.length ?? 0);
+    setSeenIds(t?.messages.map((m) => m.id) ?? []);
     setShowHistory(true);
   };
   /** 新对话：空白草稿，发第一条时落库 */
   const handleNewThread = () => {
     activeIdRef.current = '__draft__';
     newThread();
-    setHistoryCount(0);
+    setSeenIds([]);
     setShowHistory(false);
   };
   const [expanded, setExpanded] = useState(true);

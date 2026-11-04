@@ -72,7 +72,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    ZIWEI_DATA_DIR=/app/data
+    ZIWEI_DATA_DIR=/app/data \
+    ZIWEI_STATE_DIR=/app/state
 
 # zstd：解压数据集（上游用了长窗口压缩，必须 --long=27，见 docs/DATA.md）
 # curl：下载数据集（scripts/download_data.sh）+ 容器健康检查

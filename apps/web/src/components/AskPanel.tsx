@@ -147,6 +147,7 @@ type Transient =
       kind: 'quota-exceeded';
       message: string;
       limit: number;
+      loggedIn: boolean;
       packs: { id: string; asks: number; priceCny: number; priceUsd: number }[];
       checkout: string;
     };
@@ -433,6 +434,7 @@ export default function AskPanel({
               kind: 'quota-exceeded',
               message: p.message,
               limit: p.limit,
+              loggedIn: p.loggedIn,
               packs: p.packEntry.packs,
               checkout: p.packEntry.checkout,
             });
@@ -870,6 +872,7 @@ export default function AskPanel({
                   limit={transient.limit}
                   packs={transient.packs}
                   checkout={transient.checkout}
+                  loggedIn={transient.loggedIn}
                 />
               </div>
             ) : (

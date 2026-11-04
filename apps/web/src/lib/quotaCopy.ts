@@ -43,8 +43,57 @@ export interface QuotaCopy {
   noAiStatus: string;
   /** 支付未开通（stub）提示 */
   payStub: string;
+  /** stub 下单成功：额度已加到账户（收款未真实发生） */
+  packAdded: (n: number) => string;
   /** 语言切换按钮上的字：切到哪个语言 */
   langToggle: string;
+  // ── 账户 / 登录相关（第二期：邮箱验证码登录 + 账户额度）─────────────
+  /** 未登录时购买区上方的提示 */
+  loginRequired: string;
+  /** 未登录时的「去登录」按钮 */
+  loginCta: string;
+  /** 登录表单：邮箱输入框 */
+  emailLabel: string;
+  /** 登录表单：邮箱占位符 */
+  emailPlaceholder: string;
+  /** 登录表单：验证码输入框 */
+  codeLabel: string;
+  /** 登录表单：验证码占位符 */
+  codePlaceholder: string;
+  /** 发送验证码按钮 */
+  sendCode: string;
+  /** 校验并登录按钮 */
+  verifyLogin: string;
+  /** 登录表单副标题 */
+  loginTitle: string;
+  /** 登录表单说明 */
+  loginHint: string;
+  /** 验证码已发送 */
+  codeSent: string;
+  /** 调试模式：验证码直接显示（本地测试用） */
+  debugCode: (code: string) => string;
+  /** 登录失败 / 验证码错误 */
+  loginError: string;
+  /** 登录成功 */
+  loginOk: string;
+  /** 「我的额度」页标题 */
+  accountTitle: string;
+  /** 「我的额度」页：当前登录邮箱 */
+  accountEmail: string;
+  /** 「我的额度」页：今日免费剩余 */
+  accountFree: (remaining: number, limit: number) => string;
+  /** 「我的额度」页：流量包余额 */
+  accountPack: (n: number) => string;
+  /** 「我的额度」页：订单标题 */
+  accountOrders: string;
+  /** 「我的额度」页：没有订单 */
+  accountNoOrders: string;
+  /** 「我的额度」页：订单行（n 次 · 时间） */
+  accountOrderItem: (asks: number, at: string) => string;
+  /** 退出登录按钮 */
+  logout: string;
+  /** 导航栏入口 */
+  navAccount: string;
 }
 
 const ZH: QuotaCopy = {
@@ -66,7 +115,31 @@ const ZH: QuotaCopy = {
   noAiHint: '当前 AI：无 —— 下面填一个 Key 才能追问',
   noAiStatus: 'AI 还没配置 —— 点这里填 Key',
   payStub: '支付尚未开通（第一期 stub），先记下意向。',
+  packAdded: (n) => `已记下意向（stub，未真实收款）；${n} 次追问已加到你的账户。`,
   langToggle: 'EN',
+  loginRequired: '登录后可以购买流量包，额度记在你的账户里。',
+  loginCta: '去登录',
+  emailLabel: '邮箱',
+  emailPlaceholder: 'you@example.com',
+  codeLabel: '验证码',
+  codePlaceholder: '6 位数字',
+  sendCode: '发送验证码',
+  verifyLogin: '登录',
+  loginTitle: '邮箱验证码登录',
+  loginHint: '验证码 10 分钟内有效，每天最多发 20 次。',
+  codeSent: '验证码已发送，请查收邮件。',
+  debugCode: (c) => `（本地调试：验证码是 ${c}）`,
+  loginError: '验证码无效或已过期，请重新获取。',
+  loginOk: '登录成功。',
+  accountTitle: '我的额度',
+  accountEmail: '登录邮箱',
+  accountFree: (r, l) => `今日免费剩余 ${r} / ${l} 次`,
+  accountPack: (n) => `流量包余额 ${n} 次`,
+  accountOrders: '最近订单',
+  accountNoOrders: '还没有订单。',
+  accountOrderItem: (n, at) => `${n} 次追问 · ${at}`,
+  logout: '退出登录',
+  navAccount: '我的额度',
 };
 
 const EN: QuotaCopy = {
@@ -88,7 +161,31 @@ const EN: QuotaCopy = {
   noAiHint: 'Current AI: none — add a key below to start asking',
   noAiStatus: 'AI is not configured — click to add a key',
   payStub: 'Payments are not live yet (phase-1 stub) — we noted your interest.',
+  packAdded: (n) => `Noted (stub — no real charge); ${n} follow-ups added to your account.`,
   langToggle: '中文',
+  loginRequired: 'Sign in to buy a traffic pack — the credits go to your account.',
+  loginCta: 'Sign in',
+  emailLabel: 'Email',
+  emailPlaceholder: 'you@example.com',
+  codeLabel: 'Verification code',
+  codePlaceholder: '6 digits',
+  sendCode: 'Send code',
+  verifyLogin: 'Sign in',
+  loginTitle: 'Sign in with email code',
+  loginHint: 'Codes expire in 10 minutes; at most 20 per day.',
+  codeSent: 'Code sent — check your inbox.',
+  debugCode: (c) => `(local debug: your code is ${c})`,
+  loginError: 'That code is invalid or expired. Request a new one.',
+  loginOk: 'Signed in.',
+  accountTitle: 'My quota',
+  accountEmail: 'Signed in as',
+  accountFree: (r, l) => `Free follow-ups left today: ${r} / ${l}`,
+  accountPack: (n) => `Traffic pack balance: ${n}`,
+  accountOrders: 'Recent orders',
+  accountNoOrders: 'No orders yet.',
+  accountOrderItem: (n, at) => `${n} follow-ups · ${at}`,
+  logout: 'Sign out',
+  navAccount: 'My quota',
 };
 
 export const QUOTA_COPY: Record<Lang, QuotaCopy> = { zh: ZH, en: EN };

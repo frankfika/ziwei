@@ -47,6 +47,8 @@ export interface AskStreamQuotaExceeded {
   message: string;
   /** 每日上限 */
   limit: number;
+  /** 是否已登录 —— 未登录时购买入口要先引导登录 */
+  loggedIn: boolean;
   /** 流量包入口（套餐 + checkout stub 路径） */
   packEntry: { packs: TrafficPack[]; checkout: string };
 }
@@ -62,6 +64,7 @@ interface RawEvent {
   message?: string;
   code?: string;
   limit?: number;
+  loggedIn?: boolean;
   packEntry?: { packs: TrafficPack[]; checkout: string };
 }
 
@@ -148,6 +151,7 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
         code: 'QUOTA_EXCEEDED',
         message: evt.message ?? '',
         limit: evt.limit ?? 0,
+        loggedIn: evt.loggedIn ?? false,
         packEntry: evt.packEntry ?? { packs: [], checkout: '/api/checkout' },
       });
       return;

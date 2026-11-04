@@ -29,6 +29,7 @@ const SUITE_FILES = [
   'tests/index_integrity.test.ts',
   'tests/service.test.ts',
   'tests/ask_quota.test.ts',
+  'tests/account.test.ts',
 ];
 
 /** 一个文件跑完的结果 */

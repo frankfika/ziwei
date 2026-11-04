@@ -1,10 +1,14 @@
 /**
  * 流量包下单 **stub** —— 第一期不接真实支付。
  *
- * 只做两件事：校验套餐 id、记一条意向并回一句人话。
- * **不收款、不发货、不加额度** —— 真接支付时替换这个文件即可，前端契约不变。
+ * 但**额度是真的**：下单成功就把该套餐的追问次数加到登录账户的 packBalance 上，
+ * 否则「购买」只是个空壳，用户余额纹丝不动。
+ *
+ * 必须登录 —— 未登录返回 401（前端据此引导登录，不加额度）。
  */
 
+import { addPackBalance, createOrder } from '@/lib/account';
+import { currentUser } from '@/lib/session';
 import { findPack } from '@/lib/trafficPacks';
 
 export const dynamic = 'force-dynamic';
@@ -23,12 +27,22 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: 'UNKNOWN_PACK' }, { status: 400 });
   }
 
-  // ponytail: stub —— 真实支付接入前只回执，不落库、不加额度
+  const user = await currentUser();
+  if (!user) {
+    // 未登录不能买 —— 明确拒绝，不落单、不加额度
+    return Response.json({ ok: false, error: 'NOT_LOGGED_IN' }, { status: 401 });
+  }
+
+  const order = createOrder(user.id, pack);
+  const updated = addPackBalance(user.id, pack.asks);
+
   // 文案由前端 QUOTA_COPY 负责（要中英），服务端不写死中文
   return Response.json({
     ok: true,
     stub: true,
+    orderId: order.id,
     packId: pack.id,
     asks: pack.asks,
+    packBalance: updated.packBalance,
   });
 }

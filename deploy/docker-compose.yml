@@ -27,6 +27,10 @@ services:
       # 数据目录（绝对路径）—— 解读数据集检索全靠它
       ZIWEI_DATA_DIR: /app/data
 
+      # 运行状态目录（账户 / 会话 / 订单 / 每日额度计数）
+      # 必须落在 volume 里，否则重建容器会丢账户与流量包余额
+      ZIWEI_STATE_DIR: /app/state
+
       # ── 追问 provider（可选）─────────────────────────────────
       # 全部留空 = 不接任何模型 API：追问面板会明确提示「未配置 provider」，
       # 排盘与 13 维解读（数据集检索）完全不受影响，也不会联网。
@@ -40,6 +44,8 @@ services:
     volumes:
       # 解读数据集：压缩包 164MB / 解压 53GB / 索引 15MB
       - ziwei-data:/app/data
+      # 运行状态：账户 / 会话 / 订单 / 每日额度计数（重建容器不丢）
+      - ziwei-state:/app/state
 
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
@@ -57,3 +63,5 @@ services:
 volumes:
   ziwei-data:
     name: ziwei-data
+  ziwei-state:
+    name: ziwei-state

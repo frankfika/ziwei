@@ -26,3 +26,6 @@ apps/web/.verify/
 .verify/
 .playwright-mcp/
 apps/web/.data/
+
+# 运行状态（账户 / 会话 / 订单 / 额度计数）
+/.data/

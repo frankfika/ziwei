@@ -21,7 +21,8 @@ import {
   type AskTurn,
 } from '@ziwei/ask';
 import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
-import { askQuotaKey, refundAskQuota, reserveAskQuota, type QuotaKey } from '@/lib/askQuota';
+import { requestIp, reserveFor, type QuotaSubject } from '@/lib/askAccess';
+import { currentUser } from '@/lib/session';
 import { packEntry } from '@/lib/trafficPacks';
 
 export const dynamic = 'force-dynamic';
@@ -87,11 +88,16 @@ export async function POST(request: Request) {
 
   // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）
   const userProvider = providerFromUserConfig(readUserProvider(formData));
-  let quotaKey: QuotaKey | null = null;
+  let refund: (() => void) | null = null;
   if (!userProvider) {
-    quotaKey = await askQuotaKey();
-    const r = reserveAskQuota(quotaKey);
-    if (!r.ok) return sseQuotaExceeded(r.limit);
+    // 有登录态就按账户扣（先免费日额 → 再流量包余额），否则按 IP 扣
+    const user = await currentUser();
+    const subject: QuotaSubject = user
+      ? { kind: 'user', userId: user.id }
+      : { kind: 'ip', ip: await requestIp() };
+    const r = reserveFor(subject);
+    if (!r.ok) return sseQuotaExceeded(r.limit, Boolean(user));
+    refund = r.refund;
   }
 
   const service = new AskService(userProvider ? { provider: userProvider } : {});
@@ -165,7 +171,7 @@ export async function POST(request: Request) {
         send({ type: 'error', message });
       } finally {
         // 失败不扣次：没走到 done 的一切结局（报错 / 未覆盖 / 提前断流）都退还这一次
-        if (quotaKey && !consumed) refundAskQuota(quotaKey);
+        if (refund && !consumed) refund();
         try {
           controller.close();
         } catch {
@@ -200,14 +206,17 @@ function sseError(message: string): Response {
 /**
  * 额度用尽：专用事件（不是普通 error），带 QUOTA_EXCEEDED 码 + 流量包入口，
  * 前端据此弹「额度墙」而不是一句干巴巴的报错。
+ *
+ * loggedIn 告诉前端「买包前要不要先登录」—— 未登录时购买入口应引导登录。
  */
-function sseQuotaExceeded(limit: number): Response {
+function sseQuotaExceeded(limit: number, loggedIn: boolean): Response {
   return new Response(
     `data: ${JSON.stringify({
       type: 'quota-exceeded',
       code: 'QUOTA_EXCEEDED',
       message: `每日免费体验限 ${limit} 次，已到上限。`,
       limit,
+      loggedIn,
       packEntry: packEntry(),
     })}\n\n`,
     {

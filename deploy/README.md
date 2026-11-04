@@ -254,6 +254,11 @@ docker compose -f deploy/docker-compose.yml down
 | `ZIWEI_ASK_API_KEY` | 空 | **真 key 只写这里，不进镜像、不进 git** |
 | `ZIWEI_ASK_MODEL` | 空 | 模型名 |
 | `ZIWEI_ASK_MAX_TOKENS` | `8000` | 单次输出上限 |
+| `ZIWEI_STATE_DIR` | `/app/state` | 运行状态目录（账户 / 会话 / 订单 / 每日额度计数）—— 必须挂 volume，否则重建容器丢账户与流量包余额 |
+| `ZIWEI_RESEND_API_KEY` | 空 | 验证码发信通道（Resend）。**空 = 不发信**：开发环境回 debugCode，生产环境报「邮件服务未配置」 |
+| `ZIWEI_RESEND_FROM` | `紫微助手 <onboarding@resend.dev>` | 发信人地址（Resend 需已验证域名） |
+| `ZIWEI_OTP_DEBUG` | 空 | `1` = 强制调试模式（回 debugCode，不发信）—— 生产别开 |
+| `ZIWEI_ASK_DAILY_LIMIT` | `3` | 每日免费追问次数（按账户 / 按 IP） |
 
 > 追问 provider 留空 = 不接任何模型 API。排盘与 13 维解读（数据集检索）
 > **完全不受影响**，追问面板会明确提示「未配置 provider」，不会有出网请求。
@@ -264,6 +269,7 @@ docker compose -f deploy/docker-compose.yml down
 docker run -d --name ziwei \
   -p 3000:3000 \
   -v ziwei-data:/app/data \
+  -v ziwei-state:/app/state \
   -e ZIWEI_ASK_PROVIDER=openai \
   -e ZIWEI_ASK_BASE_URL=https://api.deepseek.com \
   -e ZIWEI_ASK_API_KEY=sk-... \
@@ -354,6 +360,7 @@ docker logs --tail=100 ziwei
 | SSH | `ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35`（sshd 只认 RSA） |
 | 代码目录 | `/opt/ziwei/`（rsync 同步，非 git checkout） |
 | 数据 volume | 具名卷 `ziwei-data` → `/app/data`（`compact/` + `index/`，共 1.6GB，raw 不上服务器） |
+| 状态 volume | 具名卷 `ziwei-state` → `/app/state`（账户 / 会话 / 订单 / 每日额度计数） |
 | 容器 | `ziwei-assistant`，`--restart unless-stopped`，端口 `3000:3000` |
 | 镜像 | `ziwei-assistant:compact`（当前生产 tag） |
 | 反代 | 宿主机 Nginx `/etc/nginx/sites-enabled/ziwei` → `127.0.0.1:3000` |
@@ -382,7 +389,7 @@ ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
 # ③ 冒烟测试（临时容器，3001 若被占换 3002）
 ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
   docker run -d --name ziwei-test --rm -p 127.0.0.1:3002:3000 \
-    -v ziwei-data:/app/data ziwei-assistant:compact && sleep 8 \
+    -v ziwei-data:/app/data -v ziwei-state:/app/state ziwei-assistant:compact && sleep 8 \
     && curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3002/ \
     && docker rm -f ziwei-test'
 
@@ -393,7 +400,7 @@ ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 '
   docker stop ziwei-assistant && docker rm ziwei-assistant
   docker run -d --name ziwei-assistant --restart unless-stopped -p 3000:3000 \
     --env-file /opt/ziwei/apps/web/.env.local \
-    -v ziwei-data:/app/data ziwei-assistant:compact
+    -v ziwei-data:/app/data -v ziwei-state:/app/state ziwei-assistant:compact
   docker image prune -f'
 
 # ⑤ 公网验证

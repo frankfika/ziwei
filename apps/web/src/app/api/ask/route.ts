@@ -10,6 +10,7 @@
  *   {type:'delta',      text}                  正文增量
  *   {type:'done',       answer, cited, verification, model}   全文 + 自检结论
  *   {type:'not-covered',message}               样本库未覆盖（原样透出 core 的说明）
+ *   {type:'quota-exceeded',code,message,limit,packEntry}  免费额度用尽（内置 AI 每日限额）
  *   {type:'error',      message}               失败
  */
 
@@ -20,7 +21,8 @@ import {
   type AskTurn,
 } from '@ziwei/ask';
 import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
-import { consumeAskQuota, checkAskQuota } from '@/lib/askQuota';
+import { askQuotaKey, refundAskQuota, reserveAskQuota, type QuotaKey } from '@/lib/askQuota';
+import { packEntry } from '@/lib/trafficPacks';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,11 +85,13 @@ export async function POST(request: Request) {
     return sseError('生辰参数不完整，请回到输入页重新排盘。');
   }
 
-  // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先查后发，成功才计数）
+  // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）
   const userProvider = providerFromUserConfig(readUserProvider(formData));
+  let quotaKey: QuotaKey | null = null;
   if (!userProvider) {
-    const q = await checkAskQuota();
-    if (!q.ok) return sseError(q.message);
+    quotaKey = await askQuotaKey();
+    const r = reserveAskQuota(quotaKey);
+    if (!r.ok) return sseQuotaExceeded(r.limit);
   }
 
   const service = new AskService(userProvider ? { provider: userProvider } : {});
@@ -120,6 +124,8 @@ export async function POST(request: Request) {
           /* 客户端已断开 */
         }
       };
+      // 额度：提问前已占好一次；只有走到 done 才算用掉，其余结局（未覆盖 / 报错 / 断流）退还
+      let consumed = false;
       try {
         for await (const ev of service.askStream(
           { year, month, day, hour, gender },
@@ -132,8 +138,8 @@ export async function POST(request: Request) {
           } else if (ev.type === 'thinking') {
             send({ type: 'thinking', text: ev.text });
           } else if (ev.type === 'done') {
-            // 成功才计数（失败不消耗额度）
-            if (!userProvider) await consumeAskQuota();
+            // 成功才计数（前面预占的这一次就此生效，不再退还）
+            consumed = true;
             send({
               type: 'done',
               answer: ev.answer,
@@ -158,6 +164,8 @@ export async function POST(request: Request) {
               : '追问失败，请稍后重试。';
         send({ type: 'error', message });
       } finally {
+        // 失败不扣次：没走到 done 的一切结局（报错 / 未覆盖 / 提前断流）都退还这一次
+        if (quotaKey && !consumed) refundAskQuota(quotaKey);
         try {
           controller.close();
         } catch {
@@ -187,4 +195,27 @@ function sseError(message: string): Response {
       'cache-control': 'no-cache, no-transform',
     },
   });
+}
+
+/**
+ * 额度用尽：专用事件（不是普通 error），带 QUOTA_EXCEEDED 码 + 流量包入口，
+ * 前端据此弹「额度墙」而不是一句干巴巴的报错。
+ */
+function sseQuotaExceeded(limit: number): Response {
+  return new Response(
+    `data: ${JSON.stringify({
+      type: 'quota-exceeded',
+      code: 'QUOTA_EXCEEDED',
+      message: `每日免费体验限 ${limit} 次，已到上限。`,
+      limit,
+      packEntry: packEntry(),
+    })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+      },
+    },
+  );
 }

@@ -16,6 +16,9 @@ import {
   type UserProviderConfig,
   type UserProviderKind,
 } from '@/lib/aiConfig';
+import { useLang } from '@/lib/lang';
+import { QUOTA_COPY } from '@/lib/quotaCopy';
+import { useQuotaStatus } from '@/lib/useQuota';
 
 type TestState =
   | { phase: 'idle' }
@@ -44,6 +47,10 @@ export default function AiConfigPanel({
   const [saved, setSaved] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
   const [test, setTest] = useState<TestState>({ phase: 'idle' });
+  // 额度相关文案：中英可切；额度上限以服务端为准
+  const [lang] = useLang();
+  const quota = useQuotaStatus();
+  const copy = QUOTA_COPY[lang];
 
   useEffect(() => {
     const existing = readUserConfig();
@@ -110,13 +117,10 @@ export default function AiConfigPanel({
       {/* 现在到底在用谁 —— 先回答这个问题，再谈配置 */}
       <div className="mb-3 rounded-lg border border-lineSoft bg-paper/60 px-3 py-2.5" data-ai-active>
         {hasConfig ? (
-          <p className="text-xs leading-relaxed text-ink">
-            当前 AI：<span className="font-medium">{cfg.model}</span>（你的 Key · 不限量）
-          </p>
+          <p className="text-xs leading-relaxed text-ink">{copy.activeUser(cfg.model)}</p>
         ) : serverAiReady ? (
           <p className="text-xs leading-relaxed text-ink">
-            当前 AI：<span className="font-medium">{serverModel ?? '内置模型'}</span>
-            <span className="text-ink-2">（本站免费提供 · 每天 10 次）</span>
+            {copy.activeBuiltin(serverModel ?? '内置模型', quota.limit)}
           </p>
         ) : (
           <p className="text-xs leading-relaxed text-ink">当前 AI：无 —— 下面填一个 Key 才能追问</p>

@@ -7,6 +7,8 @@
  * 模型那十几秒里界面只能转圈；SSE 能边生成边显示。
  */
 
+import type { TrafficPack } from './trafficPacks';
+
 export interface AskStreamVerification {
   ok: boolean;
   suspectStars: string[];
@@ -35,10 +37,22 @@ export interface AskStreamHandlers {
   onError(message: string): void;
   /** 样本库未覆盖 —— message 原样透出，不要自己编 */
   onNotCovered?(message: string): void;
+  /** 额度用尽 —— 带流量包入口，前端据此显示额度墙 */
+  onQuotaExceeded?(payload: AskStreamQuotaExceeded): void;
+}
+
+/** 额度用尽：QUOTA_EXCEEDED + 流量包入口 */
+export interface AskStreamQuotaExceeded {
+  code: 'QUOTA_EXCEEDED';
+  message: string;
+  /** 每日上限 */
+  limit: number;
+  /** 流量包入口（套餐 + checkout stub 路径） */
+  packEntry: { packs: TrafficPack[]; checkout: string };
 }
 
 interface RawEvent {
-  type: 'delta' | 'thinking' | 'done' | 'error' | 'not-covered';
+  type: 'delta' | 'thinking' | 'done' | 'error' | 'not-covered' | 'quota-exceeded';
   text?: string;
   answer?: string;
   cited?: string[];
@@ -46,6 +60,9 @@ interface RawEvent {
   model?: string;
   source?: 'user' | 'builtin';
   message?: string;
+  code?: string;
+  limit?: number;
+  packEntry?: { packs: TrafficPack[]; checkout: string };
 }
 
 /**
@@ -125,6 +142,14 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
       return;
     case 'not-covered':
       handlers.onNotCovered?.(evt.message ?? '样本库未覆盖该生辰。');
+      return;
+    case 'quota-exceeded':
+      handlers.onQuotaExceeded?.({
+        code: 'QUOTA_EXCEEDED',
+        message: evt.message ?? '',
+        limit: evt.limit ?? 0,
+        packEntry: evt.packEntry ?? { packs: [], checkout: '/api/checkout' },
+      });
       return;
     default:
       handlers.onError(evt.message ?? '追问失败，请稍后重试。');

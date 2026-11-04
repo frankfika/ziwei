@@ -2,7 +2,7 @@
 
 > 输入生辰 → 确定性排盘 → 12 宫命盘与 13 维解读 → 命盘本地存档、基于命盘的多轮追问。
 
-**在线体验：<https://ziwei.secondplanet.cc>** —— 免费、无需注册；用内置 AI 每天 10 次免费追问，填自己的 Key 则不限量。
+**在线体验：<https://ziwei.secondplanet.cc>** —— 免费、无需注册；用内置 AI 每天 3 次免费追问，填自己的 Key 则不限量。
 
 [![CI](https://github.com/frankfika/ziwei/actions/workflows/ci.yml/badge.svg)](https://github.com/frankfika/ziwei/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -98,6 +98,21 @@ CLI / 脚本则直接用环境变量（同名变量，见 `deploy/.env.example`�
 > MiniMax-M1 **12s**（思考仅 397 token）。推荐 `MiniMax-M1` 或 `deepseek-chat`。
 
 不配置也没关系：界面会明确显示「AI 还没配置」，不会静默降级、也不会出网请求。
+
+### 内置追问额度（第一期）
+
+没自配 Key 的访客，内置 AI **每 IP 每天免费 3 次**（按 **UTC 日**切，次日 0 点刷新）。
+上限可用环境变量覆盖：
+
+```bash
+ZIWEI_ASK_DAILY_LIMIT=3   # 默认 3
+```
+
+- 计数口径：请求成功产出回答才扣次；失败/中断不扣。
+- 用尽后接口返回 `QUOTA_EXCEEDED`，界面弹出额度墙并给出「流量包」入口（20 / 100 / 500 次三档占位套餐）。
+- **支付尚未接通**（stub）：点「购买」只记录意向，不产生真实交易。
+- 自带 Key 的用户**不限量**，也不计数。
+- 额度相关文案（额度墙 / 用尽提示 / 流量包入口）支持中英切换，语言存本机 localStorage。
 
 ---
 
@@ -310,7 +325,7 @@ CI 没有 56GB 数据集，数据相关用例**自动跳过并说明原因**，�
 | 闰月标记 | `isLeapMonth` 在 `split` 下**恒为 false**，闰月体现为农历月归属，别拿它判断闰月 |
 | 盘面缓存 | `currentAge` 随当天日期变 → 整个 `ChartJSON` **不可缓存** |
 | 盘外星曜检测 | 引擎每张盘都落全部 70 颗星（只落宫不同），所以集合判定几乎不触发；防编造靠**落宫检查** + 参考星表 |
-| 追问模块 | 默认不接任何真实 API（需自行配置 provider 环境变量）；内置 AI 每 IP 每天 10 次 |
+| 追问模块 | 默认不接任何真实 API（需自行配置 provider 环境变量）；内置 AI 每 IP 每天 3 次（`ZIWEI_ASK_DAILY_LIMIT` 可覆盖），用尽后可买「流量包」 |
 | 追问输出方式 | **流式**：模型吐字就实时显示（SSE），思维链内容不外露 |
 | 本地存档 | 命盘库与追问对话只存浏览器 localStorage，不上传；命盘最多 50 张、每盘对话最多 20 条 |
 | 上游商业站功能 | **不**实现会员/支付/防刷/SEO 站群；界面为自研 |

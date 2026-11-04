@@ -18,6 +18,7 @@ import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 import Markdown from './Markdown';
 import MiniChart from './MiniChart';
+import QuotaWall from './QuotaWall';
 import { getChatChart, type ChatChartPayload } from '@/app/chat-chart-action';
 import { readUserConfig } from '@/lib/aiConfig';
 
@@ -141,7 +142,14 @@ function ThinkingBlock({ text }: { text: string }) {
 /** 服务端返回的非 ok 状态 / 本地失败 —— 不进线程，作为临时提示展示 */
 type Transient =
   | { kind: 'not-covered' | 'not-configured'; message: string }
-  | { kind: 'error' | 'local-error'; message: string; retryQuestion: string };
+  | { kind: 'error' | 'local-error'; message: string; retryQuestion: string }
+  | {
+      kind: 'quota-exceeded';
+      message: string;
+      limit: number;
+      packs: { id: string; asks: number; priceCny: number; priceUsd: number }[];
+      checkout: string;
+    };
 
 function suspectsOf(v: AskStreamVerification): string[] {
   return [
@@ -417,6 +425,17 @@ export default function AskPanel({
           },
           onError: (message) => {
             setTransient({ kind: 'error', message, retryQuestion: text });
+            setStream(null);
+          },
+          onQuotaExceeded: (p) => {
+            // 额度墙：不是普通报错 —— 说清为什么被墙 + 流量包入口
+            setTransient({
+              kind: 'quota-exceeded',
+              message: p.message,
+              limit: p.limit,
+              packs: p.packEntry.packs,
+              checkout: p.packEntry.checkout,
+            });
             setStream(null);
           },
         });
@@ -845,23 +864,33 @@ export default function AskPanel({
           ))}
 
           {transient && (
-            <div
-              className="mt-5 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
-              data-ask-state={transient.kind === 'local-error' ? 'error' : transient.kind}
-              role={transient.kind === 'local-error' || transient.kind === 'error' ? 'alert' : 'status'}
-            >
-              <p className="text-xs leading-relaxed text-ink-2">{transient.message}</p>
-              {(transient.kind === 'local-error' || transient.kind === 'error') && (
-                <button
-                  type="button"
-                  onClick={() => submit(transient.retryQuestion)}
-                  disabled={pending}
-                  className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                >
-                  重试
-                </button>
-              )}
-            </div>
+            transient.kind === 'quota-exceeded' ? (
+              <div className="mt-5">
+                <QuotaWall
+                  limit={transient.limit}
+                  packs={transient.packs}
+                  checkout={transient.checkout}
+                />
+              </div>
+            ) : (
+              <div
+                className="mt-5 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
+                data-ask-state={transient.kind === 'local-error' ? 'error' : transient.kind}
+                role={transient.kind === 'local-error' || transient.kind === 'error' ? 'alert' : 'status'}
+              >
+                <p className="text-xs leading-relaxed text-ink-2">{transient.message}</p>
+                {(transient.kind === 'local-error' || transient.kind === 'error') && (
+                  <button
+                    type="button"
+                    onClick={() => submit(transient.retryQuestion)}
+                    disabled={pending}
+                    className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  >
+                    重试
+                  </button>
+                )}
+              </div>
+            )
           )}
         </div>
 

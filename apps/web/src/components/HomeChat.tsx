@@ -11,9 +11,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
+import LangToggle from './LangToggle';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
+import { useLang } from '@/lib/lang';
+import { QUOTA_COPY } from '@/lib/quotaCopy';
+import { useQuotaStatus } from '@/lib/useQuota';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
   { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化' },
@@ -44,6 +48,10 @@ export default function HomeChat({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
+  // 额度相关文案：中英可切；额度上限以服务端为准
+  const [lang] = useLang();
+  const quota = useQuotaStatus();
+  const copy = QUOTA_COPY[lang];
 
   // 客户端配置状态：挂载与打开面板后都刷新
   useEffect(() => {
@@ -111,9 +119,9 @@ export default function HomeChat({
             className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
           />
           {userCfg ? (
-            <>当前 AI：{userCfg.model}（你的 Key · 不限量）</>
+            <>{copy.statusUser(userCfg.model)}</>
           ) : providerConfigured ? (
-            <>当前 AI：{serverModel ? serverModel : '内置模型'}（本站免费提供 · 每天 10 次）</>
+            <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
           ) : (
             <span className="text-danger">AI 还没配置 —— 点这里填 Key</span>
           )}
@@ -121,6 +129,7 @@ export default function HomeChat({
             ⚙
           </span>
         </button>
+        <LangToggle />
       </div>
 
       {/* 档案行：档案芯片 + 新建/合盘 —— 都是「管档案」的动作，放一行横向滚动 */}

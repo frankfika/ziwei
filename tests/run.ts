@@ -28,6 +28,7 @@ const SUITE_FILES = [
   'tests/test_key_alignment.test.ts',
   'tests/index_integrity.test.ts',
   'tests/service.test.ts',
+  'tests/ask_quota.test.ts',
 ];
 
 /** 一个文件跑完的结果 */

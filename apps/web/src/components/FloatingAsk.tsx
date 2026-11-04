@@ -13,9 +13,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AskPanel, { type AskSeed } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
+import LangToggle from './LangToggle';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
+import { useLang } from '@/lib/lang';
+import { QUOTA_COPY } from '@/lib/quotaCopy';
+import { useQuotaStatus } from '@/lib/useQuota';
 
 /** 「就此追问」事件的载荷：问句 + 焦点 + 可选的盘 */
 export interface ZiweiAskEventDetail {
@@ -48,6 +52,10 @@ export default function FloatingAsk({
   const [eventBirth, setEventBirth] = useState<PanelBirth | null>(null);
   const { history } = useHistory();
   const [userAi, setUserAi] = useState(false);
+  // 额度相关文案：中英可切；额度上限以服务端为准（可能被 env 覆盖）
+  const [lang] = useLang();
+  const quota = useQuotaStatus();
+  const copy = QUOTA_COPY[lang];
 
   // 打开面板时刷新 AI 配置状态（设置完回来不用刷新）
   useEffect(() => {
@@ -176,12 +184,20 @@ export default function FloatingAsk({
               AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
             </p>
           ) : userAi ? (
-            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              当前 AI：{readUserConfig()?.model}（你的 Key · 不限量）—— 右上角 ⚙ 可更换或测试。
+            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
+              <span>
+                {copy.statusUser(readUserConfig()?.model ?? '')}
+                {copy.statusHintUser}
+              </span>
+              <LangToggle />
             </p>
           ) : (
-            <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              当前 AI：{serverModel ?? '内置模型'}（本站免费提供 · 每天 10 次）—— 右上角 ⚙ 可换成自己的 Key。
+            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
+              <span>
+                {copy.statusBuiltin(serverModel ?? '内置模型', quota.limit)}
+                {copy.statusHint}
+              </span>
+              <LangToggle />
             </p>
           )}
 

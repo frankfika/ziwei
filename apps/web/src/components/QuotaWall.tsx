@@ -68,7 +68,9 @@ export default function QuotaWall({
       role="alert"
     >
       <p className="text-sm font-medium text-ink">{copy.wallTitle}</p>
-      <p className="mt-1.5 text-xs leading-relaxed text-ink-2">{copy.wallBody(limit)}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-ink-2">
+        {copy.wallBody(limit, loggedIn ? 'account' : 'ip')}
+      </p>
 
       {packs.length > 0 && (
         <div className="mt-3">

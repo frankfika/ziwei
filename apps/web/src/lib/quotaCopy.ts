@@ -9,6 +9,9 @@ import type { TrafficPack } from './trafficPacks';
 
 export type Lang = 'zh' | 'en';
 
+/** 额度归属口径：未登录按 IP，已登录按账户 */
+export type QuotaScope = 'ip' | 'account';
+
 export interface QuotaCopy {
   /** 「本站免费提供 · 每天 N 次」的小注 */
   dailyNote: (limit: number) => string;
@@ -25,8 +28,8 @@ export interface QuotaCopy {
   activeUser: (model: string) => string;
   /** 额度墙标题 */
   wallTitle: string;
-  /** 额度墙正文 */
-  wallBody: (limit: number) => string;
+  /** 额度墙正文（口径随 scope：ip = 按 IP，account = 按账户） */
+  wallBody: (limit: number, scope: QuotaScope) => string;
   /** 流量包区块标题 */
   packsTitle: string;
   /** 套餐名（n 次追问） */
@@ -80,10 +83,14 @@ export interface QuotaCopy {
   accountTitle: string;
   /** 「我的额度」页：当前登录邮箱 */
   accountEmail: string;
-  /** 「我的额度」页：今日免费剩余 */
+  /** 「我的额度」页：今日免费剩余（完整文案） */
   accountFree: (remaining: number, limit: number) => string;
-  /** 「我的额度」页：流量包余额 */
+  /** 「我的额度」页：今日免费剩余（标签） */
+  accountFreeLabel: string;
+  /** 「我的额度」页：流量包余额（完整文案） */
   accountPack: (n: number) => string;
+  /** 「我的额度」页：流量包余额（标签） */
+  accountPackLabel: string;
   /** 「我的额度」页：订单标题 */
   accountOrders: string;
   /** 「我的额度」页：没有订单 */
@@ -105,8 +112,10 @@ const ZH: QuotaCopy = {
   activeBuiltin: (model, n) => `当前 AI：${model}（本站免费提供 · 每天 ${n} 次）`,
   activeUser: (model) => `当前 AI：${model}（你的 Key · 不限量）`,
   wallTitle: '今天的免费追问额度用完了',
-  wallBody: (n) =>
-    `内置 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`,
+  wallBody: (n, scope) =>
+    scope === 'account'
+      ? `内置 AI 每个账户每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`
+      : `内置 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`,
   packsTitle: '流量包',
   packAsks: (n) => `${n} 次追问`,
   buy: '购买',
@@ -134,7 +143,9 @@ const ZH: QuotaCopy = {
   accountTitle: '我的额度',
   accountEmail: '登录邮箱',
   accountFree: (r, l) => `今日免费剩余 ${r} / ${l} 次`,
+  accountFreeLabel: '免费额度',
   accountPack: (n) => `流量包余额 ${n} 次`,
+  accountPackLabel: '流量包',
   accountOrders: '最近订单',
   accountNoOrders: '还没有订单。',
   accountOrderItem: (n, at) => `${n} 次追问 · ${at}`,
@@ -151,8 +162,10 @@ const EN: QuotaCopy = {
   activeBuiltin: (model, n) => `Current AI: ${model} (free on-site AI · ${n} per day)`,
   activeUser: (model) => `Current AI: ${model} (your key · unlimited)`,
   wallTitle: "You've used today's free follow-ups",
-  wallBody: (n) =>
-    `The built-in AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`,
+  wallBody: (n, scope) =>
+    scope === 'account'
+      ? `The built-in AI allows ${n} free follow-ups per account per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`
+      : `The built-in AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`,
   packsTitle: 'Traffic packs',
   packAsks: (n) => `${n} follow-ups`,
   buy: 'Buy',
@@ -180,7 +193,9 @@ const EN: QuotaCopy = {
   accountTitle: 'My quota',
   accountEmail: 'Signed in as',
   accountFree: (r, l) => `Free follow-ups left today: ${r} / ${l}`,
+  accountFreeLabel: 'Free quota',
   accountPack: (n) => `Traffic pack balance: ${n}`,
+  accountPackLabel: 'Traffic pack',
   accountOrders: 'Recent orders',
   accountNoOrders: 'No orders yet.',
   accountOrderItem: (n, at) => `${n} follow-ups · ${at}`,

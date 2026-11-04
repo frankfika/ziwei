@@ -95,13 +95,13 @@ export default function AccountPage() {
                 <dd className="text-ink">{email}</dd>
               </div>
               <div className="flex flex-wrap gap-x-3">
-                <dt className="text-ink-2">{copy.accountFree(quota.remaining, quota.limit).split(' ')[0]}</dt>
+                <dt className="text-ink-2">{copy.accountFreeLabel}</dt>
                 <dd className="text-ink">
                   {copy.accountFree(quota.remaining, quota.limit)}
                 </dd>
               </div>
               <div className="flex flex-wrap gap-x-3">
-                <dt className="text-ink-2">{copy.accountPack(quota.packBalance).split(' ')[0]}</dt>
+                <dt className="text-ink-2">{copy.accountPackLabel}</dt>
                 <dd className="text-ink">{copy.accountPack(quota.packBalance)}</dd>
               </div>
             </dl>

@@ -40,6 +40,8 @@ services:
       ZIWEI_ASK_API_KEY: "${ZIWEI_ASK_API_KEY:-}"
       ZIWEI_ASK_MODEL: "${ZIWEI_ASK_MODEL:-}"
       ZIWEI_ASK_MAX_TOKENS: "${ZIWEI_ASK_MAX_TOKENS:-8000}"
+      # 流式「空闲」超时：模型连续这么久没吐新字才断开（不是总时长上限）
+      ZIWEI_ASK_TIMEOUT_MS: "${ZIWEI_ASK_TIMEOUT_MS:-}"
 
       # ── 登录验证码邮件（Resend）──────────────────────────────
       # 不配 = 生产环境登录发码直接报「邮件服务未配置」（明确报错，不静默）。

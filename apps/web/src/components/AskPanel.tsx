@@ -221,14 +221,47 @@ export default function AskPanel({
   embedChart = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
-  const { messages, loaded, append, clear } = useAskThread(identity);
+  const { messages, loaded, append, clear, threads, activeId, newThread, selectThread } =
+    useAskThread(identity);
   const [question, setQuestion] = useState('');
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
   const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
-  /** 上次的对话默认折叠 —— 每次打开不该被旧记录占满屏 */
+  /** 挂载时已存在的对话条数（=「上次留下的」，默认折叠）；切换/新建对话时重拍快照 */
+  const [historyCount, setHistoryCount] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
+  const messagesRef = useRef<AskMessage[]>([]);
+  messagesRef.current = messages;
+  const activeIdRef = useRef<string | null>(null);
+  // 初次加载 & 身份变化：把现有消息记作「历史」并折叠
+  useEffect(() => {
+    if (!loaded) return;
+    const cur = activeId ?? null;
+    if (activeIdRef.current !== cur) {
+      activeIdRef.current = cur;
+      setHistoryCount(messagesRef.current.length);
+      setShowHistory(false);
+    }
+  }, [loaded, activeId]);
+  /** 没展开历史时，只渲染本次新增的消息 */
+  const visibleMessages = showHistory ? messages : messages.slice(historyCount);
+
+  /** 用户点名切换一段旧对话 → 直接展开（人家就是要看它的） */
+  const handleSelectThread = (id: string) => {
+    activeIdRef.current = id; // 抢先同步 ref，上面的 effect 不再覆盖展开状态
+    selectThread(id);
+    const t = threads.find((x) => x.id === id);
+    setHistoryCount(t?.messages.length ?? 0);
+    setShowHistory(true);
+  };
+  /** 新对话：空白草稿，发第一条时落库 */
+  const handleNewThread = () => {
+    activeIdRef.current = '__draft__';
+    newThread();
+    setHistoryCount(0);
+    setShowHistory(false);
+  };
   const [expanded, setExpanded] = useState(true);
   /** 下一条问题的页内焦点（维度/宫位），发出即清 */
   const [focus, setFocus] = useState<{ dimension?: string; palace?: string } | null>(null);
@@ -243,13 +276,6 @@ export default function AskPanel({
   const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
   /** 展开了迷你盘的消息 id */
   const [chartOpenFor, setChartOpenFor] = useState<string | null>(null);
-
-  /** 挂载时已存在的对话条数（=「上次的对话」） */
-  const historyCountRef = useRef<number | null>(null);
-  if (loaded && historyCountRef.current === null) historyCountRef.current = messages.length;
-  const historyCount = historyCountRef.current ?? 0;
-  /** 没展开历史时，只渲染本次新增的消息 */
-  const visibleMessages = showHistory ? messages : messages.slice(historyCount);
 
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
@@ -489,6 +515,46 @@ export default function AskPanel({
             <p className="text-xs leading-relaxed text-ink-2">
               智能追问暂未开启。排盘与解读不受影响，可以照常查看。
             </p>
+          </div>
+        )}
+
+        {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 新开一段不再「找不到旧的」 */}
+        {bare && loaded && threads.length > 0 && (
+          <div className="mb-3 flex shrink-0 items-center gap-2">
+            <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
+              对话记录
+            </label>
+            <select
+              id="ask-thread-select"
+              value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
+              onChange={(e) => {
+                if (e.target.value === '__draft__') handleNewThread();
+                else handleSelectThread(e.target.value);
+              }}
+              className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              {!threads.some((t) => t.id === activeId) && (
+                <option value="__draft__">（这次对话）</option>
+              )}
+              {threads.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title} ·{' '}
+                  {new Date(t.updatedAt).toLocaleString('zh-CN', {
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleNewThread}
+              className="shrink-0 rounded-lg border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+            >
+              ＋新对话
+            </button>
           </div>
         )}
 
@@ -830,18 +896,25 @@ export default function AskPanel({
                 }}
                 rows={1}
                 maxLength={500}
-                placeholder="问问感情、事业、今年如何…"
+                placeholder={pending ? '正在回答中，可以先把下一句打好…' : '问问感情、事业、今年如何…'}
                 className="chat-input flex-1"
-                disabled={pending}
               />
               <button
                 type="button"
                 onClick={() => submit(question)}
                 disabled={pending || !question.trim()}
-                aria-label="发送"
+                aria-label={pending ? '回答中，暂时不能发送' : '发送'}
+                title={pending ? '回答中，稍等片刻' : '发送'}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
-                ↑
+                {pending ? (
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  '↑'
+                )}
               </button>
             </div>
             {messages.length > 0 && (
@@ -878,12 +951,13 @@ export default function AskPanel({
             rows={3}
             maxLength={500}
             placeholder={
-              messages.length > 0
-                ? '接着上面的对话继续问，例如：那财运方面呢？'
-                : '例如：这份命盘在职业方向上有什么特点？'
+              pending
+                ? '正在回答中，可以先把下一句打好…'
+                : messages.length > 0
+                  ? '接着上面的对话继续问，例如：那财运方面呢？'
+                  : '例如：这份命盘在职业方向上有什么特点？'
             }
             className="field-input resize-y leading-relaxed"
-            disabled={pending}
             aria-describedby="ask-submit-hint"
           />
 

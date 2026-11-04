@@ -20,6 +20,8 @@ export interface AskStreamDone {
   cited: string[];
   verification: AskStreamVerification;
   model?: string;
+  /** 这条回答用的是谁的配置：user = 用户的 Key，builtin = 站内内置免费额度 */
+  source?: 'user' | 'builtin';
 }
 
 export interface AskStreamHandlers {
@@ -42,6 +44,7 @@ interface RawEvent {
   cited?: string[];
   verification?: AskStreamVerification;
   model?: string;
+  source?: 'user' | 'builtin';
   message?: string;
 }
 
@@ -117,6 +120,7 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
           warnings: [],
         },
         ...(evt.model ? { model: evt.model } : {}),
+        ...(evt.source ? { source: evt.source } : {}),
       });
       return;
     case 'not-covered':

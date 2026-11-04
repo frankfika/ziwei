@@ -85,14 +85,29 @@ const CHIP_CLASS =
 const ASK_MARK_CLASS =
   'mr-1.5 inline-flex min-w-6 items-center justify-center rounded-sm bg-surface px-1.5 py-0.5 text-2xs text-zhu';
 
-/** 回答者身份行：紫圆「紫」字头像 + 名字 +  tiny 引用维度（替代单独的依据行） */
-function AnswerAvatar({ cited }: { cited?: string[] }) {
+/** 回答者身份行：紫圆「紫」字头像 + 名字 + 模型与来源（哪家的 Key）+ tiny 引用维度 */
+function AnswerAvatar({
+  cited,
+  model,
+  source,
+}: {
+  cited?: string[];
+  model?: string;
+  source?: 'user' | 'builtin';
+}) {
   return (
     <p className="mb-1 flex items-center gap-1.5">
       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zhu text-[10px] leading-none text-white">
         紫
       </span>
       <span className="text-2xs font-medium text-ink-2">紫微</span>
+      {model && (
+        <span className="text-2xs text-ink-2">
+          · {model}
+          {source === 'user' && '（你的 Key）'}
+          {source === 'builtin' && '（内置免费）'}
+        </span>
+      )}
       {cited && cited.length > 0 && (
         <span className="text-2xs text-ink-2">· 参 {cited.join('、')}</span>
       )}
@@ -152,6 +167,16 @@ function MessageMeta({ message }: { message: AskMessage }) {
         <>
           <span aria-hidden="true">·</span>
           <span>依据：{message.cited.join('、')}</span>
+        </>
+      )}
+      {message.model && (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>
+            {message.model}
+            {message.source === 'user' && '（你的 Key）'}
+            {message.source === 'builtin' && '（内置免费）'}
+          </span>
         </>
       )}
     </div>
@@ -352,6 +377,7 @@ export default function AskPanel({
               cited: p.cited,
               suspects: suspectsOf(p.verification),
               ...(p.model ? { model: p.model } : {}),
+              ...(p.source ? { source: p.source } : {}),
             });
             setStream(null);
           },
@@ -571,7 +597,7 @@ export default function AskPanel({
                       </span>
                     </p>
                     <div className="max-w-[95%]">
-                      <AnswerAvatar cited={m.cited} />
+                      <AnswerAvatar cited={m.cited} model={m.model} source={m.source} />
                       <div
                         className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
                         data-ask-answer=""

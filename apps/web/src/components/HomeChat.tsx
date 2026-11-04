@@ -111,9 +111,9 @@ export default function HomeChat({
             className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
           />
           {userCfg ? (
-            <>正在用：你的 Key（{userCfg.model}）</>
+            <>当前 AI：{userCfg.model}（你的 Key · 不限量）</>
           ) : providerConfigured ? (
-            <>正在用：内置 AI{serverModel ? `（${serverModel}）` : ''} · 每天 10 次</>
+            <>当前 AI：{serverModel ? serverModel : '内置模型'}（本站免费提供 · 每天 10 次）</>
           ) : (
             <span className="text-danger">AI 还没配置 —— 点这里填 Key</span>
           )}

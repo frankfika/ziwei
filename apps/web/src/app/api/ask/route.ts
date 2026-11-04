@@ -140,6 +140,8 @@ export async function POST(request: Request) {
               cited: ev.citedDimensions,
               verification: ev.verification,
               model: ev.model,
+              // 回答署名：这条用的是「你的 Key」还是「内置免费」——前端按条展示，用户随时知道自己用的是谁
+              source: userProvider ? 'user' : 'builtin',
             });
           } else if (ev.type === 'not-covered') {
             send({ type: 'not-covered', message: ev.message });

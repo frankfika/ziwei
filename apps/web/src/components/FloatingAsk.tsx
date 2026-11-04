@@ -177,11 +177,11 @@ export default function FloatingAsk({
             </p>
           ) : userAi ? (
             <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              正在用：你的 Key（{readUserConfig()?.model}）—— 右上角 ⚙ 可更换或测试。
+              当前 AI：{readUserConfig()?.model}（你的 Key · 不限量）—— 右上角 ⚙ 可更换或测试。
             </p>
           ) : (
             <p className="shrink-0 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              正在用：内置 AI{serverModel ? `（${serverModel}）` : ''} · 每天 10 次 —— 右上角 ⚙ 可换成自己的 Key。
+              当前 AI：{serverModel ?? '内置模型'}（本站免费提供 · 每天 10 次）—— 右上角 ⚙ 可换成自己的 Key。
             </p>
           )}
 

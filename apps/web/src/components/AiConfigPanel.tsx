@@ -111,15 +111,15 @@ export default function AiConfigPanel({
       <div className="mb-3 rounded-lg border border-lineSoft bg-paper/60 px-3 py-2.5" data-ai-active>
         {hasConfig ? (
           <p className="text-xs leading-relaxed text-ink">
-            正在用：<span className="font-medium">你的 Key</span>（{cfg.model}）
+            当前 AI：<span className="font-medium">{cfg.model}</span>（你的 Key · 不限量）
           </p>
         ) : serverAiReady ? (
           <p className="text-xs leading-relaxed text-ink">
-            正在用：<span className="font-medium">内置 AI</span>
-            {serverModel && <span className="text-ink-2">（{serverModel}）</span>} · 每天免费 10 次
+            当前 AI：<span className="font-medium">{serverModel ?? '内置模型'}</span>
+            <span className="text-ink-2">（本站免费提供 · 每天 10 次）</span>
           </p>
         ) : (
-          <p className="text-xs leading-relaxed text-ink">正在用：无 —— 下面填一个 Key 才能追问</p>
+          <p className="text-xs leading-relaxed text-ink">当前 AI：无 —— 下面填一个 Key 才能追问</p>
         )}
       </div>
 

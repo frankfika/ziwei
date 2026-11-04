@@ -14,6 +14,8 @@ export interface AskMessage {
   /** 机械自检标出的越界内容（星曜/宫位/落宫描述） */
   suspects: string[];
   model?: string;
+  /** 本条回答用的配置来源：user = 用户的 Key，builtin = 站内内置免费额度 */
+  source?: 'user' | 'builtin';
   at: number;
 }
 

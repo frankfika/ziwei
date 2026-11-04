@@ -14,9 +14,13 @@ import { resolveForm, SHICHEN_NAMES } from '@/lib/birth';
 
 export interface SynastryPerson {
   name: string;
-  gender: 'male' | 'female';
-  /** YYYY-MM-DD */
-  date: string;
+  /** '' = 还没选（性别决定大限顺逆，不能默认假设） */
+  gender: 'male' | 'female' | '';
+  /** 年/月/日分开存，逐项选择的中间态不能丢 */
+  year: string;
+  month: string;
+  day: string;
+  /** 时辰序号；'' = 还没选（时辰决定整张盘） */
   hour: string;
 }
 
@@ -25,7 +29,7 @@ interface SynastryFormProps {
   initialB?: Partial<SynastryPerson>;
 }
 
-const EMPTY: SynastryPerson = { name: '', gender: 'male', date: '', hour: '4' };
+const EMPTY: SynastryPerson = { name: '', gender: '', year: '', month: '', day: '', hour: '' };
 
 export default function SynastryForm({ initialA, initialB }: SynastryFormProps) {
   const { history } = useHistory();
@@ -43,7 +47,9 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
       set({
         name: entry.form.name.trim(),
         gender: entry.form.gender,
-        date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        year: String(year),
+        month: String(month),
+        day: String(day),
         hour: String(hour),
       });
     };
@@ -60,11 +66,17 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
     [history],
   );
 
+  const complete = (p: SynastryPerson) =>
+    !!(p.year && p.month && p.day && p.gender && p.hour);
+
+  const toDate = (p: SynastryPerson) =>
+    `${p.year}-${p.month.padStart(2, '0')}-${p.day.padStart(2, '0')}`;
+
   const submit = () => {
-    if (!a.date || !b.date) return;
+    if (!complete(a) || !complete(b)) return;
     const params = new URLSearchParams({
-      an: a.name, ag: a.gender, ad: a.date, ah: a.hour,
-      bn: b.name, bg: b.gender, bd: b.date, bh: b.hour,
+      an: a.name, ag: a.gender, ad: toDate(a), ah: a.hour,
+      bn: b.name, bg: b.gender, bd: toDate(b), bh: b.hour,
     });
     window.location.href = `/synastry?${params.toString()}`;
   };
@@ -90,9 +102,10 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
         <select
           name={`${prefix}g`}
           value={person.gender}
-          onChange={(e) => set({ ...person, gender: e.target.value as 'male' | 'female' })}
+          onChange={(e) => set({ ...person, gender: e.target.value as SynastryPerson['gender'] })}
           className="field-input"
         >
+          <option value="" disabled>请选择</option>
           <option value="male">男</option>
           <option value="female">女</option>
         </select>
@@ -100,15 +113,8 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
       <label className="block sm:col-span-2">
         <span className="field-label">出生日期（公历）</span>
         <DateSelects
-          value={{ year: person.date.slice(0, 4), month: String(Number(person.date.slice(5, 7)) || ''), day: String(Number(person.date.slice(8, 10)) || '') }}
-          onChange={(v) =>
-            set({
-              ...person,
-              date: v.year && v.month && v.day
-                ? `${v.year}-${v.month.padStart(2, '0')}-${v.day.padStart(2, '0')}`
-                : '',
-            })
-          }
+          value={{ year: person.year, month: person.month, day: person.day }}
+          onChange={(v) => set({ ...person, year: v.year, month: v.month, day: v.day })}
         />
       </label>
       <label className="block">
@@ -119,6 +125,7 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
           onChange={(e) => set({ ...person, hour: e.target.value })}
           className="field-input"
         >
+          <option value="" disabled>请选择</option>
           {SHICHEN_NAMES.map((s, i) => (
             <option key={s} value={i}>
               {s}时
@@ -161,11 +168,14 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
       <button
         type="button"
         onClick={submit}
-        disabled={!a.date || !b.date}
+        disabled={!complete(a) || !complete(b)}
         className="btn-primary disabled:cursor-not-allowed disabled:opacity-45"
       >
         看合盘
       </button>
+      <p className="mt-2 text-2xs leading-relaxed text-ink-3">
+        性别决定大限顺逆、时辰决定整张盘，所以两项都不预填 —— 请各自选好，两个人四个项都选齐才能看合盘。
+      </p>
     </div>
   );
 }

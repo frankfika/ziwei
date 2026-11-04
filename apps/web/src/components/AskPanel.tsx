@@ -14,7 +14,7 @@
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
-import { useAskThread, type AskMessage } from '@/lib/askThreads';
+import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
 import { DURATION, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 import Markdown from './Markdown';
 import MiniChart from './MiniChart';
@@ -647,6 +647,11 @@ export default function AskPanel({
 
           {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
           <div className={bare ? 'mt-auto space-y-4' : 'space-y-5'}>
+            {messages.length >= MAX_MESSAGES && (
+              <p className="rounded-lg border border-lineSoft bg-surface/70 px-3 py-2 text-2xs leading-relaxed text-ink-3">
+                这段对话只保留最近 {MAX_MESSAGES} 条，再往下问会挤掉最前面的 —— 想留档请另开一段新对话。
+              </p>
+            )}
             {visibleMessages.map((m) => {
               const isLatest = m.id === latestId;
               if (bare) {
@@ -922,7 +927,7 @@ export default function AskPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm('清空这张盘的全部追问对话？')) clear();
+                    if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
                   }}
                   className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
@@ -1007,7 +1012,7 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('清空这张盘的全部追问对话？')) clear();
+                if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
               }}
               className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >

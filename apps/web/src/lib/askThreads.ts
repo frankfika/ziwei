@@ -37,8 +37,8 @@ interface ThreadsFile {
   activeId: string | null;
 }
 
-/** 每条对话最多保留的问答条数（超出的最旧条丢弃，避免无限膨胀） */
-const MAX_MESSAGES = 20;
+/** 每条对话最多保留的问答条数（超出的最旧条丢弃，避免无限膨胀；界面会提示已截断） */
+export const MAX_MESSAGES = 20;
 
 const EMPTY: ThreadsFile = { threads: [], activeId: null };
 

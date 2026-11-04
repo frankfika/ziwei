@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { liuNianLayer, daXianLayer, liuYueLayer, type ChartJSON } from '@ziwei/chart-engine';
 import { getService } from '@/lib/service';
-import { SHICHEN_NAMES, GENDER_LABEL, formatDate } from '@/lib/birth';
+import { SHICHEN_NAMES, GENDER_LABEL } from '@/lib/birth';
 import CopyLinkButton from '@/components/CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -91,7 +91,6 @@ export default async function ReportPage({
   });
 
   const overview = reading.status === 'ok' ? reading.dimensions.find((d) => d.key === 'overview') : null;
-  const chartDate = formatDate(year, month, day);
   const shareUrl = `/report?y=${year}&m=${month}&d=${day}&h=${hour}&g=${gender}${name ? `&n=${encodeURIComponent(name)}` : ''}`;
 
   return (
@@ -104,7 +103,7 @@ export default async function ReportPage({
           {nowYear} {ln.ganzhi}年
         </h1>
         <p className="mt-1.5 text-xs text-ink-2">
-          {chartDate} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]} ·{' '}
+          {`${year}年${month}月${day}日`} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]} ·{' '}
           <Link href={`/chart?y=${year}&m=${month}&d=${day}&h=${hour}&g=${gender}${name ? `&n=${encodeURIComponent(name)}` : ''}`} className="underline underline-offset-2 hover:text-zhu">
             看完整命盘
           </Link>

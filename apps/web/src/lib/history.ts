@@ -3,7 +3,8 @@ import type { BirthFormState } from '@/lib/birth';
 import { GENDER_LABEL, SHICHEN_NAMES, formatClock, formatDate, resolveForm } from '@/lib/birth';
 
 const STORAGE_KEY = 'ziwei_history';
-const MAX_ENTRIES = 50;
+/** 星册最多存的张数（超出时挤掉最早的，界面会提示） */
+export const MAX_ENTRIES = 50;
 
 export interface HistoryEntry {
   id: string;

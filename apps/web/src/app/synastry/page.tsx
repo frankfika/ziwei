@@ -52,8 +52,8 @@ export default async function SynastryPage({
 
   if (!a || !b || edit) {
     // 部分参数也回填进表单（结果页「修改参数」回来不用重输）
-    const toDate = (p: ReturnType<typeof readPerson>) =>
-      p ? `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}` : undefined;
+    const toParts = (p: ReturnType<typeof readPerson>) =>
+      p ? { year: String(p.year), month: String(p.month), day: String(p.day) } : {};
     return (
       <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
         <h1 className="mb-2 font-serif text-title font-semibold text-ink">双人合盘</h1>
@@ -61,8 +61,8 @@ export default async function SynastryPage({
           输入两个人的生辰（或从档案直接选），看双方四化互飞与夫妻宫对照。互飞只列确定性的盘面事实，不做吉凶断语。
         </p>
         <SynastryForm
-          initialA={a ? { name: a.name, gender: a.gender, date: toDate(a), hour: String(a.hour) } : undefined}
-          initialB={b ? { name: b.name, gender: b.gender, date: toDate(b), hour: String(b.hour) } : undefined}
+          initialA={a ? { name: a.name, gender: a.gender, ...toParts(a), hour: String(a.hour) } : undefined}
+          initialB={b ? { name: b.name, gender: b.gender, ...toParts(b), hour: String(b.hour) } : undefined}
         />
       </div>
     );
@@ -110,7 +110,8 @@ export default async function SynastryPage({
           {labelOf(a)} × {labelOf(b)}
         </h1>
         <p className="mt-1.5 text-xs text-ink-2">
-          {a.year}-{a.month}-{a.day} × {b.year}-{b.month}-{b.day} ·{' '}
+          {a.year}年{a.month}月{a.day}日 {SHICHEN_NAMES[a.hour]}时 × {b.year}年{b.month}月{b.day}日{' '}
+          {SHICHEN_NAMES[b.hour]}时 ·{' '}
           <Link
             href={`/synastry?an=${encodeURIComponent(a.name)}&ag=${a.gender}&ad=${a.year}-${String(a.month).padStart(2, '0')}-${String(a.day).padStart(2, '0')}&ah=${a.hour}&edit=1&bn=${encodeURIComponent(b.name)}&bg=${b.gender}&bd=${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}&bh=${b.hour}`}
             className="underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"

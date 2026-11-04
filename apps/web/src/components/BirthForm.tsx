@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { startChart } from '@/app/actions';
 import DateSelects from './DateSelects';
-import { chartUrl, useHistory } from '@/lib/history';
+import { chartUrl, MAX_ENTRIES, useHistory } from '@/lib/history';
 import {
   BirthFormState,
   EMPTY_FORM,
@@ -443,7 +443,11 @@ export default function BirthForm({
                 </span>
               )}
             </h2>
-            <p className="mt-1 text-2xs leading-relaxed text-ink-2">只存在本机，不上传。</p>
+            <p className="mt-1 text-2xs leading-relaxed text-ink-2">
+              只存在本机，不上传。
+              {history.length >= MAX_ENTRIES &&
+                ` 最多存 ${MAX_ENTRIES} 张，新存的会挤掉最早的一张。`}
+            </p>
           </div>
           {history.length > 0 && (
             <button

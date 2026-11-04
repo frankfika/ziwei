@@ -27,8 +27,8 @@ import { packEntry } from '@/lib/trafficPacks';
 
 export const dynamic = 'force-dynamic';
 
-/** 单条问题长度上限（字符） */
-const MAX_QUESTION_CHARS = 500;
+/** 单条问题长度上限（字符）——与前端输入框 maxLength 一致 */
+const MAX_QUESTION_CHARS = 2000;
 /** 带入提示词的对话上文轮数 / 单条截断 */
 const MAX_TURNS = 6;
 const TURN_QUESTION_CAP = 200;
@@ -103,6 +103,11 @@ export async function POST(request: Request) {
   const service = new AskService(userProvider ? { provider: userProvider } : {});
   const turns = parseTurns(str(formData, 'turns'));
 
+  // 思考模式开关：'enabled' / 'disabled'，缺省走 provider 默认（DeepSeek 默认开）
+  const thinkingRaw = str(formData, 'thinking').trim();
+  const thinking =
+    thinkingRaw === 'enabled' || thinkingRaw === 'disabled' ? thinkingRaw : undefined;
+
   // 页内追问焦点：来自哪个解读维度 / 宫位 / 时间层（未知值在 prompt 层会被忽略）
   const timeRaw = str(formData, 'time').trim();
   const focus = {
@@ -137,7 +142,10 @@ export async function POST(request: Request) {
           { year, month, day, hour, gender },
           question,
           turns,
-          Object.keys(focus).length > 0 ? { focus } : undefined,
+          {
+            ...(Object.keys(focus).length > 0 ? { focus } : {}),
+            ...(thinking ? { thinking } : {}),
+          },
         )) {
           if (ev.type === 'delta') {
             send({ type: 'delta', text: ev.text });

@@ -29,6 +29,7 @@ interface OrderItem {
   priceCny: number;
   priceUsd: number;
   createdAt: string;
+  status: 'stub' | 'pending' | 'paid' | 'closed';
 }
 
 export default function AccountPage() {
@@ -137,7 +138,7 @@ export default function AccountPage() {
                       )}
                     </span>
                     <span className="text-ink-3">
-                      ¥{o.priceCny} / ${o.priceUsd.toFixed(2)}
+                      {copy.orderStatus(o.status)} · ¥{o.priceCny} / ${o.priceUsd.toFixed(2)}
                     </span>
                   </li>
                 ))}

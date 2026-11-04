@@ -18,6 +18,11 @@ export interface AskRequest {
   maxTokens?: number;
   /** 采样温度。 */
   temperature?: number;
+  /**
+   * 思考模式开关（`'enabled'` / `'disabled'`）。
+   * 目前只有 DeepSeek 系端点认这个字段；不传或传给不认识的 provider 时按其默认行为。
+   */
+  thinking?: 'enabled' | 'disabled';
   /** 中断信号（超时 / 取消）。 */
   signal?: AbortSignal;
   /** 透传元数据（不参与提示词）。 */

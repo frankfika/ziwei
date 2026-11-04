@@ -44,6 +44,8 @@ export default function AiConfigPanel({
     model: 'gpt-4o-mini',
     maxTokens: 8000,
   });
+  /** 已保存生效的配置 ——「现在在用谁」只认它，不认编辑中的表单 */
+  const [savedCfg, setSavedCfg] = useState<UserProviderConfig | null>(null);
   const [saved, setSaved] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
   const [test, setTest] = useState<TestState>({ phase: 'idle' });
@@ -54,11 +56,15 @@ export default function AiConfigPanel({
 
   useEffect(() => {
     const existing = readUserConfig();
+    setSavedCfg(existing);
     if (existing) {
       setCfg(existing);
       setHasConfig(true);
     }
   }, []);
+
+  /** 表单和已保存配置是否有差异（决定要不要提示「还没保存」） */
+  const dirty = hasConfig && JSON.stringify(cfg) !== JSON.stringify(savedCfg);
 
   const update = (patch: Partial<UserProviderConfig>) => {
     setCfg((prev) => ({ ...prev, ...patch }));
@@ -71,11 +77,18 @@ export default function AiConfigPanel({
   };
 
   const save = () => {
-    if (!cfg.apiKey.trim() || !cfg.model.trim()) return;
+    // echo 是不联网的调试桩，不需要 key；其余协议缺 key/模型名直接不保存
+    if (cfg.kind !== 'echo' && (!cfg.apiKey.trim() || !cfg.model.trim())) return;
+    if (!cfg.model.trim()) return;
     writeUserConfig(cfg);
+    setSavedCfg(cfg);
     setHasConfig(true);
     setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
+    // 让用户看清「已保存」再自动收起，不用再手动点收起
+    window.setTimeout(() => {
+      setSaved(false);
+      onClose();
+    }, 1200);
   };
 
   const runTest = async () => {
@@ -96,6 +109,7 @@ export default function AiConfigPanel({
 
   const clear = () => {
     clearUserConfig();
+    setSavedCfg(null);
     setHasConfig(false);
     setCfg((prev) => ({ ...prev, apiKey: '' }));
     setTest({ phase: 'idle' });
@@ -114,10 +128,17 @@ export default function AiConfigPanel({
         </button>
       </div>
 
-      {/* 现在到底在用谁 —— 先回答这个问题，再谈配置 */}
+      {/* 现在到底在用谁 —— 只认已保存的配置；表单有未保存的改动时明确说出来 */}
       <div className="mb-3 rounded-lg border border-lineSoft bg-paper/60 px-3 py-2.5" data-ai-active>
-        {hasConfig ? (
-          <p className="text-xs leading-relaxed text-ink">{copy.activeUser(cfg.model)}</p>
+        {savedCfg ? (
+          <>
+            <p className="text-xs leading-relaxed text-ink">{copy.activeUser(savedCfg.model)}</p>
+            {dirty && (
+              <p className="mt-1 text-2xs text-zhu">
+                表单有未保存的改动 —— 点「保存配置」才会生效。
+              </p>
+            )}
+          </>
         ) : serverAiReady ? (
           <p className="text-xs leading-relaxed text-ink">
             {copy.activeBuiltin(serverModel ?? '内置模型', quota.limit)}

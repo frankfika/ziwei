@@ -114,6 +114,11 @@ export function createOpenAICompatibleProvider(
     if (maxTokens !== undefined) body.max_tokens = maxTokens;
     const temperature = req.temperature ?? defaultTemperature;
     if (temperature !== undefined) body.temperature = temperature;
+    // DeepSeek 的思考开关（默认开）：显式传才生效。别的 provider 不认这字段，
+    // 只在 deepseek 端点上发，避免严格校验的端点（OpenAI 等）对未知参数报错。
+    if (req.thinking && /deepseek/i.test(endpoint ?? baseUrl)) {
+      body.thinking = { type: req.thinking };
+    }
     if (stream) {
       body.stream = true;
       body.stream_options = { include_usage: true };

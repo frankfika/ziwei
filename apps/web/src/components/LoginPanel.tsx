@@ -35,7 +35,7 @@ export default function LoginPanel({
   async function sendCode() {
     setBusy(true);
     setErr(null);
-    setMsg(null);
+    // 注意：不清 msg —— 重发被限流时，上一次成功发出的验证码还显示在页面上，不能抹掉
     try {
       const res = await fetch('/api/auth/request-otp', {
         method: 'POST',
@@ -49,7 +49,12 @@ export default function LoginPanel({
         retryAfter?: number;
       } | null;
       if (!res.ok || !j?.ok) {
-        setErr(j?.error === 'RATE_LIMITED' ? `${copy.loginError}` : copy.loginError);
+        // 发送失败 ≠ 码错了：按实际原因给文案，别拿「验证码无效」吓用户
+        if (j?.error === 'RATE_LIMITED') {
+          setErr(copy.sendRateLimited(j.retryAfter ?? 0));
+        } else {
+          setErr(copy.sendFailed);
+        }
         return;
       }
       setDebugCode(j.debugCode ?? null);

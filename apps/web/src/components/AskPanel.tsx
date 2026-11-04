@@ -276,6 +276,17 @@ export default function AskPanel({
     setShowHistory(false);
   };
   const [expanded, setExpanded] = useState(true);
+  /** 深度思考开关：发给 /api/ask 的 thinking 字段（DeepSeek 等支持思考的模型生效），记住选择 */
+  const [deepThink, setDeepThink] = useState(true);
+  useEffect(() => {
+    if (window.localStorage.getItem('ziwei.deepThink') === '0') setDeepThink(false);
+  }, []);
+  const toggleDeepThink = () => {
+    setDeepThink((v) => {
+      window.localStorage.setItem('ziwei.deepThink', v ? '0' : '1');
+      return !v;
+    });
+  };
   /** 下一条问题的页内焦点（维度/宫位），发出即清 */
   const [focus, setFocus] = useState<{ dimension?: string; palace?: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -293,6 +304,21 @@ export default function AskPanel({
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
     quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
+
+  // 输入框随内容长高（上限约 6 行，再多内部滚动），长问题也能一直看到自己正在打的字。
+  // 多行时把胶囊圆角换成小圆角：9999px 大圆角在高的框上会把文字裁出弧形边缘。
+  const [inputTall, setInputTall] = useState(false);
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const h = Math.min(el.scrollHeight, 168);
+    el.style.height = `${h}px`;
+    const overflowing = el.scrollHeight > 168;
+    el.style.overflowY = overflowing ? 'auto' : 'hidden';
+    if (overflowing) el.scrollTop = el.scrollHeight;
+    setInputTall(h > 64);
+  }, [question, expanded]);
 
   useEffect(() => {
     function expandFromHash() {
@@ -393,6 +419,7 @@ export default function AskPanel({
           .map((m) => ({ question: m.question, answer: m.answer })),
       ),
     );
+    fd.set('thinking', deepThink ? 'enabled' : 'disabled');
 
     startTransition(async () => {
       try {
@@ -923,6 +950,22 @@ export default function AskPanel({
                 ))}
               </div>
             )}
+            <div className="mb-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleDeepThink}
+                aria-pressed={deepThink}
+                title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+                className={
+                  CHIP_CLASS +
+                  (deepThink
+                    ? ' border-zhu/50 text-ink'
+                    : ' border-line text-ink-2 opacity-70')
+                }
+              >
+                {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+              </button>
+            </div>
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -936,9 +979,9 @@ export default function AskPanel({
                   }
                 }}
                 rows={1}
-                maxLength={500}
+                maxLength={2000}
                 placeholder={pending ? '正在回答中，可以先把下一句打好…' : '问问感情、事业、今年如何…'}
-                className="chat-input flex-1"
+                className={`chat-input flex-1 ${inputTall ? '!rounded-2xl' : ''}`}
               />
               <button
                 type="button"
@@ -990,7 +1033,7 @@ export default function AskPanel({
               }
             }}
             rows={3}
-            maxLength={500}
+            maxLength={2000}
             placeholder={
               pending
                 ? '正在回答中，可以先把下一句打好…'
@@ -1023,6 +1066,21 @@ export default function AskPanel({
               ))}
             </div>
           )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleDeepThink}
+              aria-pressed={deepThink}
+              title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+              className={
+                CHIP_CLASS +
+                (deepThink ? ' border-zhu/50 text-ink' : ' border-line text-ink-2 opacity-70')
+              }
+            >
+              {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+            </button>
+          </div>
 
           <button
             type="button"

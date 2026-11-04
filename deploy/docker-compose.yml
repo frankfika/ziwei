@@ -41,6 +41,21 @@ services:
       ZIWEI_ASK_MODEL: "${ZIWEI_ASK_MODEL:-}"
       ZIWEI_ASK_MAX_TOKENS: "${ZIWEI_ASK_MAX_TOKENS:-8000}"
 
+      # ── 登录验证码邮件（Resend）──────────────────────────────
+      # 不配 = 生产环境登录发码直接报「邮件服务未配置」（明确报错，不静默）。
+      # 本地开发不用配：调试模式把验证码直接显示在页面上。
+      ZIWEI_RESEND_API_KEY: "${ZIWEI_RESEND_API_KEY:-}"
+      ZIWEI_RESEND_FROM: "${ZIWEI_RESEND_FROM:-}"
+
+      # ── 真实支付（支付宝当面付）────────────────────────────────
+      # 三项都配了才开支付；不配 = 流量包购买明确报「支付未配置」。
+      # 沙箱联调把 ZIWEI_ALIPAY_GATEWAY 换成
+      # https://openapi-sandbox.dl.alipaydev.com/gateway.do
+      ZIWEI_ALIPAY_APP_ID: "${ZIWEI_ALIPAY_APP_ID:-}"
+      ZIWEI_ALIPAY_PRIVATE_KEY: "${ZIWEI_ALIPAY_PRIVATE_KEY:-}"
+      ZIWEI_ALIPAY_PUBLIC_KEY: "${ZIWEI_ALIPAY_PUBLIC_KEY:-}"
+      ZIWEI_ALIPAY_GATEWAY: "${ZIWEI_ALIPAY_GATEWAY:-}"
+
     volumes:
       # 解读数据集：压缩包 164MB / 解压 53GB / 索引 15MB
       - ziwei-data:/app/data

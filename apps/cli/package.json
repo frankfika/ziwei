@@ -14,10 +14,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@ziwei/chart-engine": "*",
-    "@ziwei/core": "*",
-    "@ziwei/ask": "*",
-    "@ziwei/citation-guard": "*"
+    "@ziwei/chart-engine": "workspace:*",
+    "@ziwei/core": "workspace:*",
+    "@ziwei/ask": "workspace:*",
+    "@ziwei/citation-guard": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

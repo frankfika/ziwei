@@ -48,6 +48,21 @@ export interface QuotaCopy {
   payStub: string;
   /** stub 下单成功：额度已加到账户（收款未真实发生） */
   packAdded: (n: number) => string;
+  // ── 真实支付（支付宝当面付扫码）─────────────────────────────────
+  /** 二维码弹层标题 */
+  payTitle: (priceCny: number, asks: number) => string;
+  /** 引导扫码 */
+  payScan: string;
+  /** 等待支付中 */
+  payWaiting: string;
+  /** 支付成功 */
+  payOk: (n: number) => string;
+  /** 支付超时未付 / 关单 */
+  payClosed: string;
+  /** 下单失败（预下单报错 / 支付宝侧错误） */
+  payFailed: (detail: string) => string;
+  /** 支付服务未配置（商户凭据缺失） */
+  payNotConfigured: string;
   /** 语言切换按钮上的字：切到哪个语言 */
   langToggle: string;
   // ── 账户 / 登录相关（第二期：邮箱验证码登录 + 账户额度）─────────────
@@ -75,6 +90,10 @@ export interface QuotaCopy {
   codeSent: string;
   /** 调试模式：验证码直接显示（本地测试用） */
   debugCode: (code: string) => string;
+  /** 发送验证码太频繁（retryAfter = 还要等几秒；0 = 今日次数用完） */
+  sendRateLimited: (retryAfter: number) => string;
+  /** 验证码发送失败（发信通道故障等，与「码错了」是两回事） */
+  sendFailed: string;
   /** 登录失败 / 验证码错误 */
   loginError: string;
   /** 登录成功 */
@@ -97,6 +116,8 @@ export interface QuotaCopy {
   accountNoOrders: string;
   /** 「我的额度」页：订单行（n 次 · 时间） */
   accountOrderItem: (asks: number, at: string) => string;
+  /** 订单状态：pending / paid / closed / stub */
+  orderStatus: (s: string) => string;
   /** 退出登录按钮 */
   logout: string;
   /** 导航栏入口 */
@@ -125,6 +146,13 @@ const ZH: QuotaCopy = {
   noAiStatus: 'AI 还没配置 —— 点这里填 Key',
   payStub: '支付尚未开通（第一期 stub），先记下意向。',
   packAdded: (n) => `已记下意向（stub，未真实收款）；${n} 次追问已加到你的账户。`,
+  payTitle: (priceCny, asks) => `支付宝扫码 · ¥${priceCny} / ${asks} 次追问`,
+  payScan: '请用支付宝扫一扫，付款后自动到账（页面别关，最多等 3 分钟）。',
+  payWaiting: '等待支付中…',
+  payOk: (n) => `支付成功，${n} 次追问已到账。`,
+  payClosed: '订单已关闭或超时未支付，钱不会扣。可重新下单。',
+  payFailed: (detail) => `下单失败：${detail}`,
+  payNotConfigured: '支付服务还没配置好（缺支付宝商户凭据），暂时买不了。',
   langToggle: 'EN',
   loginRequired: '登录后可以购买流量包，额度记在你的账户里。',
   loginCta: '去登录',
@@ -138,6 +166,9 @@ const ZH: QuotaCopy = {
   loginHint: '验证码 10 分钟内有效，每天最多发 20 次。',
   codeSent: '验证码已发送，请查收邮件。',
   debugCode: (c) => `（本地调试：验证码是 ${c}）`,
+  sendRateLimited: (s) =>
+    s > 0 ? `发送太频繁，请 ${s} 秒后再点「发送验证码」。` : '今天的验证码发送次数已达上限，明天再试。',
+  sendFailed: '验证码发送失败，请稍后重试。',
   loginError: '验证码无效或已过期，请重新获取。',
   loginOk: '登录成功。',
   accountTitle: '我的额度',
@@ -149,6 +180,8 @@ const ZH: QuotaCopy = {
   accountOrders: '最近订单',
   accountNoOrders: '还没有订单。',
   accountOrderItem: (n, at) => `${n} 次追问 · ${at}`,
+  orderStatus: (s) =>
+    s === 'paid' ? '✓ 已支付' : s === 'pending' ? '待支付' : s === 'closed' ? '已关闭' : '意向（未收款）',
   logout: '退出登录',
   navAccount: '我的额度',
 };
@@ -175,6 +208,13 @@ const EN: QuotaCopy = {
   noAiStatus: 'AI is not configured — click to add a key',
   payStub: 'Payments are not live yet (phase-1 stub) — we noted your interest.',
   packAdded: (n) => `Noted (stub — no real charge); ${n} follow-ups added to your account.`,
+  payTitle: (priceCny, asks) => `Alipay scan · ¥${priceCny} / ${asks} asks`,
+  payScan: 'Scan with Alipay; credits land automatically after payment (keep this page open, up to 3 min).',
+  payWaiting: 'Waiting for payment…',
+  payOk: (n) => `Paid — ${n} asks added to your account.`,
+  payClosed: 'Order closed or timed out. No money was taken; you can order again.',
+  payFailed: (detail) => `Checkout failed: ${detail}`,
+  payNotConfigured: 'Payment is not set up yet (missing Alipay merchant credentials).',
   langToggle: '中文',
   loginRequired: 'Sign in to buy a traffic pack — the credits go to your account.',
   loginCta: 'Sign in',
@@ -188,6 +228,9 @@ const EN: QuotaCopy = {
   loginHint: 'Codes expire in 10 minutes; at most 20 per day.',
   codeSent: 'Code sent — check your inbox.',
   debugCode: (c) => `(local debug: your code is ${c})`,
+  sendRateLimited: (s) =>
+    s > 0 ? `Too many requests — try again in ${s}s.` : 'Daily code limit reached. Try again tomorrow.',
+  sendFailed: 'Failed to send the code. Please try again later.',
   loginError: 'That code is invalid or expired. Request a new one.',
   loginOk: 'Signed in.',
   accountTitle: 'My quota',
@@ -199,6 +242,8 @@ const EN: QuotaCopy = {
   accountOrders: 'Recent orders',
   accountNoOrders: 'No orders yet.',
   accountOrderItem: (n, at) => `${n} follow-ups · ${at}`,
+  orderStatus: (s) =>
+    s === 'paid' ? '✓ Paid' : s === 'pending' ? 'Pending' : s === 'closed' ? 'Closed' : 'Intent (no charge)',
   logout: 'Sign out',
   navAccount: 'My quota',
 };

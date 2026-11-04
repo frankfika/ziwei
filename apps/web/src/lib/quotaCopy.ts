@@ -35,10 +35,16 @@ export interface QuotaCopy {
   buy: string;
   /** 引导去填自己的 Key */
   ownKeyHint: string;
+  /** 「换成自己的 Key 就不限量」的小注 */
+  ownKeyNote: string;
+  /** 还没配 AI 时的提示 */
+  noAiHint: string;
+  /** 还没配 AI 时状态行里的提示（点开设置填 Key） */
+  noAiStatus: string;
   /** 支付未开通（stub）提示 */
   payStub: string;
-  /** 语言切换按钮 */
-  langToggle: (lang: Lang) => string;
+  /** 语言切换按钮上的字：切到哪个语言 */
+  langToggle: string;
 }
 
 const ZH: QuotaCopy = {
@@ -56,8 +62,11 @@ const ZH: QuotaCopy = {
   packAsks: (n) => `${n} 次追问`,
   buy: '购买',
   ownKeyHint: '填自己的 API Key 不限量 —— 点右上角 ⚙ AI 设置。',
+  ownKeyNote: '换成自己的 Key 就不限量。配置只存在这台设备的浏览器里，不上传。',
+  noAiHint: '当前 AI：无 —— 下面填一个 Key 才能追问',
+  noAiStatus: 'AI 还没配置 —— 点这里填 Key',
   payStub: '支付尚未开通（第一期 stub），先记下意向。',
-  langToggle: (l) => (l === 'zh' ? 'EN' : '中文'),
+  langToggle: 'EN',
 };
 
 const EN: QuotaCopy = {
@@ -75,8 +84,11 @@ const EN: QuotaCopy = {
   packAsks: (n) => `${n} follow-ups`,
   buy: 'Buy',
   ownKeyHint: 'Use your own API key for unlimited asks — ⚙ AI settings, top right.',
+  ownKeyNote: 'Switch to your own key and there is no limit. It stays in this browser and is never uploaded.',
+  noAiHint: 'Current AI: none — add a key below to start asking',
+  noAiStatus: 'AI is not configured — click to add a key',
   payStub: 'Payments are not live yet (phase-1 stub) — we noted your interest.',
-  langToggle: (l) => (l === 'zh' ? '中文' : 'EN'),
+  langToggle: '中文',
 };
 
 export const QUOTA_COPY: Record<Lang, QuotaCopy> = { zh: ZH, en: EN };

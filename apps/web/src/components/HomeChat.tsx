@@ -123,7 +123,7 @@ export default function HomeChat({
           ) : providerConfigured ? (
             <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
           ) : (
-            <span className="text-danger">AI 还没配置 —— 点这里填 Key</span>
+            <span className="text-danger">{copy.noAiStatus}</span>
           )}
           <span aria-hidden="true" className="text-ink-3">
             ⚙

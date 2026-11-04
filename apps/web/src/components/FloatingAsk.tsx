@@ -181,7 +181,7 @@ export default function FloatingAsk({
 
           {!aiConfigured ? (
             <p className="shrink-0 px-4 pt-2 text-2xs text-danger sm:px-6">
-              AI 还没配置 —— 点右上角 ⚙ 填一个 API Key（只存本机）。
+              {copy.noAiStatus} —— ⚙（只存本机）
             </p>
           ) : userAi ? (
             <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">

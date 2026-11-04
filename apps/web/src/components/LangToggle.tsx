@@ -16,12 +16,12 @@ export default function LangToggle({ className = '' }: { className?: string }) {
     <button
       type="button"
       onClick={() => setLang(next)}
-      title={copy.langToggle(lang)}
-      aria-label={copy.langToggle(lang)}
+      title={copy.langToggle}
+      aria-label={copy.langToggle}
       data-lang-toggle=""
       className={`inline-flex min-h-7 items-center rounded-full border border-line bg-surface px-2 py-0.5 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${className}`}
     >
-      {copy.langToggle(lang)}
+      {copy.langToggle}
     </button>
   );
 }

@@ -123,13 +123,11 @@ export default function AiConfigPanel({
             {copy.activeBuiltin(serverModel ?? '内置模型', quota.limit)}
           </p>
         ) : (
-          <p className="text-xs leading-relaxed text-ink">当前 AI：无 —— 下面填一个 Key 才能追问</p>
+          <p className="text-xs leading-relaxed text-ink">{copy.noAiHint}</p>
         )}
       </div>
 
-      <p className="mb-3 text-2xs leading-relaxed text-ink-2">
-        换成自己的 Key 就不限量。配置只存在这台设备的浏览器里，不上传。
-      </p>
+      <p className="mb-3 text-2xs leading-relaxed text-ink-2">{copy.ownKeyNote}</p>
 
       {/* 预设：只是快速填充，不代表「正在用」——没保存过配置时一个都不高亮，避免误会 */}
       <p className="mb-2 text-2xs text-ink-2">

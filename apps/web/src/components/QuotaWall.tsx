@@ -27,11 +27,12 @@ export default function QuotaWall({
   const [lang] = useLang();
   const copy = QUOTA_COPY[lang];
   const [busy, setBusy] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  // 只记「是否已提示」—— 文案现取 copy.payStub，切语言时自动跟着变
+  const [noted, setNoted] = useState(false);
 
   async function buy(pack: TrafficPack) {
     setBusy(pack.id);
-    setNote(null);
+    setNoted(false);
     try {
       const res = await fetch(checkout, {
         method: 'POST',
@@ -40,9 +41,9 @@ export default function QuotaWall({
       });
       // 文案走本地 QUOTA_COPY（中英），服务端只回 ok —— 不在服务端写死中文
       await res.json().catch(() => null);
-      setNote(copy.payStub);
+      setNoted(true);
     } catch {
-      setNote(copy.payStub);
+      setNoted(true);
     } finally {
       setBusy(null);
     }
@@ -78,9 +79,9 @@ export default function QuotaWall({
               </button>
             ))}
           </div>
-          {note && (
+          {noted && (
             <p className="mt-2 text-2xs text-ink-2" role="status">
-              {note}
+              {copy.payStub}
             </p>
           )}
         </div>

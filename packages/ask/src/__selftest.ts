@@ -156,6 +156,16 @@ section('1. 受控词表与基座一致（引擎产出 ⊆ 词表）');
 section('2. buildAskPrompt：纯函数 + 注入盘面事实/原文节选/硬约束');
 
 const dimensions = reading.status === 'ok' ? reading.dimensions : [];
+// 无数据集（CI 环境）时给一组最小合成维度：焦点置顶逻辑（section 2c）不依赖
+// 数据集原文，没有原文就不该跳过 —— 之前 CI 里这三项断言静默落空。
+const dimsForFocus =
+  dimensions.length > 0
+    ? dimensions
+    : [
+        { key: 'career', label: '事业', text: '事业维原文样例，用于焦点置顶断言。' },
+        { key: 'love', label: '感情', text: '感情维原文样例，用于焦点置顶断言。' },
+        { key: 'overview', label: '总览', text: '总览维原文样例，用于兜底断言。' },
+      ];
 const prompt = buildAskPrompt({
   birth: BIRTH,
   question: '我的感情运怎么样？婚姻什么时候稳定下来？',
@@ -206,7 +216,7 @@ section('2c. buildAskPrompt：页内焦点（focus）置顶注入');
     birth: BIRTH,
     question: '帮我看看这方面原文怎么说的？',
     chartSummary: summary,
-    dimensions,
+    dimensions: dimsForFocus,
     focus: { dimension: 'career' },
     maxContextChars: 8000,
   });
@@ -222,7 +232,7 @@ section('2c. buildAskPrompt：页内焦点（focus）置顶注入');
     birth: BIRTH,
     question: '帮我看看我的夫妻宫。',
     chartSummary: summary,
-    dimensions,
+    dimensions: dimsForFocus,
     focus: { palace: '夫妻' },
     maxContextChars: 8000,
   });
@@ -233,7 +243,7 @@ section('2c. buildAskPrompt：页内焦点（focus）置顶注入');
     birth: BIRTH,
     question: '我的感情运怎么样？',
     chartSummary: summary,
-    dimensions,
+    dimensions: dimsForFocus,
     focus: { dimension: 'no-such-dim', palace: '不存在的宫' },
     maxContextChars: 8000,
   });

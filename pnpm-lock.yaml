@@ -11,6 +11,21 @@ importers:
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
+      '@ziwei/ask':
+        specifier: workspace:*
+        version: link:packages/ask
+      '@ziwei/chart-engine':
+        specifier: workspace:*
+        version: link:packages/chart-engine
+      '@ziwei/citation-guard':
+        specifier: workspace:*
+        version: link:packages/citation-guard
+      '@ziwei/core':
+        specifier: workspace:*
+        version: link:packages/core
+      '@ziwei/reading-index':
+        specifier: workspace:*
+        version: link:packages/reading-index
       tsx:
         specifier: ^4.19.0
         version: 4.23.15

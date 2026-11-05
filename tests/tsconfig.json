@@ -3,7 +3,13 @@
   "compilerOptions": {
     "baseUrl": ".",
     "types": ["node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@ziwei/chart-engine": ["../packages/chart-engine/src/index.ts"],
+      "@ziwei/chart-engine/engine/lunar-solar.ts": ["../packages/chart-engine/src/engine/lunar-solar.ts"],
+      "@ziwei/core": ["../packages/core/src/index.ts"],
+      "@ziwei/reading-index": ["../packages/reading-index/src/index.ts"]
+    }
   },
   "include": [
     "**/*.ts",

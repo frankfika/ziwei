@@ -32,6 +32,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "../../packages/chart-engine/src/engine/lunar-javascript.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     ".next/types/**/*.ts",

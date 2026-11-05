@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "../chart-engine/src/engine/lunar-javascript.d.ts","src/**/*.ts"],
   "exclude": ["node_modules"]
 }

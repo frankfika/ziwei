@@ -28,6 +28,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@ziwei/ask": "workspace:*",
+    "@ziwei/chart-engine": "workspace:*",
+    "@ziwei/citation-guard": "workspace:*",
+    "@ziwei/core": "workspace:*",
+    "@ziwei/reading-index": "workspace:*",
     "tsx": "^4.19.0",
     "typescript": "^5"
   },

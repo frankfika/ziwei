@@ -10,17 +10,19 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@ziwei/chart-engine": "*",
-    "@ziwei/core": "*",
-    "@ziwei/reading-index": "*",
+    "@ziwei/ask": "workspace:*",
+    "@ziwei/chart-engine": "workspace:*",
+    "@ziwei/citation-guard": "workspace:*",
+    "@ziwei/core": "workspace:*",
+    "@ziwei/reading-index": "workspace:*",
     "next": "16.4.3",
+    "qrcode": "^1.5.4",
     "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "@ziwei/ask": "*",
-    "@ziwei/citation-guard": "*"
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "autoprefixer": "^10.4.21",

@@ -36,7 +36,7 @@ export interface User {
   packBalance: number;
 }
 
-/** 订单（第一期只有 stub：收款是假的，额度是真的） */
+/** 订单 —— 真实支付（支付宝当面付）：pending → paid / closed；'stub' 是历史遗留 */
 export interface Order {
   id: string;
   userId: string;
@@ -46,8 +46,10 @@ export interface Order {
   priceCny: number;
   priceUsd: number;
   createdAt: string;
-  /** stub 期固定 'stub' */
-  status: 'stub';
+  status: 'stub' | 'pending' | 'paid' | 'closed';
+  /** 支付宝流水号（支付成功后回填） */
+  tradeNo?: string;
+  paidAt?: string;
 }
 
 /** 会话 */
@@ -294,7 +296,7 @@ function orders(): OrderTable {
   return readJson<OrderTable>('orders.json', {});
 }
 
-/** 记一笔 stub 订单 */
+/** 记一笔待支付订单（真实支付：付成功了才加额度，见 markOrderPaid） */
 export function createOrder(
   userId: string,
   pack: { id: string; asks: number; priceCny: number; priceUsd: number },
@@ -308,8 +310,42 @@ export function createOrder(
     priceCny: pack.priceCny,
     priceUsd: pack.priceUsd,
     createdAt: new Date().toISOString(),
-    status: 'stub',
+    status: 'pending',
   };
+  table[order.id] = order;
+  writeJson('orders.json', table);
+  return order;
+}
+
+/** 按 id 取订单 */
+export function getOrder(orderId: string): Order | undefined {
+  return orders()[orderId];
+}
+
+/**
+ * 支付成功 → 标记已支付并把额度入账。**幂等**：已是 paid 直接返回现状，
+ * 轮询重复触发也只入账一次（收款路径的红线）。
+ */
+export function markOrderPaid(orderId: string, tradeNo: string): Order | undefined {
+  const table = orders();
+  const order = table[orderId];
+  if (!order) return undefined;
+  if (order.status === 'paid') return order;
+  order.status = 'paid';
+  order.tradeNo = tradeNo;
+  order.paidAt = new Date().toISOString();
+  table[order.id] = order;
+  writeJson('orders.json', table);
+  addPackBalance(order.userId, order.asks);
+  return order;
+}
+
+/** 关单（超时未付 / 支付宝侧关闭） */
+export function markOrderClosed(orderId: string): Order | undefined {
+  const table = orders();
+  const order = table[orderId];
+  if (!order || order.status === 'paid') return order;
+  order.status = 'closed';
   table[order.id] = order;
   writeJson('orders.json', table);
   return order;

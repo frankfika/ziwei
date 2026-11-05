@@ -1,13 +1,15 @@
 /**
- * 流量包下单 **stub** —— 第一期不接真实支付。
+ * 流量包下单 —— 真实支付（支付宝当面付）。
  *
- * 但**额度是真的**：下单成功就把该套餐的追问次数加到登录账户的 packBalance 上，
- * 否则「购买」只是个空壳，用户余额纹丝不动。
+ * 流程：登录 → 选套餐 → 服务端建 pending 订单 → 调支付宝预下单拿二维码
+ * → 前端展示二维码 + 轮询 /api/pay/status → 支付宝侧确认 TRADE_SUCCESS 才加额度。
  *
- * 必须登录 —— 未登录返回 401（前端据此引导登录，不加额度）。
+ * 未配置支付宝商户凭据时明确返回 503（不再有「不收钱直接加额度」的 stub）。
+ * 必须登录 —— 未登录返回 401（前端据此引导登录）。
  */
 
-import { addPackBalance, createOrder } from '@/lib/account';
+import { createOrder } from '@/lib/account';
+import { alipayConfigured, alipayPrecreate } from '@/lib/alipay';
 import { currentUser } from '@/lib/session';
 import { findPack } from '@/lib/trafficPacks';
 
@@ -29,20 +31,34 @@ export async function POST(request: Request) {
 
   const user = await currentUser();
   if (!user) {
-    // 未登录不能买 —— 明确拒绝，不落单、不加额度
+    // 未登录不能买 —— 明确拒绝，不落单
     return Response.json({ ok: false, error: 'NOT_LOGGED_IN' }, { status: 401 });
   }
 
-  const order = createOrder(user.id, pack);
-  const updated = addPackBalance(user.id, pack.asks);
+  if (!alipayConfigured()) {
+    return Response.json({ ok: false, error: 'PAYMENT_NOT_CONFIGURED' }, { status: 503 });
+  }
 
-  // 文案由前端 QUOTA_COPY 负责（要中英），服务端不写死中文
+  const order = createOrder(user.id, pack);
+  const pre = await alipayPrecreate({
+    outTradeNo: order.id,
+    totalAmount: pack.priceCny.toFixed(2),
+    subject: `紫微助手流量包 ${pack.asks} 次`,
+  });
+  if (!pre.ok) {
+    return Response.json({ ok: false, error: 'PRECREATE_FAILED', detail: pre.error }, { status: 502 });
+  }
+
+  // 二维码在服务端转成 data URL，前端 <img> 直接显示，不用引 QR 库
+  const { default: QRCode } = await import('qrcode');
+  const qrDataUrl = await QRCode.toDataURL(pre.qrCode, { margin: 1, width: 240 });
+
   return Response.json({
     ok: true,
-    stub: true,
     orderId: order.id,
     packId: pack.id,
     asks: pack.asks,
-    packBalance: updated.packBalance,
+    priceCny: pack.priceCny,
+    qrDataUrl,
   });
 }

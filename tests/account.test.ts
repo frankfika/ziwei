@@ -29,12 +29,14 @@ const {
   createSession,
   destroySession,
   ensureUser,
+  getOrder,
   getSessionUser,
   getUser,
   getUserById,
   isValidEmail,
   issueOtp,
   listOrders,
+  markOrderPaid,
   normalizeEmail,
   otpRateLimit,
   refundUserAsk,
@@ -156,7 +158,7 @@ export const suite = async (t: Tester): Promise<void> => {
     assert.equal(getUserById(user.id)?.packBalance, 1);
   });
 
-  await t.test('stub 下单：加余额 + 记订单', () => {
+  await t.test('下单：pending 不加余额，支付成功才幂等入账', () => {
     reset();
     const user = ensureUser('o@example.com');
     const order = createOrder(user.id, {
@@ -165,15 +167,26 @@ export const suite = async (t: Tester): Promise<void> => {
       priceCny: 6,
       priceUsd: 0.99,
     });
-    const updated = addPackBalance(user.id, order.asks);
-    assert.equal(updated.packBalance, 20);
+    // 未支付：订单 pending，余额纹丝不动
+    assert.equal(order.status, 'pending');
+    assert.equal(getUser('o@example.com')?.packBalance, 0);
+
+    // 支付成功：入账一次
+    const paid = markOrderPaid(order.id, '2026110522001');
+    assert.equal(paid?.status, 'paid');
+    assert.equal(paid?.tradeNo, '2026110522001');
+    assert.equal(getUser('o@example.com')?.packBalance, 20);
+
+    // 幂等：重复回调/轮询不重复入账
+    markOrderPaid(order.id, '2026110522001');
     assert.equal(getUser('o@example.com')?.packBalance, 20);
 
     const orders = listOrders(user.id);
     assert.equal(orders.length, 1);
     assert.equal(orders[0].packId, 'pack-20');
     assert.equal(orders[0].asks, 20);
-    assert.equal(orders[0].status, 'stub');
+    assert.equal(orders[0].status, 'paid');
+    assert.equal(getOrder(order.id)?.status, 'paid');
   });
 
   await t.test('用户额度与 IP 额度分开计数', async () => {

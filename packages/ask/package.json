@@ -13,7 +13,7 @@
     "selftest": "tsx src/__selftest.ts"
   },
   "dependencies": {
-    "@ziwei/core": "*"
+    "@ziwei/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5"

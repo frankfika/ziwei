@@ -266,7 +266,7 @@ export class AskService {
     birth: Birth,
     question: string,
     turns?: AskTurn[],
-    options?: { focus?: AskFocus },
+    options?: { focus?: AskFocus; thinking?: 'enabled' | 'disabled' },
   ): Promise<AskResult> {
     const prepared = this.prepare(birth, question, turns, options);
     if (prepared.status === 'not-covered') return prepared.result;
@@ -279,6 +279,7 @@ export class AskService {
       user: prompt.user,
       maxTokens: this.maxTokens,
       temperature: this.temperature,
+      ...(options?.thinking ? { thinking: options.thinking } : {}),
     });
 
     // ⑤ 机械防编造检查
@@ -311,7 +312,7 @@ export class AskService {
     birth: Birth,
     question: string,
     turns?: AskTurn[],
-    options?: { focus?: AskFocus },
+    options?: { focus?: AskFocus; thinking?: 'enabled' | 'disabled' },
   ): AsyncGenerator<AskStreamEvent> {
     const prepared = this.prepare(birth, question, turns, options);
     if (prepared.status === 'not-covered') {
@@ -332,6 +333,7 @@ export class AskService {
         user: prompt.user,
         maxTokens: this.maxTokens,
         temperature: this.temperature,
+        ...(options?.thinking ? { thinking: options.thinking } : {}),
       });
       full = response.text;
       model = response.model;
@@ -343,6 +345,7 @@ export class AskService {
         user: prompt.user,
         maxTokens: this.maxTokens,
         temperature: this.temperature,
+        ...(options?.thinking ? { thinking: options.thinking } : {}),
       })) {
         if (event.type === 'delta') {
           full += event.text;

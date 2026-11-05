@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@ziwei/chart-engine": "*",
-    "@ziwei/reading-index": "*"
+    "@ziwei/chart-engine": "workspace:*",
+    "@ziwei/reading-index": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5"

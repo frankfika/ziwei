@@ -96,7 +96,10 @@ export function parseMarkdown(src: string): MdBlock[] {
           continue;
         }
       }
-      blocks.push({ kind: 'paragraph', lines: para });
+      // 段内换行合并成一段连续文本：数据集原文一段一行，多行只来自模型长回答的
+      // 自动折行——逐行 <br> 会把句子拦腰切断、行距参差（中文行文不需要段内换行）。
+      // 正文为简体中文大白话，直接拼接不会粘连英文单词。
+      blocks.push({ kind: 'paragraph', lines: [para.join('')] });
     }
   }
 

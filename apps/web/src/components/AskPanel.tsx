@@ -276,6 +276,17 @@ export default function AskPanel({
     setShowHistory(false);
   };
   const [expanded, setExpanded] = useState(true);
+  /** 深度思考开关：发给 /api/ask 的 thinking 字段（DeepSeek 等支持思考的模型生效），记住选择 */
+  const [deepThink, setDeepThink] = useState(true);
+  useEffect(() => {
+    if (window.localStorage.getItem('ziwei.deepThink') === '0') setDeepThink(false);
+  }, []);
+  const toggleDeepThink = () => {
+    setDeepThink((v) => {
+      window.localStorage.setItem('ziwei.deepThink', v ? '0' : '1');
+      return !v;
+    });
+  };
   /** 下一条问题的页内焦点（维度/宫位），发出即清 */
   const [focus, setFocus] = useState<{ dimension?: string; palace?: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -284,6 +295,13 @@ export default function AskPanel({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
   const consumedSeedRef = useRef<number | null>(null);
+  /** 聊天滚动容器：流式输出时跟滚用 */
+  const scrollRef = useRef<HTMLDivElement>(null);
+  /** 请求进行中的同步标记 —— 排队下一条用（pending 要等渲染才更新，靠不住） */
+  const busyRef = useRef(false);
+  /** 回答没结束时又发的问题：先排队，这条结束后自动发出（ref 存值防闭包旧值，state 只管显示） */
+  const queuedRef = useRef<string | null>(null);
+  const [queuedText, setQueuedText] = useState<string | null>(null);
   /** 对话内嵌盘：服务端算好后缓存，展开时渲染 */
   const [miniChart, setMiniChart] = useState<ChatChartPayload | null>(null);
   const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
@@ -293,6 +311,21 @@ export default function AskPanel({
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
     quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
+
+  // 输入框随内容长高（上限约 6 行，再多内部滚动），长问题也能一直看到自己正在打的字。
+  // 多行时把胶囊圆角换成小圆角：9999px 大圆角在高的框上会把文字裁出弧形边缘。
+  const [inputTall, setInputTall] = useState(false);
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const h = Math.min(el.scrollHeight, 168);
+    el.style.height = `${h}px`;
+    const overflowing = el.scrollHeight > 168;
+    el.style.overflowY = overflowing ? 'auto' : 'hidden';
+    if (overflowing) el.scrollTop = el.scrollHeight;
+    setInputTall(h > 64);
+  }, [question, expanded]);
 
   useEffect(() => {
     function expandFromHash() {
@@ -349,12 +382,45 @@ export default function AskPanel({
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
+  // 流式输出跟随滚动（粘底模式）：只要用户没有手动上翻，回答写到哪就跟到哪；
+  // 一旦用户往上翻看历史就不再打扰，拉回底部后恢复跟随
+  const stickRef = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      stickRef.current = el.scrollHeight - (el.scrollTop + el.clientHeight) < 40;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [bare, expanded]);
+
+  // 流式输出时跟随滚动
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !stream || !stickRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [stream]);
+
   function submit(
     q: string,
     chipFocus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' },
   ) {
     const text = q.trim();
-    if (!text || pending) return;
+    if (!text) return;
+
+    // 回答还没结束时又点了发送 —— 排队，这条结束后自动发出（占位符承诺过"可以先把下一句打好"）
+    if (busyRef.current) {
+      if (!queuedRef.current) {
+        queuedRef.current = text;
+        setQueuedText(text);
+        setQuestion('');
+      }
+      // 已有一条在排队 —— 输入框里新打的字保留，等这条结束再发
+      return;
+    }
+    busyRef.current = true;
+    stickRef.current = true; // 新问题从头跟滚
 
     setQuestion('');
     setTransient(null);
@@ -393,6 +459,7 @@ export default function AskPanel({
           .map((m) => ({ question: m.question, answer: m.answer })),
       ),
     );
+    fd.set('thinking', deepThink ? 'enabled' : 'disabled');
 
     startTransition(async () => {
       try {
@@ -450,6 +517,14 @@ export default function AskPanel({
       } finally {
         setPendingQuestion(null);
         setStream(null);
+        busyRef.current = false;
+        // 有排队的下一条 —— 自动发出
+        const queued = queuedRef.current;
+        queuedRef.current = null;
+        if (queued) {
+          setQueuedText(null);
+          submit(queued);
+        }
       }
     });
   }
@@ -586,6 +661,7 @@ export default function AskPanel({
         {/* 对话线程 */}
         <div
           id={resultId}
+          ref={bare ? scrollRef : undefined}
           aria-live="polite"
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
@@ -923,6 +999,22 @@ export default function AskPanel({
                 ))}
               </div>
             )}
+            <div className="mb-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleDeepThink}
+                aria-pressed={deepThink}
+                title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+                className={
+                  CHIP_CLASS +
+                  (deepThink
+                    ? ' border-zhu/50 text-ink'
+                    : ' border-line text-ink-2 opacity-70')
+                }
+              >
+                {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+              </button>
+            </div>
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -936,16 +1028,16 @@ export default function AskPanel({
                   }
                 }}
                 rows={1}
-                maxLength={500}
+                maxLength={2000}
                 placeholder={pending ? '正在回答中，可以先把下一句打好…' : '问问感情、事业、今年如何…'}
-                className="chat-input flex-1"
+                className={`chat-input flex-1 ${inputTall ? '!rounded-2xl' : ''}`}
               />
               <button
                 type="button"
                 onClick={() => submit(question)}
-                disabled={pending || !question.trim()}
-                aria-label={pending ? '回答中，暂时不能发送' : '发送'}
-                title={pending ? '回答中，稍等片刻' : '发送'}
+                disabled={!question.trim()}
+                aria-label={pending ? '回答中，点击先排队' : '发送'}
+                title={pending ? '回答中 —— 点击把这句话排到下一条' : '发送'}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {pending ? (
@@ -958,6 +1050,11 @@ export default function AskPanel({
                 )}
               </button>
             </div>
+            {queuedText && (
+              <p className="mt-1.5 text-2xs text-zhu" role="status">
+                已排队：「{queuedText}」—— 这条回答结束后自动发送
+              </p>
+            )}
             {messages.length > 0 && (
               <div className="mt-2 text-center">
                 <button
@@ -990,7 +1087,7 @@ export default function AskPanel({
               }
             }}
             rows={3}
-            maxLength={500}
+            maxLength={2000}
             placeholder={
               pending
                 ? '正在回答中，可以先把下一句打好…'
@@ -1023,6 +1120,21 @@ export default function AskPanel({
               ))}
             </div>
           )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleDeepThink}
+              aria-pressed={deepThink}
+              title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+              className={
+                CHIP_CLASS +
+                (deepThink ? ' border-zhu/50 text-ink' : ' border-line text-ink-2 opacity-70')
+              }
+            >
+              {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+            </button>
+          </div>
 
           <button
             type="button"

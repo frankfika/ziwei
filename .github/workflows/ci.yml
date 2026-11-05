@@ -28,12 +28,24 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: npm
+          registry-url: 'https://registry.npmjs.org'
 
-      # 本仓库的 lockfile 由多个 agent 并行改动，npm ci 在 lock 与 package.json
-      # 不同步时会直接失败；因此以 npm ci 为主、失败回落 npm install。
+      # 本仓库是 pnpm workspace（pnpm-lock.yaml 为准），依赖里有 workspace:* 协议，
+      # npm 不认 —— 统一用 pnpm 装（缓存走 pnpm/store-dir）。
+      # pnpm 锁 9.0 格式：10.x 支持 Node 20 且读写 v9 lockfile（11.x 要 Node≥22）。
+      - name: 装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 配 pnpm 缓存
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: pnpm
+
       - name: 装依赖
-        run: npm ci || npm install --no-audit --no-fund
+        run: pnpm install --frozen-lockfile
 
       - name: 类型检查
         run: npm run typecheck

@@ -8,6 +8,8 @@
  *   ZIWEI_ASK_API_KEY    API key（provider=openai / anthropic 时必填）
  *   ZIWEI_ASK_MODEL      模型名（provider=openai / anthropic 时必填）
  *   ZIWEI_ASK_MAX_TOKENS 单次输出上限（可选，默认 8000）
+ *   ZIWEI_ASK_TIMEOUT_MS 流式空闲超时（可选，默认 180000）。注意语义是
+ *                        「模型连续多久没有输出新内容就断开」，不是总时长上限。
  *
  * ⚠️ **max_tokens 的默认值为什么给到 8000**：
  *   带思维链的模型（MiniMax-M3 / DeepSeek-R1 / QwQ…）的**思考 token 吃满整个
@@ -30,6 +32,7 @@ export interface ProviderEnvSnapshot {
   apiKey?: string;
   model?: string;
   maxTokens?: number;
+  timeoutMs?: number;
 }
 
 /**
@@ -77,6 +80,12 @@ export function readProviderEnv(
     model: env.ZIWEI_ASK_MODEL?.trim() || undefined,
     maxTokens: (() => {
       const raw = env.ZIWEI_ASK_MAX_TOKENS?.trim();
+      if (!raw) return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+    })(),
+    timeoutMs: (() => {
+      const raw = env.ZIWEI_ASK_TIMEOUT_MS?.trim();
       if (!raw) return undefined;
       const n = Number(raw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
@@ -169,6 +178,7 @@ export function resolveProviderFromEnv(
         apiKey: snap.apiKey,
         model: snap.model!,
         ...(snap.maxTokens ? { defaultMaxTokens: snap.maxTokens } : {}),
+        ...(snap.timeoutMs ? { timeoutMs: snap.timeoutMs } : {}),
       });
     case 'anthropic':
       return createAnthropicProvider({

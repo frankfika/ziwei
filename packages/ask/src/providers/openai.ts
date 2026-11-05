@@ -114,6 +114,11 @@ export function createOpenAICompatibleProvider(
     if (maxTokens !== undefined) body.max_tokens = maxTokens;
     const temperature = req.temperature ?? defaultTemperature;
     if (temperature !== undefined) body.temperature = temperature;
+    // DeepSeek 的思考开关（默认开）：显式传才生效。别的 provider 不认这字段，
+    // 只在 deepseek 端点上发，避免严格校验的端点（OpenAI 等）对未知参数报错。
+    if (req.thinking && /deepseek/i.test(endpoint ?? baseUrl)) {
+      body.thinking = { type: req.thinking };
+    }
     if (stream) {
       body.stream = true;
       body.stream_options = { include_usage: true };
@@ -201,7 +206,22 @@ export function createOpenAICompatibleProvider(
       const doFetch = fetchImpl ?? fetch;
       const body = buildBody(req, true);
       const requestHeaders = buildHeaders();
-      const timeoutSignal = req.signal ?? AbortSignal.timeout(timeoutMs);
+
+      // 超时语义是「空闲超时」而不是「总时长上限」：带思维链的长回答总时长
+      // 轻松超过一分钟，但只要模型还在吐字就不该掐。定时器在每次读到新数据
+      // 时重置；连续 timeoutMs 毫秒没有任何字节才中断。
+      const controller = new AbortController();
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      const armIdle = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => controller.abort(new Error('idle')), timeoutMs);
+      };
+      const onOuterAbort = () => controller.abort();
+      if (req.signal) {
+        if (req.signal.aborted) controller.abort();
+        else req.signal.addEventListener('abort', onOuterAbort, { once: true });
+      }
+      armIdle();
 
       let res: Response;
       try {
@@ -209,14 +229,24 @@ export function createOpenAICompatibleProvider(
           method: 'POST',
           headers: requestHeaders,
           body: JSON.stringify(body),
-          signal: timeoutSignal,
+          signal: controller.signal,
         });
       } catch (err) {
-        yield { type: 'error', message: `请求 ${url} 失败：${(err as Error)?.message ?? String(err)}` };
+        if (idleTimer) clearTimeout(idleTimer);
+        req.signal?.removeEventListener('abort', onOuterAbort);
+        const idle = controller.signal.aborted && !req.signal?.aborted;
+        yield {
+          type: 'error',
+          message: idle
+            ? `等待模型响应超过 ${Math.round(timeoutMs / 1000)} 秒没有输出，已断开。可以重试。`
+            : `请求 ${url} 失败：${(err as Error)?.message ?? String(err)}`,
+        };
         return;
       }
 
       if (!res.ok) {
+        if (idleTimer) clearTimeout(idleTimer);
+        req.signal?.removeEventListener('abort', onOuterAbort);
         const raw = await res.text().catch(() => '');
         yield {
           type: 'error',
@@ -225,6 +255,8 @@ export function createOpenAICompatibleProvider(
         return;
       }
       if (!res.body) {
+        if (idleTimer) clearTimeout(idleTimer);
+        req.signal?.removeEventListener('abort', onOuterAbort);
         yield { type: 'error', message: 'provider 没有返回可读的流' };
         return;
       }
@@ -241,6 +273,7 @@ export function createOpenAICompatibleProvider(
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          armIdle(); // 有新数据 —— 空闲计时重置
           buf += decoder.decode(value, { stream: true });
           let nl: number;
           while ((nl = buf.indexOf('\n')) >= 0) {
@@ -277,8 +310,18 @@ export function createOpenAICompatibleProvider(
           }
         }
       } catch (err) {
-        yield { type: 'error', message: `流式读取中断：${(err as Error)?.message ?? String(err)}` };
+        // 空闲超时是自己 abort 的，别把它说成网络故障
+        const idle = controller.signal.aborted && !req.signal?.aborted;
+        yield {
+          type: 'error',
+          message: idle
+            ? `模型超过 ${Math.round(timeoutMs / 1000)} 秒没有输出新内容，已断开。可以重试。`
+            : `流式读取中断：${(err as Error)?.message ?? String(err)}`,
+        };
         return;
+      } finally {
+        if (idleTimer) clearTimeout(idleTimer);
+        req.signal?.removeEventListener('abort', onOuterAbort);
       }
 
       const tail = shouldStripReasoning ? stripper.flush() : '';

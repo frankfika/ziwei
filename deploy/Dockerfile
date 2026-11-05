@@ -18,7 +18,7 @@
 #   docker run --rm -p 3000:3000 -v <宿主机数据目录>:/app/data ziwei-assistant:latest
 
 # ═══════════════════════════════════════════════════════════════════
-# 阶段 1：依赖（只复制清单文件，让 npm ci 命中层缓存）
+# 阶段 1：依赖（只复制清单文件，让 pnpm install 命中层缓存）
 # ═══════════════════════════════════════════════════════════════════
 FROM node:22-slim AS deps
 
@@ -26,10 +26,9 @@ WORKDIR /app
 ENV NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false
 
-# npm workspaces：lockfile 里记录了全部 workspace，缺一个 npm ci 就会报
-# "npm ci can only install packages when your package.json and package-lock.json
-#  are in sync"。所以这里必须把每个 workspace 的 package.json 都复制进来。
-COPY package.json package-lock.json ./
+# pnpm workspace：依赖声明用 workspace:* 协议（npm 不认），权威 lockfile 是
+# pnpm-lock.yaml。每个 importer 的 package.json 都要复制，缺一个 --frozen-lockfile 就报不同步。
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/cli/package.json                   apps/cli/package.json
 COPY apps/web/package.json                   apps/web/package.json
 COPY packages/ask/package.json               packages/ask/package.json
@@ -37,11 +36,12 @@ COPY packages/chart-engine/package.json      packages/chart-engine/package.json
 COPY packages/citation-guard/package.json    packages/citation-guard/package.json
 COPY packages/core/package.json              packages/core/package.json
 COPY packages/reading-index/package.json     packages/reading-index/package.json
-COPY vendor/types-lunar-javascript/package.json vendor/types-lunar-javascript/package.json
 
 # 保留 devDependencies（tsx / typescript）：容器内要能跑
 # `npm run index:build`（建索引）与 `npm run chart`（CLI 排盘）
-RUN npm ci --no-audit --no-fund
+# registry 走国内镜像，官方源在国内服务器构建常超时
+RUN npm i -g pnpm@10 --registry=https://registry.npmmirror.com \
+ && pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 2：构建 Next.js 生产产物
@@ -53,7 +53,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
 COPY --from=deps /app/node_modules /app/node_modules
-COPY package.json package-lock.json tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
 COPY vendor ./vendor
@@ -100,7 +100,7 @@ COPY --from=deps /app/node_modules /app/node_modules
 
 # 源码：workspace 包是 TS 源码（main 指向 src/index.ts），
 # transpilePackages 编译、tsx 运行都需要它们在场
-COPY package.json package-lock.json tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
 COPY vendor ./vendor

@@ -295,6 +295,13 @@ export default function AskPanel({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
   const consumedSeedRef = useRef<number | null>(null);
+  /** 聊天滚动容器：流式输出时跟滚用 */
+  const scrollRef = useRef<HTMLDivElement>(null);
+  /** 请求进行中的同步标记 —— 排队下一条用（pending 要等渲染才更新，靠不住） */
+  const busyRef = useRef(false);
+  /** 回答没结束时又发的问题：先排队，这条结束后自动发出（ref 存值防闭包旧值，state 只管显示） */
+  const queuedRef = useRef<string | null>(null);
+  const [queuedText, setQueuedText] = useState<string | null>(null);
   /** 对话内嵌盘：服务端算好后缓存，展开时渲染 */
   const [miniChart, setMiniChart] = useState<ChatChartPayload | null>(null);
   const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
@@ -375,12 +382,45 @@ export default function AskPanel({
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
+  // 流式输出跟随滚动（粘底模式）：只要用户没有手动上翻，回答写到哪就跟到哪；
+  // 一旦用户往上翻看历史就不再打扰，拉回底部后恢复跟随
+  const stickRef = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      stickRef.current = el.scrollHeight - (el.scrollTop + el.clientHeight) < 40;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [bare, expanded]);
+
+  // 流式输出时跟随滚动
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !stream || !stickRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [stream]);
+
   function submit(
     q: string,
     chipFocus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' },
   ) {
     const text = q.trim();
-    if (!text || pending) return;
+    if (!text) return;
+
+    // 回答还没结束时又点了发送 —— 排队，这条结束后自动发出（占位符承诺过"可以先把下一句打好"）
+    if (busyRef.current) {
+      if (!queuedRef.current) {
+        queuedRef.current = text;
+        setQueuedText(text);
+        setQuestion('');
+      }
+      // 已有一条在排队 —— 输入框里新打的字保留，等这条结束再发
+      return;
+    }
+    busyRef.current = true;
+    stickRef.current = true; // 新问题从头跟滚
 
     setQuestion('');
     setTransient(null);
@@ -477,6 +517,14 @@ export default function AskPanel({
       } finally {
         setPendingQuestion(null);
         setStream(null);
+        busyRef.current = false;
+        // 有排队的下一条 —— 自动发出
+        const queued = queuedRef.current;
+        queuedRef.current = null;
+        if (queued) {
+          setQueuedText(null);
+          submit(queued);
+        }
       }
     });
   }
@@ -613,6 +661,7 @@ export default function AskPanel({
         {/* 对话线程 */}
         <div
           id={resultId}
+          ref={bare ? scrollRef : undefined}
           aria-live="polite"
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
@@ -986,9 +1035,9 @@ export default function AskPanel({
               <button
                 type="button"
                 onClick={() => submit(question)}
-                disabled={pending || !question.trim()}
-                aria-label={pending ? '回答中，暂时不能发送' : '发送'}
-                title={pending ? '回答中，稍等片刻' : '发送'}
+                disabled={!question.trim()}
+                aria-label={pending ? '回答中，点击先排队' : '发送'}
+                title={pending ? '回答中 —— 点击把这句话排到下一条' : '发送'}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {pending ? (
@@ -1001,6 +1050,11 @@ export default function AskPanel({
                 )}
               </button>
             </div>
+            {queuedText && (
+              <p className="mt-1.5 text-2xs text-zhu" role="status">
+                已排队：「{queuedText}」—— 这条回答结束后自动发送
+              </p>
+            )}
             {messages.length > 0 && (
               <div className="mt-2 text-center">
                 <button

@@ -39,8 +39,11 @@ COPY packages/reading-index/package.json     packages/reading-index/package.json
 
 # 保留 devDependencies（tsx / typescript）：容器内要能跑
 # `npm run index:build`（建索引）与 `npm run chart`（CLI 排盘）
-# registry 走国内镜像，官方源在国内服务器构建常超时
-RUN npm i -g pnpm@10 --registry=https://registry.npmmirror.com \
+# registry 走国内镜像，官方源在国内服务器构建常超时。
+# node-linker=hoisted：扁平化布局（next/tsx 全在根 node_modules/.bin），
+# 否则 build 阶段 COPY apps 源码会覆盖掉子包自己的 node_modules。
+RUN echo 'node-linker=hoisted' > /app/.npmrc \
+ && npm i -g pnpm@10 --registry=https://registry.npmmirror.com \
  && pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
 # ═══════════════════════════════════════════════════════════════════

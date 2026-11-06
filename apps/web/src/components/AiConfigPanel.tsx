@@ -259,7 +259,7 @@ export default function AiConfigPanel({
             className="field-input font-mono text-xs"
           />
           <p className="mt-1 text-2xs leading-relaxed text-ink-2">
-            带思维链的模型（DeepSeek-R1 / QwQ 等）思考 token 与正文共用这份预算，给小了正文会空。默认 8000。
+            带思维链的模型（MiniMax-M3 / DeepSeek-R1 / QwQ 等）思考 token 与正文共用这份预算，给小了正文会空 —— 这类模型建议 20000 以上。默认 8000。
           </p>
         </div>
       )}

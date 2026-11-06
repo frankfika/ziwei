@@ -152,6 +152,18 @@ export async function POST(request: Request) {
           } else if (ev.type === 'thinking') {
             send({ type: 'thinking', text: ev.text });
           } else if (ev.type === 'done') {
+            if (!ev.answer.trim()) {
+              // 空正文 = 失败，不是「成功的空回答」：思考型模型（MiniMax-M3 等）
+              // 会把思考 token 吃进 max_tokens 预算，给小了正文就整段为空。
+              // 这种结局不计数（外层 finally 会退还预占的额度），并给可操作的重试提示。
+              send({
+                type: 'error',
+                message:
+                  '模型这次没有产出正文（思考可能占满了输出预算）。可以直接点重试；' +
+                  '如果反复出现，到 ⚙ AI 设置把「单次输出上限」调大（如 20000 以上），或换一个不带思考的模型。',
+              });
+              continue;
+            }
             // 成功才计数（前面预占的这一次就此生效，不再退还）
             consumed = true;
             send({

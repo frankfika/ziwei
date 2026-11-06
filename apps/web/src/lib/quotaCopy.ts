@@ -17,6 +17,8 @@ export interface QuotaCopy {
   dailyNote: (limit: number) => string;
   /** AI 状态行（内置免费） */
   statusBuiltin: (model: string, limit: number) => string;
+  /** VIP 名单命中时（limit 为 0 = 不限量） */
+  statusVip: (model: string, limit: number) => string;
   /** AI 状态行（用户自己的 Key） */
   statusUser: (model: string) => string;
   /** 状态行后面的提示（换个 Key 之类） */
@@ -127,6 +129,10 @@ export interface QuotaCopy {
 const ZH: QuotaCopy = {
   dailyNote: (n) => `（本站免费提供 · 每天 ${n} 次）`,
   statusBuiltin: (model, n) => `当前 AI：${model}（本站免费提供 · 每天 ${n} 次）`,
+  statusVip: (model, n) =>
+    n > 0
+      ? `当前 AI：${model}（VIP · 每天 ${n} 次）`
+      : `当前 AI：${model}（VIP · 不限量）`,
   statusUser: (model) => `当前 AI：${model}（你的 Key · 不限量）`,
   statusHint: '—— 右上角 ⚙ 可换成自己的 Key。',
   statusHintUser: '—— 右上角 ⚙ 可更换或测试。',
@@ -189,6 +195,8 @@ const ZH: QuotaCopy = {
 const EN: QuotaCopy = {
   dailyNote: (n) => `(free on-site AI · ${n} per day)`,
   statusBuiltin: (model, n) => `Current AI: ${model} (free on-site AI · ${n} per day)`,
+  statusVip: (model, n) =>
+    n > 0 ? `Current AI: ${model} (VIP · ${n} per day)` : `Current AI: ${model} (VIP · unlimited)`,
   statusUser: (model) => `Current AI: ${model} (your key · unlimited)`,
   statusHint: '— switch to your own key via ⚙, top right.',
   statusHintUser: '— replace or test it via ⚙, top right.',

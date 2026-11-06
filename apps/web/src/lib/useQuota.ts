@@ -11,12 +11,14 @@ import { useEffect, useState } from 'react';
 import { DAILY_LIMIT } from './quota';
 
 export interface QuotaStatus {
-  /** 每日上限（服务端为准，可能被 ZIWEI_ASK_DAILY_LIMIT 覆盖） */
+  /** 每日上限（服务端为准，可能被 ZIWEI_ASK_DAILY_LIMIT 覆盖；VIP 不限量时为 0） */
   limit: number;
   /** 今天已用 */
   used: number;
   /** 今天还剩 */
   remaining: number;
+  /** 是否命中 VIP 白名单（限时长为 VIP 日额，0 = 不限量） */
+  vip?: boolean;
 }
 
 let cached: Promise<QuotaStatus> | null = null;
@@ -30,6 +32,7 @@ export function fetchQuotaStatus(): Promise<QuotaStatus> {
         limit: typeof j?.limit === 'number' ? j.limit : DAILY_LIMIT,
         used: typeof j?.used === 'number' ? j.used : 0,
         remaining: typeof j?.remaining === 'number' ? j.remaining : DAILY_LIMIT,
+        ...(j?.vip ? { vip: true } : {}),
       }))
       .catch(() => ({
         limit: DAILY_LIMIT,

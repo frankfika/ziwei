@@ -15,7 +15,9 @@ import assert from 'node:assert/strict';
 import {
   DAILY_LIMIT,
   bumpQuota,
+  parseVipEntries,
   resolveDailyLimit,
+  resolveVipLimit,
   type QuotaStore,
 } from '../apps/web/src/lib/quota';
 import {
@@ -51,6 +53,21 @@ export const suite = async (t: Tester): Promise<void> => {
     assert.equal(DAILY_LIMIT, 3);
     assert.equal(resolveDailyLimit(undefined), 3);
     assert.equal(resolveDailyLimit(''), 3);
+  });
+
+  await t.test('VIP：名单解析（逗号/换行分隔、大小写、去空）', () => {
+    assert.deepEqual(parseVipEntries(' A@B.com , 0123abcdef\n'), ['a@b.com', '0123abcdef']);
+    assert.deepEqual(parseVipEntries(''), []);
+    assert.deepEqual(parseVipEntries(undefined), []);
+  });
+
+  await t.test('VIP：日额 0/缺省 = 不限量，非法值也按不限量', () => {
+    assert.equal(resolveVipLimit(undefined), 0);
+    assert.equal(resolveVipLimit(''), 0);
+    assert.equal(resolveVipLimit('0'), 0);
+    assert.equal(resolveVipLimit('10'), 10);
+    assert.equal(resolveVipLimit('abc'), 0);
+    assert.equal(resolveVipLimit('-3'), 0);
   });
 
   await t.test('env 覆盖生效；非法值回落默认', () => {

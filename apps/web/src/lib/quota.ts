@@ -16,6 +16,26 @@ export function resolveDailyLimit(raw?: string): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DAILY_LIMIT;
 }
 
+// ── VIP 白名单 ─────────────────────────────────────────────────────
+//
+// 口径：ZIWEI_VIP_EMAILS / ZIWEI_VIP_IPS 里的用户不受普通免费日额限制；
+// ZIWEI_VIP_DAILY_LIMIT 控制 VIP 自己的每日上限（**0 或缺省 = 不限量**）。
+// 邮箱条目可以是邮箱本身，也可以是 userId（sha256(email) 前 32 位，账号的稳定 uuid）。
+
+/** VIP 每日上限：0 = 不限量（默认）。非法值按不限量处理 —— VIP 不该被笔误坑成 3 次 */
+export function resolveVipLimit(raw?: string): number {
+  const n = Number((raw ?? '').trim());
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+/** 逗号/换行分隔的白名单 → 条目数组（去空、小写；邮箱比较不区分大小写） */
+export function parseVipEntries(raw?: string): string[] {
+  return (raw ?? '')
+    .split(/[,\n]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 /** 落盘结构：day → 归属键 → 已用次数 */
 export type QuotaStore = Record<string, Record<string, number>>;
 

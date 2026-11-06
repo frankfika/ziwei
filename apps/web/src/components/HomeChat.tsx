@@ -121,7 +121,11 @@ export default function HomeChat({
           {userCfg ? (
             <>{copy.statusUser(userCfg.model)}</>
           ) : providerConfigured ? (
-            <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
+            quota.vip ? (
+              <>{copy.statusVip(serverModel ? serverModel : '内置模型', quota.limit)}</>
+            ) : (
+              <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
+            )
           ) : (
             <span className="text-danger">{copy.noAiStatus}</span>
           )}

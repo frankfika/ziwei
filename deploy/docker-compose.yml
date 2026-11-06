@@ -58,6 +58,11 @@ services:
       ZIWEI_ALIPAY_PUBLIC_KEY: "${ZIWEI_ALIPAY_PUBLIC_KEY:-}"
       ZIWEI_ALIPAY_GATEWAY: "${ZIWEI_ALIPAY_GATEWAY:-}"
 
+      # ── VIP 白名单（不限量 / 每日定额）──────────────────────────
+      ZIWEI_VIP_EMAILS: "${ZIWEI_VIP_EMAILS:-}"
+      ZIWEI_VIP_IPS: "${ZIWEI_VIP_IPS:-}"
+      ZIWEI_VIP_DAILY_LIMIT: "${ZIWEI_VIP_DAILY_LIMIT:-}"
+
     volumes:
       # 解读数据集：压缩包 164MB / 解压 53GB / 索引 15MB
       - ziwei-data:/app/data

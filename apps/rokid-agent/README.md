@@ -245,6 +245,23 @@ Rokid AI Glasses 的 HUD 是 **480 × 352 px、单色绿 Micro-LED、30° FOV**�
 | 2 | `lib/` 下纯函数模块的单元测试（`chart-layout` / `head-cursor` / `birth-parser`） | **已覆盖**：`tests/rokid_agent.test.ts`（47 例），已登记进 `tests/run.ts` 的 `SUITE_FILES`，`npm test` 会跑 |
 | 3 | 仓库既有回归套件 | `npm test` 覆盖 `packages/`、`apps/web`，**现已包含 `apps/rokid-agent/`**（经由 `tests/rokid_agent.test.ts`） |
 
+### 6.2.5 ⚠️ 报名链路硬阻塞：Rokid 专业认证
+
+2026-11-06 用已登录的 Rokid 账号实测：
+
+| 项 | 实测结果 |
+|---|---|
+| 报名 URL | `https://spatialjoy.rokid.com/signup?eventId=15`（**没有 `/2026` 前缀**，带前缀会 404） |
+| 报名页实际显示 | *"Verification not completed. Please complete professional verification in the Rokid account center before registering. You will return to this page afterwards."* —— **报名表进不去** |
+| 账户中心 `account-web.rokid.com/verify` | Basic Authentication（基本实名）未做；**Professional Authentication（Personal）= Under Review**（已提交身份证正反面，在审） |
+| 页面上有没有补充材料提示 / 审核 SLA | **都没有** |
+| 另一条路 | 左侧菜单 `organization information`（企业认证）—— 需企业材料，是否更快未知 |
+
+**这排在所有技术项之前**：认证不通过 → 报名表打不开 → 作品名、分类、提审素材、提交全部无从谈起。
+连「等 Rokid 官方回复分类口径」都排在它后面 —— 官方回得再快，认证不过照样报不了名。
+
+---
+
 ### 6.3 后端部署缺口（**Demo 的硬阻塞**）
 
 | # | 项 | 状态 |

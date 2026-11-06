@@ -416,6 +416,7 @@ This is not a prediction or advice, and is not medical, legal or investment advi
 | # | 问题 | 为什么必须问 |
 |---|---|---|
 | **1** | 作品名「**紫微星盘**」（英文 `Ziwei Star Chart`）能否通过？是否落在《APP 内容体验规范》4.11 条（不收录名称含「六合／心水／白小姐／曾道人／铁算盘／神算人」等）的不收录范围？如不能，备选「**十二宫盘** / Twelve Palace Chart」是否可？ | 决定报名表能否提交、能不能进初筛 |
+| **0** | **个人专业认证的审核要多久？在审期间能否先报名 / 预登记作品？企业认证是否更快？** | 报名页硬卡「Verification not completed」，账户中心显示 Professional Authentication (Personal) = **Under Review**，页面上没有 SLA | **这条比下面所有问题都靠前** —— 认证不过，报名表根本打不开。2026-11-06 已随第一封邮件一起发出 |
 | **2** | **传统命理／术数题材**（紫微斗数）在 Rokid AI App 智能体商店是否可收录？若可，分类应选「学习」还是「娱乐」？描述需要哪一档免责声明措辞？ | 规范第 5 条红线含「破坏国家宗教政策，宣扬邪教和封建迷信」；紫微斗数是传统术数、非邪教，但语义邻域需要官方口径。**这是最可能被打回的一条** |
 | **3** | AIUI 智能体上架是否需要**软件著作权**？《APP 内容体验规范》第 6 条写「原则上需要提交相应的软件著作权」，该条是否适用于智能体商店的 AIUI 智能体？需要的话登记周期与主体要求是什么？ | 软著登记周期通常以月计，若需要而没开始，会直接卡住 2027-01-28 的提交 |
 | 4 | 作品描述中能否出现「**命盘**」「**紫微斗数**」「**十二宫**」字样？「**传统文化**」的表述是否被接受？ | 决定商店文案能写到多细 |
@@ -452,6 +453,7 @@ This is not a prediction or advice, and is not medical, legal or investment advi
 
 | # | 项 | 状态 | 影响 |
 |---|---|---|---|
+| **0** | **报名入口被 Rokid 专业认证卡住（硬阻塞，最高优先级）** | 2026-11-06 用已登录的 Rokid 账号实测：报名页 `https://spatialjoy.rokid.com/signup?eventId=15` 只显示一条提示 —— *"Verification not completed. Please complete professional verification in the Rokid account center before registering."*（**注意 URL 没有 `/2026` 前缀**，带前缀会 404）。账户中心 `account-web.rokid.com/verify` 显示 **Professional Authentication（Personal）状态 = Under Review**（已提交身份证正反面，在审核中），页面上**没有**补充材料提示、也**没有**给出审核 SLA | **这是所有其他事项的前置**。认证不通过 → 报名表打不开 → 作品名、分类、素材、提交全部无从谈起。原计划「等 Rokid 官方回复分类口径」其实还排在这后面 —— 官方回复再多，认证不过照样报名不了。**必须立刻做的事**：① 盯审核状态；② 同时问 Rokid 官方「个人专业认证审核要多久 / 在审期间能否预登记」；③ 评估走 `organization information` 的**企业认证**是否更快（需 OpenCSG 营业执照等材料） |
 | **1** | **`/api/agent/reading`、`/api/agent/ask`、`/api/agent/chart` 三个后端接口未部署** | 2026-11-06 实测：生产域名 `ziwei.secondplanet.cc` 上三者均返回 **HTTP 404**（站点本身 HTTP 200，确认是路由缺失而非服务挂掉）。**代码已实现**（`apps/web/src/app/api/agent/{chart,reading,ask}/route.ts`），差的是部署 | **最高优先级**。解读与追问是 Demo 的核心两步，不部署则只能演示排盘 |
 | **2** | **全链路从未在 Rokid AI Glasses 真机上跑过** | 未验证 | 「不超时不报错」这条基础要求尚未获得任何实证 |
 | **3** | 绝对方向传感器（`AbsoluteOrientationSensor`）在真机是否可用、是否需宿主显式 enable 能力 | 未验证（代码已写 1.5 s 首帧超时降级，但降级路径本身也未在真机触发过） | 若不可用，准星通道整体失效，核心交互退化到「抬头切宫」 |

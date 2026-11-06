@@ -54,6 +54,14 @@ import {
     createTiltState,
     updateTilt,
 } from '../../lib/head-cursor.js';
+import {
+    TIME_LAYER_KEYS,
+    TIME_LAYER_NAMES,
+    buildTimeLayers,
+    focusFromQuestion,
+    fortuneSiHuaText,
+    nextLayerKey,
+} from '../../lib/time-layer.js';
 import { resolveChart } from '../../lib/chart-source.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
 import { latestProfile, upsertProfile } from '../../lib/storage.js';
@@ -101,6 +109,20 @@ export default {
         },
         selectedBranch: 0,
         selectedName: '',
+        /** 当前时间层：natal / daxian / liunian / liuyue */
+        layerKey: 'natal',
+        /** 当前层标题（例：大限 32–41 岁） */
+        layerTitle: '本命盘',
+        /** 中宫第 2 行：本命层=阴阳男女·五行局；运限层=本层命宫落位 */
+        layerSub: '',
+        /** 中宫第 3 行：本命层=农历日期；运限层=本层四化 */
+        layerExtra: '',
+        /** 选中宫在本层的宫名（运限层才有） */
+        layerRole: '',
+        /** 运限层是否可用（端侧引擎没加载时不可用） */
+        layersReady: false,
+        /** 上下键当前干什么：切层 / 选宫 */
+        navHint: '上下键切层',
         sourceLabel: '',
         sensorLabel: '',
         voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男',
@@ -115,6 +137,8 @@ export default {
         askAnswer: '',
         askLoading: false,
         askCitation: '',
+        /** 追问焦点（宫位 + 时间层），要让用户看得见自己在问哪一块 */
+        askFocus: '',
         presets: PRESET_QUESTIONS,
         errorText: ''
     },
@@ -126,6 +150,10 @@ export default {
         this._readingCache = null;
         this._citationLabel = '';
         this._lastError = '';
+        /** 四个时间层（运限）。端侧引擎不可用时全是 null。 */
+        this._layers = null;
+        /** 运限层是否可用 */
+        this._layersReady = false;
 
         const birth = this._resolveBirth(query);
         if (!birth) {
@@ -161,6 +189,7 @@ export default {
 
         if (this.data.overlay === 'input') {
             if (code === KeyCode.CONFIRM) this._startVoiceInput();
+            else if (code === KeyCode.BACK) this.finish();
             return;
         }
 
@@ -177,8 +206,8 @@ export default {
             return;
         }
 
-        if (code === KeyCode.UP) this._select(neighborBranch(this.data.selectedBranch, 0, -1));
-        else if (code === KeyCode.DOWN) this._select(neighborBranch(this.data.selectedBranch, 0, 1));
+        if (code === KeyCode.UP) this._vertical(-1);
+        else if (code === KeyCode.DOWN) this._vertical(1);
         else if (code === KeyCode.LEFT) this._select(neighborBranch(this.data.selectedBranch, -1, 0));
         else if (code === KeyCode.RIGHT) this._select(neighborBranch(this.data.selectedBranch, 1, 0));
         else if (code === KeyCode.CONFIRM) this._openReading();
@@ -229,7 +258,19 @@ export default {
             this._tilt = createTiltState({ branch: mingBranch });
             this._chartJson = result.chart;
 
+            /**
+             * 运限层：端侧引擎才算得出（引擎已打包进 assets/engine.js）。
+             * 走服务端兜底时 engine 为 null → 运限层整体不可用，
+             * 界面退成「只有本命盘」，和传感器失效时同款的降级。
+             */
+            this._layers = buildTimeLayers(result.chart, result.engine);
+            this._layersReady = Boolean(
+                result.engine && (this._layers.daxian || this._layers.liunian || this._layers.liuyue),
+            );
+
             upsertProfile(birth);
+
+            const layerView = this._layerView('natal');
 
             this.setData({
                 ready: true,
@@ -238,6 +279,13 @@ export default {
                 center: board.center,
                 selectedBranch: mingBranch,
                 selectedName: (cellAt(board.cells, mingBranch) || {}).name || '命宫',
+                layerKey: 'natal',
+                layerTitle: layerView.layerTitle,
+                layerSub: layerView.layerSub,
+                layerExtra: layerView.layerExtra,
+                layerRole: '',
+                layersReady: this._layersReady,
+                navHint: this._navHint(),
                 sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算'
             });
         } catch (err) {
@@ -248,6 +296,116 @@ export default {
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
+    },
+
+    /* ---------------------------------------------------------------- *
+     * 时间层（运限）
+     * ---------------------------------------------------------------- */
+
+    /**
+     * 某一层的展示字段。
+     *
+     * 本命层与运限层的中宫行**结构一致**，用户切换时视线不用重新找位置：
+     *   第 2 行  本命层=阴阳男女·五行局      运限层=本层命宫落位
+     *   第 3 行  本命层=农历日期            运限层=本层四化
+     *
+     * @param {string} key
+     * @returns {{ layerTitle: string, layerSub: string, layerExtra: string }}
+     */
+    _layerView(key) {
+        const center = this.data.center || {};
+        const layer = this._layers ? this._layers[key] : null;
+        if (key === 'natal' || !layer) {
+            return {
+                layerTitle: '本命盘',
+                layerSub: `${center.yinYangGender || ''}　${center.wuxingJuName || ''}`.trim(),
+                layerExtra: center.lunarText || '',
+            };
+        }
+        return {
+            layerTitle: layer.label,
+            layerSub: layer.mingPalaceName ? `本层命宫落 ${layer.mingPalaceName}` : '',
+            layerExtra: fortuneSiHuaText(layer),
+        };
+    },
+
+    /**
+     * 切到某一层：重画盘面（运限四化标记 + 运限宫名小标）+ 更新中宫。
+     *
+     * @param {string} key
+     */
+    _applyLayer(key) {
+        const chart = this._chartJson;
+        if (!chart) return;
+        const layer = this._layers ? this._layers[key] : null;
+        const fortune = key === 'natal' ? null : layer;
+        const board = buildBoard(chart, fortune);
+        const branch = this.data.selectedBranch;
+        const view = this._layerView(key);
+        const cell = cellAt(board.cells, branch);
+
+        this.setData({
+            cells: markActive(board.cells, branch),
+            layerKey: key,
+            layerTitle: view.layerTitle,
+            layerSub: view.layerSub,
+            layerExtra: view.layerExtra,
+            selectedName: cell ? cell.name : this.data.selectedName,
+            layerRole: fortune && cell ? (cell.fortuneShort || '') : '',
+            navHint: this._navHint()
+        });
+    },
+
+    /**
+     * 上下键切层。
+     *
+     * 只在**有层可切**时切：传感器全废（没有准星也没有抬头低头）时，
+     * 上下键必须留给选宫 —— 那时候选宫是更基本的需要。
+     */
+    _cycleLayer(delta) {
+        if (!this._layersReady) return;
+        const next = nextLayerKey(this.data.layerKey, delta, (k) => {
+            if (k === 'natal') return true;
+            const layer = this._layers ? this._layers[k] : null;
+            return Boolean(layer);
+        });
+        if (next && next !== this.data.layerKey) this._applyLayer(next);
+    },
+
+    /**
+     * 上下键当前是「切层」还是「选宫」。
+     *
+     * 规则：只有**既能用传感器选宫、又有层可切**时，上下键才让给切层。
+     *  · 传感器全废（没准星也没抬头低头）→ 上下键必须留给选宫，
+     *    否则用户连宫都选不到，只剩一个孤零零的盘；
+     *  · 没有运限层（端侧引擎没加载）→ 切层也没东西可切。
+     *
+     * @returns {boolean}
+     */
+    _verticalIsLayer() {
+        return this._sensorMode !== 'none' && this._layersReady;
+    },
+
+    /**
+     * 上下键的动作提示（界面文案必须跟实际能力一致，不能承诺做不到的事）。
+     *
+     * @returns {string}
+     */
+    _navHint() {
+        return this._verticalIsLayer() ? '上下键切层' : '上下键选宫';
+    },
+
+    /**
+     * 上下键：切层 or 选宫（纵向）。
+     *
+     * @param {number} delta -1 上 / +1 下
+     */
+    _vertical(delta) {
+        if (this._verticalIsLayer()) {
+            this._cycleLayer(delta);
+            return;
+        }
+        this._select(neighborBranch(this.data.selectedBranch, 0, delta));
     },
 
     /* ---------------------------------------------------------------- *
@@ -284,7 +442,7 @@ export default {
             }, SENSOR.FIRST_FRAME_TIMEOUT_MS);
 
             this._sensorMode = 'cursor';
-            this.setData({ sensorLabel: '头部准星' });
+            this.setData({ sensorLabel: '头部准星', navHint: this._navHint() });
         } catch (err) {
             this._fallbackToTilt();
         }
@@ -293,7 +451,7 @@ export default {
     _fallbackToTilt() {
         if (this._sensorMode === 'tilt') return;
         this._sensorMode = 'tilt';
-        this.setData({ sensorLabel: '抬头选宫' });
+        this.setData({ sensorLabel: '抬头选宫', navHint: this._navHint() });
 
         try {
             const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
@@ -310,7 +468,7 @@ export default {
             sensor.start();
         } catch (err) {
             this._sensorMode = 'none';
-            this.setData({ sensorLabel: '镜腿选宫' });
+            this.setData({ sensorLabel: '镜腿选宫', navHint: this._navHint() });
         }
     },
 

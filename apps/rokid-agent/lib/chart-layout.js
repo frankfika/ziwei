@@ -18,6 +18,8 @@
  * 所以 4 列每列 120 px，4 行每行 88 px，中宫 240 × 176 px。
  */
 
+import { fortuneSiHuaOf } from './time-layer.js';
+
 /** 地支索引 → 中文（0–11） */
 export const BRANCH_NAMES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 
@@ -117,14 +119,37 @@ export function dimensionOfPalace(palaceName) {
  */
 
 /**
+ * 运限层里这一宫的宫名小标（与本命宫名相同则不显示）。
+ *
+ * 引擎给的运限宫名是两字名（「财帛」「兄弟」，只有「命宫」自带宫字），
+ * 这里统一补上「宫」字 —— 小标要能和本命宫名一眼对上，
+ * 单独一个「财帛」和本命盘上的「财帛宫」对不上号。
+ *
+ * @param {Object} palace
+ * @param {Object} [fortune]
+ * @returns {string}
+ */
+function fortuneShortOf(palace, fortune) {
+  if (!fortune || !Array.isArray(fortune.palaces)) return '';
+  const fp = fortune.palaces.find((p) => p.branch === palace.branch);
+  if (!fp || !fp.name) return '';
+  const label = fp.name.endsWith('宫') ? fp.name : `${fp.name}宫`;
+  return label === palace.name ? '' : label;
+}
+
+/**
  * 把一颗星渲染成「星名(标记)」的形式。
  *
  * @param {{ name: string, siHua?: string }} star 星
  * @returns {string}
  */
-export function formatStar(star) {
+export function formatStar(star, fortune) {
   if (!star || !star.name) return '';
-  const mark = SIHUA_MARKS.includes(star.siHua) ? star.siHua : '';
+  const natal = SIHUA_MARKS.includes(star.siHua) ? star.siHua : '';
+  // 运限四化优先：这一层才是用户当前在看的东西，同一颗星上挂两个标记会挤爆格子。
+  // 本命四化在运限层隐藏 —— 中宫会列出这一层的四化，本命四化在本命层看。
+  const layer = fortune ? fortuneSiHuaOf(star.name, fortune) : null;
+  const mark = layer || natal;
   return mark ? `${star.name}(${mark})` : star.name;
 }
 
@@ -137,12 +162,12 @@ export function formatStar(star) {
  * @param {Object} palace ChartPalace
  * @returns {PalaceCell}
  */
-export function buildCell(palace) {
+export function buildCell(palace, fortune) {
   const pos = GRID_POS[palace.branch] || [0, 0];
   const major = (palace.stars || []).filter((s) => s.type === 'major');
   const minor = (palace.stars || []).filter((s) => s.type === 'minor');
 
-  const majorShown = major.slice(0, 3).map(formatStar).filter(Boolean);
+  const majorShown = major.slice(0, 3).map((s) => formatStar(s, fortune)).filter(Boolean);
   const minorShown = minor.slice(0, 2).map((s) => s.name).filter(Boolean);
 
   const majorText = majorShown.join(' ');
@@ -159,6 +184,8 @@ export function buildCell(palace) {
     majorText: overflow > 0 ? `${majorText} +${overflow}` : majorText,
     minorText: minorShown.join(' '),
     majorCount: major.length,
+    // 运限层里这一宫的宫名（与本命宫名相同就不重复显示）
+    fortuneShort: fortuneShortOf(palace, fortune),
     row: pos[0],
     col: pos[1],
   };
@@ -170,10 +197,10 @@ export function buildCell(palace) {
  * @param {Object} chart ChartJSON
  * @returns {{ cells: PalaceCell[], center: Object }}
  */
-export function buildBoard(chart) {
+export function buildBoard(chart, fortune) {
   const palaces = (chart && chart.palaces) || [];
   const cells = palaces
-    .map(buildCell)
+    .map((p) => buildCell(p, fortune))
     .sort((a, b) => a.branch - b.branch);
 
   const lunar = (chart && chart.lunar) || {};

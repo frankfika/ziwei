@@ -36,7 +36,9 @@ async function loadDeviceEngine() {
  * @param {{ year: number, month: number, day: number, hour: number, gender: string, name?: string }} birth
  * @param {Object} [deps] 依赖注入（测试用）
  * @param {Function} [deps.requestChart] 服务端排盘函数
- * @returns {Promise<{ chart: Object, source: 'device' | 'server' }>}
+ * @returns {Promise<{ chart: Object, source: 'device' | 'server', engine: Object | null }>}
+ *   engine 是端侧引擎模块 —— 运限层（大限 / 流年 / 流月）要用它算，
+ *   所以必须一起带出来；服务端兜底路径没有引擎，运限层会降级成不可用。
  */
 export async function resolveChart(birth, deps = {}) {
   const engine = await loadDeviceEngine();
@@ -44,7 +46,7 @@ export async function resolveChart(birth, deps = {}) {
     try {
       const chart = engine.chart(birth);
       if (chart && Array.isArray(chart.palaces) && chart.palaces.length === 12) {
-        return { chart, source: 'device' };
+        return { chart, source: 'device', engine };
       }
     } catch (err) {
       // 端侧算失败 → 落服务端
@@ -53,7 +55,7 @@ export async function resolveChart(birth, deps = {}) {
 
   const requestChart = deps.requestChart || (await import('./api.js')).requestChart;
   const chart = await requestChart(birth);
-  return { chart, source: 'server' };
+  return { chart, source: 'server', engine: null };
 }
 
 /**

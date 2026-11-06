@@ -114,7 +114,7 @@ node apps/rokid-agent/scripts/build-engine.mjs --check
 
 ### 3.4 ⚠️ 尚未自动化的一环
 
-`scripts/build-engine.mjs` 与 `lib/chart-source.js` 的注释都提到 `tests/rokid_agent.test.ts` 会用 9 份金标准盘逐字段比对打包产物与源码引擎——**这个测试文件当前不存在**，`tests/run.ts` 的 `SUITE_FILES` 也没有登记它。`tests/golden/` 下 9 份金标准盘是齐的（`1950-01-01-h00-male.json` … `2026-12-31-h11-female.json`），补这个测试的成本很低。**在补上之前，「打包不失真」没有自动化测试背书。**
+`scripts/build-engine.mjs` 与 `lib/chart-source.js` 的注释都提到 `tests/rokid_agent.test.ts` 会用 9 份金标准盘逐字段比对打包产物与源码引擎 —— **这个测试文件现在存在了**（2026-11-06 补上，47 例，已登记进 `tests/run.ts` 的 `SUITE_FILES`）。`tests/golden/` 下 9 份金标准盘是齐的（`1950-01-01-h00-male.json` … `2026-12-31-h11-female.json`）。**「打包不失真」现在有自动化测试背书**：打包产物与源码引擎的 `chart()` 输出整对象 `deepEqual`，未做任何归一化。
 
 ---
 
@@ -237,22 +237,22 @@ Rokid AI Glasses 的 HUD 是 **480 × 352 px、单色绿 Micro-LED、30° FOV**�
 | 8 | 渲染性能（12 格盘面 + `scroll-view` 长文滚动） | AR1 + 2 GB RAM，480×352 重绘帧率未测 |
 | 9 | 电池表现 | 210 mAh，IMU 30 Hz 常驻 + TTS 连续朗读的续航未测 |
 
-### 6.2 自动化测试缺口
+### 6.2 自动化测试缺口（**已闭环**）
 
 | # | 项 | 状态 |
 |---|---|---|
-| 1 | `tests/rokid_agent.test.ts`（9 份金标准盘比对打包产物 vs 源码引擎） | **文件不存在**，未被 `tests/run.ts` 登记 |
-| 2 | `lib/` 下纯函数模块的单元测试（`chart-layout` / `head-cursor` / `birth-parser`） | 未覆盖。它们是纯函数，很好测，但目前没有测试文件 |
-| 3 | 仓库既有回归套件 | `npm test` 覆盖 `packages/` 与 `apps/web`，**不涉及 `apps/rokid-agent/`** |
+| 1 | `tests/rokid_agent.test.ts`（9 份金标准盘比对打包产物 vs 源码引擎） | **已存在**（2026-11-06），47 例，已登记进 `tests/run.ts`，`npm test` 全量跑 |
+| 2 | `lib/` 下纯函数模块的单元测试（`chart-layout` / `head-cursor` / `birth-parser`） | **已覆盖**：`tests/rokid_agent.test.ts`（47 例），已登记进 `tests/run.ts` 的 `SUITE_FILES`，`npm test` 会跑 |
+| 3 | 仓库既有回归套件 | `npm test` 覆盖 `packages/`、`apps/web`，**现已包含 `apps/rokid-agent/`**（经由 `tests/rokid_agent.test.ts`） |
 
-### 6.3 后端缺口（**Demo 的硬阻塞**）
+### 6.3 后端部署缺口（**Demo 的硬阻塞**）
 
 | # | 项 | 状态 |
 |---|---|---|
-| 1 | `POST /api/agent/reading` | 2026-11-06 实测：生产域名 `ziwei.secondplanet.cc` 返回 **HTTP 404**（站点本身 200，确认是路由缺失） |
-| 2 | `POST /api/agent/ask` | 同上，**HTTP 404** |
-| 3 | `POST /api/agent/chart` | 同上，**HTTP 404**（端侧成功时用不到，但兜底路径失效） |
-| 4 | `/api/agent/reading` 的 **`inline` 引文降级接入** | 未实现。Web 端 `apps/web/src/app/chart/page.tsx:173` 用 `ZIWEI_CITATION_MODE` 且**默认 `full`**（原样透出受限引文）。上架必须默认 `inline` —— 实测 83.4% 的维度文本含受限引文块，详见 `PROPOSAL.md` 第 9.2 节 |
+| 1 | `POST /api/agent/reading` | 2026-11-06 实测：生产域名 `ziwei.secondplanet.cc` 返回 **HTTP 404**（站点本身 200，确认是路由缺失）。**代码已实现**（`apps/web/src/app/api/agent/reading/route.ts`），差的是**部署** |
+| 2 | `POST /api/agent/ask` | 同上，**HTTP 404**；代码已实现（含引文三层降级），未部署 |
+| 3 | `POST /api/agent/chart` | 同上，**HTTP 404**（端侧成功时用不到，但兜底路径失效）；代码已实现，未部署 |
+| 4 | `/api/agent/reading` 的 **`inline` 引文降级接入** | **已实现**（2026-11-06）。三层防线：① 输入层 `redactingService` 先降级再拼提示词，模型看不到受限原文；② 输出层再降级一次模型吐出的引文片段；③ 提示词追加「只讲机制、不复述原话」的许可红线。模式由 `resolveAgentCitationMode` 解析，**默认 `inline`**（与 Web 端默认 `full` 刻意不同），响应里带 `citationMode` / `citationModeLabel` 供界面披露。回归网见 `tests/agent_citation.test.ts`（10 例） |
 
 **接口未补齐前，可演示的只有「出盘 + 准星选宫」两步**；解读与追问两步需要在 Demo 前打通，或按 `PROPOSAL.md` 8.2 节的备份路径准备离线兜底。
 

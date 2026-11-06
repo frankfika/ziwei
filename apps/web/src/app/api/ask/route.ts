@@ -87,7 +87,8 @@ export async function POST(request: Request) {
   }
 
   // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）
-  const userProvider = providerFromUserConfig(readUserProvider(formData));
+  const userCfg = readUserProvider(formData);
+  const userProvider = providerFromUserConfig(userCfg);
   let refund: (() => void) | null = null;
   if (!userProvider) {
     // 有登录态就按账户扣（先免费日额 → 再流量包余额），否则按 IP 扣
@@ -138,48 +139,81 @@ export async function POST(request: Request) {
       // 额度：提问前已占好一次；只有走到 done 才算用掉，其余结局（未覆盖 / 报错 / 断流）退还
       let consumed = false;
       try {
-        for await (const ev of service.askStream(
-          { year, month, day, hour, gender },
-          question,
-          turns,
-          {
-            ...(Object.keys(focus).length > 0 ? { focus } : {}),
-            ...(thinking ? { thinking } : {}),
-          },
-        )) {
-          if (ev.type === 'delta') {
-            send({ type: 'delta', text: ev.text });
-          } else if (ev.type === 'thinking') {
-            send({ type: 'thinking', text: ev.text });
-          } else if (ev.type === 'done') {
-            if (!ev.answer.trim()) {
-              // 空正文 = 失败，不是「成功的空回答」：思考型模型（MiniMax-M3 等）
-              // 会把思考 token 吃进 max_tokens 预算，给小了正文就整段为空。
-              // 这种结局不计数（外层 finally 会退还预占的额度），并给可操作的重试提示。
+        // 思考型模型（MiniMax-M3 等）把思考 token 吃进 max_tokens 预算，预算小了正文整段为空。
+        // 第一次空正文时自动加大预算重试一次 —— 不让用户自己去改设置。
+        const baseBudget = userCfg?.maxTokens ?? 8000;
+        const RETRY_BUDGET = Math.max(32000, baseBudget * 2);
+        let finalEmptyError = false;
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const svc =
+            attempt === 0
+              ? service
+              : new AskService({
+                  ...(userProvider ? { provider: userProvider } : {}),
+                  maxTokens: RETRY_BUDGET,
+                });
+          let emptyThisAttempt = false;
+
+          for await (const ev of svc.askStream(
+            { year, month, day, hour, gender },
+            question,
+            turns,
+            {
+              ...(Object.keys(focus).length > 0 ? { focus } : {}),
+              ...(thinking ? { thinking } : {}),
+            },
+          )) {
+            if (ev.type === 'delta') {
+              send({ type: 'delta', text: ev.text });
+            } else if (ev.type === 'thinking') {
+              send({ type: 'thinking', text: ev.text });
+            } else if (ev.type === 'done') {
+              if (!ev.answer.trim()) {
+                // 空正文 = 失败（不是「成功的空回答」）：交给外层决定是否重试
+                emptyThisAttempt = true;
+                break;
+              }
+              // 成功才计数（前面预占的这一次就此生效，不再退还）
+              consumed = true;
               send({
-                type: 'error',
-                message:
-                  '模型这次没有产出正文（思考可能占满了输出预算）。可以直接点重试；' +
-                  '如果反复出现，到 ⚙ AI 设置把「单次输出上限」调大（如 20000 以上），或换一个不带思考的模型。',
+                type: 'done',
+                answer: ev.answer,
+                cited: ev.citedDimensions,
+                verification: ev.verification,
+                model: ev.model,
+                // 回答署名：这条用的是「你的 Key」还是「内置免费」——前端按条展示，用户随时知道自己用的是谁
+                source: userProvider ? 'user' : 'builtin',
               });
-              continue;
+            } else if (ev.type === 'not-covered') {
+              send({ type: 'not-covered', message: ev.message });
+              return;
+            } else {
+              // provider 级错误：重试解决不了，直接报
+              send({ type: 'error', message: ev.message });
+              return;
             }
-            // 成功才计数（前面预占的这一次就此生效，不再退还）
-            consumed = true;
-            send({
-              type: 'done',
-              answer: ev.answer,
-              cited: ev.citedDimensions,
-              verification: ev.verification,
-              model: ev.model,
-              // 回答署名：这条用的是「你的 Key」还是「内置免费」——前端按条展示，用户随时知道自己用的是谁
-              source: userProvider ? 'user' : 'builtin',
-            });
-          } else if (ev.type === 'not-covered') {
-            send({ type: 'not-covered', message: ev.message });
-          } else {
-            send({ type: 'error', message: ev.message });
           }
+
+          if (!emptyThisAttempt) break;
+          if (attempt === 0) {
+            // 让按钮打点：告诉用户正在自动补救，而不是卡死
+            send({
+              type: 'thinking',
+              text: '（思考占满了输出预算，正在自动加大预算重试一次…）',
+            });
+          } else {
+            finalEmptyError = true;
+          }
+        }
+
+        if (finalEmptyError) {
+          send({
+            type: 'error',
+            message:
+              '模型连续两次没有产出正文（思考占满了输出预算）。可以稍后重试；' +
+              '如果反复出现，建议换用不带思考的模型（MiniMax-M2.5 等）。',
+          });
         }
       } catch (err) {
         const message =

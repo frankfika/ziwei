@@ -22,7 +22,7 @@
 ```
 先交代一下这是什么，免得误会。
 
-我在做一个跑在 Rokid AI Glasses 上的 AIUI 智能体：说出生辰，它在 HUD 上画出一张紫微斗数的十二宫盘面，你抬头低头用准星点中哪一宫，它就讲那一宫。它是一个「传统术数的结构化学习与研究工具」——文化兴趣向，不做任何人生决策建议。
+我在做一个跑在 Rokid AI Glasses 上的 AIUI 智能体：说出生辰，它在 HUD 上画出一张紫微斗数的十二宫盘面，你抬头低头用准星点中哪一宫，按确认键，它就讲那一宫。盘面还能在本命、大限、流年、流月四层之间切换。它是一个「传统术数的结构化学习与研究工具」——文化兴趣向，不做任何人生决策建议。
 
 这帖主要想聊一个设计选择：**为什么排盘这一步，我不交给模型。**
 
@@ -48,7 +48,21 @@
 
 对比一下我在社区里看到的做法：有的作品用「点一下头」这种离散手势切内容；我用连续的二维指向，是因为盘面本身就是二维空间化的——「看哪里」天然对应「选哪格」，用户不需要先学会「内容在哪」。加速度计抬头切宫和镜腿按键都留着做兜底。
 
+镜腿按键那套分配我改过一次，值得单独说。四四方阵去掉中宫之后，十二个宫正好构成**一圈**：巳 午 未 申 酉 戌 亥 子 丑 寅 卯 辰。而这一圈恰好就是**十二宫序**（命 → 兄弟 → 夫妻 → …）——所以左右键巡宫等于按传统顺序走宫，用惯紫微的人不用重新学。
+
+改成外圈是被逼出来的：上下键已经让给「切时间层」（那是这个作品的主功能），剩下的左右键如果还做网格式横移，中宫挡在盘面中间，**辰、卯、酉、戌 四个宫根本选不到**，模拟器里根本选不满十二宫。而眼镜没有触摸屏，模拟器里四向键是唯一的选择通道——选不满十二宫，这个作品在评审手上就走不通。外圈巡宫还带来一个副产品：+1 恰好等于地支 +1，跟抬头低头切宫是同一个方向，两套通道不打架。
+
 HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上根本读不完。所以信息分配是「屏幕管结构、声音管长文本」——这块也是被硬件逼出来的，不是加个朗读按钮。
+
+### 顺带说说时间层
+
+盘面分四层：本命、大限、流年、流月，上下键循环切。做这一层是我想清楚之后才决定的，理由是**本命盘是静态的**——排一次就固定，用户没有理由再来第二次；而运限是变的，大限十年一换、流年每年一换、流月每月一换。「我现在走到哪一步」这件事每个月都有新答案，这是它天然的复访理由。
+
+这里有个刻意的取舍：运限层只给**结构定位**——这一层的命宫落在哪一宫、哪几个宫被四化引动。它不预测，也不给建议。十三维解读原文仍然来自本命盘数据集，运限层不重写一遍文本；单色绿屏没有颜色可区分，所以四化带「限」「流」前缀，本命四化在运限层直接不显示。
+
+运限层跟排盘共用同一份端侧引擎。引擎没加载成功、走了服务端兜底的时候，运限层整体不可用，界面退成只有本命盘——我宁可少一层，也不给一层空白。
+
+还有一个细节：切层的时候眼镜会把这一层的标题念出来（「流年 丙午 2026」），因为在眼镜上你不一定盯着中宫，光靠眼睛确认自己在哪一层不可靠。
 
 ### 还有一个我踩到的坑：许可
 
@@ -62,6 +76,7 @@ HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上
 
 - 端侧排盘引擎已打包（约 860 KB，单文件 ESM），有 9 份金标准盘的回归测试背书；
 - 服务端三个接口（解读 / 追问 / 排盘兜底）代码写完了，部署还在推进；
+- 时间层（运限四层）已接进页面，上下键切层，在端侧算；真机上还没验证过；
 - 真机全链路还在跑通的路上。
 
 所以这帖是来聊思路的，不是来宣布完工的。
@@ -84,7 +99,7 @@ HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上
 ```
 Some context first, so there is no confusion about what this is.
 
-I am building an AIUI agent for Rokid AI Glasses: say your birth date and time, and it draws a twelve-palace Ziwei Doushu chart on the HUD. You look up and down to aim a crosshair at a palace, and it reads out that palace. It is a structured tool for studying a traditional chart-casting system - cultural interest, no life advice of any kind.
+I am building an AIUI agent for Rokid AI Glasses: say your birth date and time, and it draws a twelve-palace Ziwei Doushu chart on the HUD. You look up and down to aim a crosshair at a palace, press the confirm key, and it reads out that palace. The chart also cycles through four layers: natal, decade, yearly and monthly. It is a structured tool for studying a traditional chart-casting system - cultural interest, no life advice of any kind.
 
 The main thing I want to discuss is a design choice: **why I do not let the model cast the chart.**
 
@@ -110,7 +125,21 @@ The chart is a 4x4 spatial layout with a two-cell centre that holds no stars. I 
 
 Some other community projects use discrete gestures, like a nod to advance. I use continuous two-dimensional pointing because the chart is inherently spatial: "where you look" maps directly onto "which cell you mean", and there is no need to learn where the content lives. Accelerometer tilt and the temple buttons remain as fallbacks.
 
+I changed how the temple keys are allocated once, and it is worth a paragraph. With the centre cell removed, the twelve palaces form exactly **one ring**: 巳 午 未 申 酉 戌 亥 子 丑 寅 卯 辰. That ring happens to be exactly the traditional palace order (Life, Brothers, Spouse, ...), so walking it with the left and right keys is walking the palaces in their traditional sequence, and a Ziwei reader does not have to relearn anything.
+
+Going round the ring was forced on me: the up and down keys were needed for switching time layers (the main feature of the piece), and if the left and right keys still panned the grid, the centre cell would block the 辰, 卯, 酉 and 戌 palaces - you simply could not reach all twelve. The glasses have no touchscreen, so in the simulator the four-way keys are the only way to select anything; not being able to reach all twelve means the piece cannot be demonstrated at all. The ring also gives a bonus: +1 there is exactly +1 on the branches, which is the same direction as the tilt-to-select gesture, so the two channels do not fight each other.
+
 The HUD is a 480x352 monochrome green display, and the text across 13 dimensions runs to thousands of characters - it cannot be read visually. So the split is: the screen carries structure, the voice carries long text. The hardware forced that; it is not a read-aloud button bolted on.
+
+### On the time layers
+
+The chart has four layers - natal, decade, yearly and monthly - and the up and down keys cycle through them. I only added this after working out why it was worth doing: **the natal chart is static**. You cast it once and it never changes, so there is no reason to come back. The time layers are not static: the decade limit turns over every ten years, the yearly layer every year, the monthly layer every month. "Which step am I at now" has a new answer every month, and that is a genuine reason to return.
+
+The deliberate trade-off: a layer gives **structural placement only** - where that layer's Life palace lands, and which palaces the four transformations touch. It does not forecast and it does not advise. The thirteen dimensions of interpretation text still come from the natal dataset, and the layer does not rewrite that text. The HUD is monochrome green, so transformations carry a "限" or "流" prefix to tell the layers apart, and the natal transformations are simply hidden once you are on another layer.
+
+The layers are computed on the device, by the same engine that casts the chart. If that engine fails to load and the chart falls back to the server, the layers are unavailable as a whole and the interface shows the natal chart only - I would rather have one fewer layer than a blank one.
+
+One more detail: when you switch layers the glasses read the layer title aloud ("流年 丙午 2026"), because on glasses you are not necessarily looking at the centre cell and cannot rely on your eyes alone to confirm which layer you are on.
 
 ### A licence trap I ran into
 
@@ -124,6 +153,7 @@ Has anyone hit something similar? When a dataset carries third-party restricted 
 
 - The on-device engine is bundled (about 860 KB, single-file ESM) and backed by a nine-chart regression suite.
 - The three server endpoints (interpretation, follow-up, chart fallback) are implemented; deployment is still in progress.
+- The four time layers are wired into the page and computed on the device, but they have not been verified on the hardware yet.
 - The full device flow is still being brought up.
 
 So this post is to discuss the approach, not to announce a finished product.
@@ -149,3 +179,4 @@ Criticism welcome, especially on question one.
 4. **如果有人问「能不能用它做决定」**，按 `AGENTS.md` 的口径回：只讲盘面上客观存在的结构性事实，不给决策建议，并说明这是传统术数的文化解读。
 5. **别在帖子里贴未部署的接口地址。** 服务端接口当前生产域名返回 404，帖子里提到接口时只说「部署推进中」，不要贴链接让人试。
 6. **看到「数字 + 百分比」这类结论性评论不要接。** 一旦应下具体数字，后续截图就会被当证据。
+7. **别把时间层说成「运势」「转运」「命好命坏」。** 运限层的口径是结构定位：这一层的命宫落在哪一宫、哪几个宫被四化引动。有人问「这层是什么意思」，就按这个说法答，不要往「预测」上靠，也不要承诺任何判断。

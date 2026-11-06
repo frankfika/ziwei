@@ -87,7 +87,7 @@ const SENSOR = Object.freeze({
 
 /** 快捷问题（语音不可用时的兜底，也保证演示路径是确定的） */
 const PRESET_QUESTIONS = Object.freeze([
-    '今年的整体运势如何',
+    '今年这一层盘面有什么变化',
     '我的性格特点是什么',
     '事业上什么时候适合变动',
     '和伴侣的相处要注意什么'

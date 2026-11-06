@@ -45,6 +45,7 @@ import {
     markActive,
     cellAt,
     neighborBranch,
+    stepRing,
     dimensionOfPalace,
     speakableStars,
     DIMENSION_LABELS,
@@ -121,8 +122,8 @@ export default {
         layerRole: '',
         /** 运限层是否可用（端侧引擎没加载时不可用） */
         layersReady: false,
-        /** 上下键当前干什么：切层 / 选宫 */
-        navHint: '上下键切层',
+        /** 键位提示（随能力变） */
+        navHint: '左右选宫　上下切层',
         sourceLabel: '',
         sensorLabel: '',
         voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男',
@@ -208,8 +209,8 @@ export default {
 
         if (code === KeyCode.UP) this._vertical(-1);
         else if (code === KeyCode.DOWN) this._vertical(1);
-        else if (code === KeyCode.LEFT) this._select(neighborBranch(this.data.selectedBranch, -1, 0));
-        else if (code === KeyCode.RIGHT) this._select(neighborBranch(this.data.selectedBranch, 1, 0));
+        else if (code === KeyCode.LEFT) this._select(stepRing(this.data.selectedBranch, -1));
+        else if (code === KeyCode.RIGHT) this._select(stepRing(this.data.selectedBranch, 1));
         else if (code === KeyCode.CONFIRM) this._openReading();
         else if (code === KeyCode.BACK) this.finish();
 
@@ -377,40 +378,39 @@ export default {
     },
 
     /**
-     * 上下键当前是「切层」还是「选宫」。
-     *
-     * 规则：只有**既能用传感器选宫、又有层可切**时，上下键才让给切层。
-     *  · 传感器全废（没准星也没抬头低头）→ 上下键必须留给选宫，
-     *    否则用户连宫都选不到，只剩一个孤零零的盘；
-     *  · 没有运限层（端侧引擎没加载）→ 切层也没东西可切。
-     *
-     * @returns {boolean}
-     */
-    _verticalIsLayer() {
-        return this._sensorMode !== 'none' && this._layersReady;
-    },
+ * 上下键当前是「切层」还是「选宫」。
+ *
+ * 左右键沿盘面外圈巡宫，十二宫**全部可达**，所以上下键可以整条让给时间层
+ * （那是这个作品的主功能，不能没有）。
+ * 唯一例外：端侧引擎没加载时压根没有运限层可切，这时上下键退回纵向选宫。
+ *
+ * @returns {boolean}
+ */
+_verticalIsLayer() {
+    return this._layersReady;
+},
 
-    /**
-     * 上下键的动作提示（界面文案必须跟实际能力一致，不能承诺做不到的事）。
-     *
-     * @returns {string}
-     */
-    _navHint() {
-        return this._verticalIsLayer() ? '上下键切层' : '上下键选宫';
-    },
+/**
+ * 键位提示（界面文案必须跟实际能力一致，不能承诺做不到的事）。
+ *
+ * @returns {string}
+ */
+_navHint() {
+    return this._verticalIsLayer() ? '左右选宫　上下切层' : '左右选宫　上下选宫';
+},
 
-    /**
-     * 上下键：切层 or 选宫（纵向）。
-     *
-     * @param {number} delta -1 上 / +1 下
-     */
-    _vertical(delta) {
-        if (this._verticalIsLayer()) {
-            this._cycleLayer(delta);
-            return;
-        }
-        this._select(neighborBranch(this.data.selectedBranch, 0, delta));
-    },
+/**
+ * 上下键：切层 or 选宫（纵向）。
+ *
+ * @param {number} delta -1 上 / +1 下
+ */
+_vertical(delta) {
+    if (this._verticalIsLayer()) {
+        this._cycleLayer(delta);
+        return;
+    }
+    this._select(neighborBranch(this.data.selectedBranch, 0, delta));
+},
 
     /* ---------------------------------------------------------------- *
      * 传感器：准星通道（绝对方向）优先，倾斜通道（加速度计）兜底
@@ -720,8 +720,8 @@ export default {
                 <text class="center-line strong">{{selectedName}}</text>
                 <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
             </view>
-            <text class="center-hint">{{sensorLabel}}　{{navHint}}　确认键听解读</text>
-            <text class="center-hint dim">{{sourceLabel}}</text>
+            <text class="center-hint">确认键听解读　{{navHint}}</text>
+            <text class="center-hint dim">{{sensorLabel}}　{{sourceLabel}}</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'input'}}">

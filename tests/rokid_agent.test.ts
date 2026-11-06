@@ -161,6 +161,8 @@ interface ChartLayoutModule {
   stepBranch: (branch: number, delta: number) => number;
   branchAt: (row: number, col: number) => number | null;
   neighborBranch: (branch: number, dx: number, dy: number) => number;
+  RING_ORDER: number[];
+  stepRing: (branch: number, delta: number) => number;
   markActive: (cells: PalaceCell[], branch: number) => PalaceCell[];
   dimensionOfPalace: (palaceName: string) => string | null;
   speakableStars: (majorText: string) => string;
@@ -559,6 +561,40 @@ export const suite = async (t: Tester): Promise<void> => {
       // 相邻的方向还是要能走通，否则导航直接失灵
       assert.equal(layout.neighborBranch(4, 0, 1), 3, '辰(4) 往下应是卯(3)');
       assert.equal(layout.neighborBranch(5, 1, 0), 6, '巳(5) 往右应是午(6)');
+    });
+
+    await t.test('stepRing：左右键沿盘面外圈巡宫，十二宫全覆盖', () => {
+      // 镜腿按键是模拟器里**唯一**的选择通道（眼镜没有触摸屏），
+      // 所以左右键必须能走到全部十二宫 —— 网格横移够不到辰/卯/酉/戌。
+      assert.equal(layout.RING_ORDER.length, 12, '外圈应恰好 12 个宫');
+      assert.equal(new Set(layout.RING_ORDER).size, 12, '外圈不应有重复宫位');
+
+      const covered = new Set(layout.RING_ORDER);
+      for (let b = 0; b < 12; b += 1) {
+        assert.ok(covered.has(b), `外圈应覆盖地支 ${b}`);
+      }
+
+      // +1 = 顺着外圈走（屏幕上顺时针：顶排从左到右，右列往下，底排从右到左）
+      assert.equal(layout.stepRing(5, 1), 6, '巳(5) 顺时针应是午(6)');
+      assert.equal(layout.stepRing(11, 1), 0, '亥(11) 顺时针应是子(0)');
+      assert.equal(layout.stepRing(0, 1), 1, '子(0) 顺时针应是丑(1)（底排是从右往左数的）');
+      assert.equal(layout.stepRing(4, 1), 5, '辰(4) 顺时针应是巳(5)');
+      assert.equal(layout.stepRing(5, -1), 4, '巳(5) 逆时针应是辰(4)');
+
+      // 走满一圈回到原位
+      for (const start of layout.RING_ORDER) {
+        let b = start;
+        for (let i = 0; i < 12; i += 1) b = layout.stepRing(b, 1);
+        assert.equal(b, start, `从 ${start} 走 12 步应回到原位`);
+      }
+
+      // 外圈相邻的两宫在盘面上必须挨着（不能「跳宫」）
+      for (let i = 0; i < 12; i += 1) {
+        const a = layout.RING_ORDER[i];
+        const c = layout.RING_ORDER[(i + 1) % 12];
+        const diff = Math.abs(a - c);
+        assert.ok(diff === 1 || diff === 11, `外圈相邻的 ${a} 与 ${c} 在盘面上应挨着`);
+      }
     });
 
     await t.test('buildCell：主星最多 3 颗、辅星最多 2 颗，四化渲染成「星名(标记)」', () => {

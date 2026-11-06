@@ -299,7 +299,37 @@ export function stepBranch(branch, delta) {
 }
 
 /**
- * 网格坐标 → 地支（用于准星命中检测）。
+ * 盘面外圈（十二宫）的顺序 —— 屏幕顺时针。
+ *
+ * 四四方阵去掉中宫之后，十二个宫正好构成**一圈**：
+ *   巳(5) 午(6) 未(7) 申(8) 酉(9) 戌(10) 亥(11) 子(0) 丑(1) 寅(2) 卯(3) 辰(4)
+ *
+ * 为什么左右键要走外圈而不是网格横移：
+ *  · 网格横移够不到辰/卯/酉/戌（中宫挡在中间），镜腿键就选不满十二宫；
+ *  · 而上下键已经让给「切时间层」了（那是这个作品的主功能，不能没有）。
+ *  · 外圈这一圈恰好就是**十二宫序**（命 → 兄弟 → 夫妻 → …），
+ *    左右键巡宫等于按传统顺序走宫，紫微用户不用重新学。
+ *
+ * 也正因为是外圈，+1 恰好等于地支 +1，和抬头低头切宫是同一个方向 —— 两套通道不打架。
+ */
+export const RING_ORDER = [5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4];
+
+/**
+ * 沿盘面外圈走 N 宫。
+ *
+ * @param {number} branch 当前地支
+ * @param {number} delta +1 顺时针（地支 +1），-1 逆时针
+ * @returns {number} 新地支
+ */
+export function stepRing(branch, delta) {
+  const i = RING_ORDER.indexOf(branch);
+  const from = i < 0 ? 0 : i;
+  const n = RING_ORDER.length;
+  return RING_ORDER[((from + delta) % n + n) % n];
+}
+
+/**
+ * 盘面网格坐标 → 地支（用于准星命中检测）。
  *
  * @param {number} row 0–3
  * @param {number} col 0–3

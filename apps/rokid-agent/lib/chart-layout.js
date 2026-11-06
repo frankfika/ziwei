@@ -138,6 +138,7 @@ export function dimensionOfPalace(palaceName) {
  * @property {string} majorText 主星展示文本（含四化标记）
  * @property {string} minorText 辅星展示文本
  * @property {number} majorCount 主星总数（用于「+N」提示）
+ * @property {string} fortuneShort 运限层宫名小标（本命层为空串）
  * @property {number} row 网格行 0–3
  * @property {number} col 网格列 0–3
  */
@@ -166,17 +167,24 @@ function fortuneShortOf(palace, fortune) {
 /**
  * 把一颗星渲染成「星名(标记)」的形式。
  *
+ * 运限层里**只看这一层的四化**，本命四化整层隐藏：
+ *  · 同一颗星挂两个标记会挤爆 120px 的格子；
+ *  · 单色绿 HUD 没有颜色可区分，「紫微(禄)」到底是本命化禄还是本层化禄，
+ *    用户分不清 —— 不如只显示带「限」/「流」前缀的那一套，含义唯一。
+ * 本命四化在本命层照常显示，运限四化在中宫也列了一遍，两边都找得到。
+ *
  * @param {{ name: string, siHua?: string }} star 星
+ * @param {Object} [fortune] 运限层
  * @returns {string}
  */
 export function formatStar(star, fortune) {
   if (!star || !star.name) return '';
+  if (fortune) {
+    const layer = fortuneSiHuaOf(star.name, fortune);
+    return layer ? `${star.name}(${layer})` : star.name;
+  }
   const natal = SIHUA_MARKS.includes(star.siHua) ? star.siHua : '';
-  // 运限四化优先：这一层才是用户当前在看的东西，同一颗星上挂两个标记会挤爆格子。
-  // 本命四化在运限层隐藏 —— 中宫会列出这一层的四化，本命四化在本命层看。
-  const layer = fortune ? fortuneSiHuaOf(star.name, fortune) : null;
-  const mark = layer || natal;
-  return mark ? `${star.name}(${mark})` : star.name;
+  return natal ? `${star.name}(${natal})` : star.name;
 }
 
 /**
@@ -245,6 +253,27 @@ export function buildBoard(chart, fortune) {
   };
 
   return { cells, center };
+}
+
+/**
+ * 把盘面主星文本转成**适合朗读**的句子。
+ *
+ * 眼镜上用户主要靠听，屏幕上带括号是给眼睛看的：
+ *   「紫微(限禄) 天机 +1」 → 「紫微化禄、天机、另有1星」
+ * 运限四化的「限/流」前缀在口语里没有意义（层信息由整句开头交代），
+ * 统一念「化禄 / 化权 / 化科 / 化忌」。
+ *
+ * @param {string} majorText
+ * @returns {string}
+ */
+export function speakableStars(majorText) {
+  if (!majorText) return '空宫';
+  const cleaned = String(majorText)
+    .replace(/([一-龥A-Za-z0-9]+)\((?:限|流)?([禄权科忌])\)/g, '$1化$2')
+    .replace(/\+(\d+)/g, '另有$1星')
+    .trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  return parts.length ? parts.join('、') : '空宫';
 }
 
 /**

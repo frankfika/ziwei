@@ -1,7 +1,7 @@
 <script def>
 {
     "navigationBarTitleText": "紫微星盘",
-    "description": "展示紫微斗数十二宫命盘：宫位、主星与四化。用户抬头低头转头用准星选宫，单击确认后听该宫解读，也可以基于这张盘追问。",
+    "description": "展示紫微斗数十二宫命盘：宫位、主星与四化，可切换本命、大限、流年、流月四层运限。用户抬头低头转头用准星选宫，按确认键听该宫解读，也可以基于这张盘追问。",
     "schema": {
         "data": {
             "type": "object",
@@ -46,6 +46,7 @@ import {
     cellAt,
     neighborBranch,
     dimensionOfPalace,
+    speakableStars,
     DIMENSION_LABELS,
 } from '../../lib/chart-layout.js';
 import {
@@ -354,6 +355,9 @@ export default {
             layerRole: fortune && cell ? (cell.fortuneShort || '') : '',
             navHint: this._navHint()
         });
+
+        // 切层给一句语音：眼镜上用户不一定盯着看，得让他知道自己在哪一层。
+        speak(view.layerTitle || TIME_LAYER_NAMES[key] || '');
     },
 
     /**
@@ -531,7 +535,10 @@ export default {
             readingLoading: true
         });
 
-        speak(`${cell.name}，${cell.majorText || '空宫'}`);
+        speak(
+            `${this.data.layerKey === 'natal' ? '' : `${TIME_LAYER_NAMES[this.data.layerKey]}层，`}` +
+            `${cell.name}，${speakableStars(cell.majorText)}`
+        );
 
         try {
             const text = await this._readingFor(cell, dimension);
@@ -935,8 +942,15 @@ page {
     color: #4da86c;
 }
 
+/*
+ * 末行（端侧计算 / 服务端计算）。
+ *
+ * 原来用的是 #174526（深绿）——对比度只有 2.1:1，在单色绿 HUD 上几乎看不见，
+ * 而「端侧计算」恰恰是最该让评审看到的一行。
+ * 层级靠字号（10px，比正文小）区分，不靠把字调暗。
+ */
 .center-hint.dim {
-    color: #174526;
+    color: #4da86c;
 }
 
 .overlay {

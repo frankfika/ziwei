@@ -163,6 +163,7 @@ interface ChartLayoutModule {
   neighborBranch: (branch: number, dx: number, dy: number) => number;
   markActive: (cells: PalaceCell[], branch: number) => PalaceCell[];
   dimensionOfPalace: (palaceName: string) => string | null;
+  speakableStars: (majorText: string) => string;
 }
 
 interface CursorState {
@@ -695,6 +696,26 @@ export const suite = async (t: Tester): Promise<void> => {
           `运限小标应带「宫」字：${cell.fortuneShort}`,
         );
       }
+    });
+
+    await t.test('speakableStars：盘面文本转成能听的句子', () => {
+      // 眼镜上主要靠听。屏幕上带括号是给眼睛看的，念出来必须是人话。
+      assert.equal(
+        layout.speakableStars('紫微(限禄) 天机(限权)'),
+        '紫微化禄、天机化权',
+        '运限四化应念成「化禄 / 化权」，不念括号也不念「限」前缀',
+      );
+      assert.equal(
+        layout.speakableStars('紫微(禄) 天机'),
+        '紫微化禄、天机',
+        '本命四化应念成「化禄」',
+      );
+      assert.equal(
+        layout.speakableStars('紫微(禄) +1'),
+        '紫微化禄、另有1星',
+        '「+N」应转成「另有 N 星」',
+      );
+      assert.equal(layout.speakableStars(''), '空宫', '空宫要说出来');
     });
 
     await t.test('markActive：只有选中的宫带 activeClass=on', () => {

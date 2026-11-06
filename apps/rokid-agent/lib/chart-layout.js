@@ -52,11 +52,33 @@ export const PALETTE = {
 export const SIHUA_MARKS = ['禄', '权', '科', '忌'];
 
 /**
+ * 宫名归一。
+ *
+ * 引擎里同一个宫有**两套叫法**：
+ *  · 本命盘（iztro 血统）叫「仆役宫」；
+ *  · 运限十二宫（PALACE_NAMES_ORDER）叫「交友宫」。
+ *
+ * 不归一的话，盘面上一格会同时出现「仆役宫 交友宫」——
+ * 用户看到的是同一个宫写了两遍，直接当成 bug。
+ * 统一到**本命盘的口径**（仆役宫）：盘面十二个宫名全部来自本命盘，
+ * 运限宫名只是补充小标，跟盘面用同一套词才对得上号。
+ *
+ * （后端提示词里也认这几个别名，见 packages/ask/src/prompt.ts 的 PALACE_TO_DIMENSION。）
+ */
+const PALACE_NAME_CANON = {
+  交友宫: '仆役宫',
+};
+
+/**
  * 十二宫 → 13 维解读里的对应维度。
  *
  * 这是产品上很关键的一处咬合：**点哪个宫，就读哪一维**。
  * 用户不需要在 13 个标签里找，看宫就知道看什么。
  * 「性格」是全局维度，没有对应宫位，单独从总览里出。
+ *
+ * 键用的是**本命盘的宫名**（含「仆役宫」）—— 盘面上显示什么，这里就认什么。
+ * 用「交友宫」当键的话，本命盘真正写出来的「仆役宫」查不到映射，
+ * 人际那一维的解读永远取不到（会静默退回总览）。
  */
 export const DIMENSION_BY_PALACE = {
   命宫: 'overview',
@@ -66,7 +88,7 @@ export const DIMENSION_BY_PALACE = {
   财帛宫: 'wealth',
   疾厄宫: 'health',
   迁移宫: 'move',
-  交友宫: 'friends',
+  仆役宫: 'friends',
   官禄宫: 'career',
   田宅宫: 'home',
   福德宫: 'spirit',
@@ -97,7 +119,9 @@ export const DIMENSION_LABELS = {
  * @returns {string | null}
  */
 export function dimensionOfPalace(palaceName) {
-  return DIMENSION_BY_PALACE[palaceName] || null;
+  if (!palaceName) return null;
+  const canonical = PALACE_NAME_CANON[palaceName] || palaceName;
+  return DIMENSION_BY_PALACE[canonical] || null;
 }
 
 /**
@@ -124,6 +148,7 @@ export function dimensionOfPalace(palaceName) {
  * 引擎给的运限宫名是两字名（「财帛」「兄弟」，只有「命宫」自带宫字），
  * 这里统一补上「宫」字 —— 小标要能和本命宫名一眼对上，
  * 单独一个「财帛」和本命盘上的「财帛宫」对不上号。
+ * 再统一宫名口径（交友宫 → 仆役宫），避免一格里出现「仆役宫 交友宫」。
  *
  * @param {Object} palace
  * @param {Object} [fortune]
@@ -133,7 +158,8 @@ function fortuneShortOf(palace, fortune) {
   if (!fortune || !Array.isArray(fortune.palaces)) return '';
   const fp = fortune.palaces.find((p) => p.branch === palace.branch);
   if (!fp || !fp.name) return '';
-  const label = fp.name.endsWith('宫') ? fp.name : `${fp.name}宫`;
+  const labeled = fp.name.endsWith('宫') ? fp.name : `${fp.name}宫`;
+  const label = PALACE_NAME_CANON[labeled] || labeled;
   return label === palace.name ? '' : label;
 }
 

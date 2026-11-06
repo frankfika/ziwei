@@ -27,11 +27,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { Solar } from 'lunar-javascript';
+
 import {
   DIMENSION_LABELS,
   READING_DIMENSIONS,
   chart as srcChart,
   chartSummary as srcChartSummary,
+  daXianLayer as srcDaXianLayer,
+  liuNianLayer as srcLiuNianLayer,
+  liuYueLayer as srcLiuYueLayer,
   palaceAt as srcPalaceAt,
   type Birth,
   type ChartJSON,
@@ -52,6 +57,10 @@ const ENGINE_BUNDLE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'assets', 'eng
 const LAYOUT_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'chart-layout.js');
 const CURSOR_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'head-cursor.js');
 const PARSER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-parser.js');
+const TIMELAYER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'time-layer.js');
+
+/** 眼镜端页面模板（界面文案契约） */
+const INK_PAGE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'pages', 'index', 'index.ink');
 
 /** Web 端盘面排布（1-based，与眼镜端 0-based 换算后必须一致） */
 const WEB_PALACE_CELL = path.join(REPO_ROOT, 'apps', 'web', 'src', 'components', 'PalaceCell.tsx');
@@ -75,6 +84,49 @@ interface EngineBundle {
   shichenFromClock: (clockHour: number, clockMinute?: number) => number;
   isLateZi: (clockHour: number) => boolean;
   hourLabel: (hour: number) => string;
+  /** 运限三层（时间层功能依赖它们） */
+  daXianLayer: (c: ChartJSON, index: number) => unknown;
+  liuNianLayer: (c: ChartJSON, year: number) => unknown;
+  liuYueLayer: (c: ChartJSON, year: number, month: number) => unknown;
+}
+
+/** 一个运限层（time-layer.js 归一后的形状） */
+interface TimeLayer {
+  key: string;
+  kind: string;
+  label: string;
+  mingPalaceName: string;
+  mingBranch: number;
+  palaces: Array<{ branch: number; name: string }>;
+  siHua: { lu: string; quan: string; ke: string; ji: string };
+  siHuaPalaces: Record<string, number>;
+}
+
+/** 眼镜端运限层模块 */
+interface TimeLayerModule {
+  TIME_LAYER_KEYS: string[];
+  TIME_LAYER_NAMES: Record<string, string>;
+  nextLayerKey: (
+    key: string,
+    delta: number,
+    isAvailable?: (k: string) => boolean,
+  ) => string;
+  currentLunarOf: (
+    engine: { chart: (b: Birth) => ChartJSON },
+    now?: Date,
+  ) => { year: number; month: number; day: number; isLeapMonth: boolean } | null;
+  buildTimeLayers: (
+    chart: ChartJSON,
+    engine: unknown,
+    options?: { now?: Date },
+  ) => Record<string, TimeLayer | null>;
+  detectLayer: (text: string) => string | null;
+  focusFromQuestion: (
+    question: string,
+    layerKey?: string,
+  ) => { time?: 'liunian' | 'daxian' } | null;
+  fortuneSiHuaOf: (starName: string, fortune: unknown) => string | null;
+  fortuneSiHuaText: (fortune: unknown) => string;
 }
 
 /** 一个宫格的展示模型 */
@@ -89,6 +141,8 @@ interface PalaceCell {
   majorText: string;
   minorText: string;
   majorCount: number;
+  /** 运限层宫名小标（本命层为空） */
+  fortuneShort?: string;
   row: number;
   col: number;
   activeClass?: string;
@@ -100,9 +154,9 @@ interface ChartLayoutModule {
   SIHUA_MARKS: string[];
   DIMENSION_BY_PALACE: Record<string, string>;
   DIMENSION_LABELS: Record<string, string>;
-  formatStar: (star: { name: string; siHua?: string }) => string;
-  buildCell: (palace: unknown) => PalaceCell;
-  buildBoard: (chart: unknown) => { cells: PalaceCell[]; center: Record<string, unknown> };
+  formatStar: (star: { name: string; siHua?: string }, fortune?: unknown) => string;
+  buildCell: (palace: unknown, fortune?: unknown) => PalaceCell;
+  buildBoard: (chart: unknown, fortune?: unknown) => { cells: PalaceCell[]; center: Record<string, unknown> };
   cellAt: (cells: PalaceCell[], branch: number) => PalaceCell | null;
   stepBranch: (branch: number, delta: number) => number;
   branchAt: (row: number, col: number) => number | null;
@@ -293,12 +347,47 @@ export const suite = async (t: Tester): Promise<void> => {
         'shichenFromClock',
         'isLateZi',
         'hourLabel',
+        // 运限三层：时间层功能靠它们，缺一个整个时间层就没了
+        'daXianLayer',
+        'liuNianLayer',
+        'liuYueLayer',
       ] as const;
       const missing = need.filter((k) => typeof (bundle as unknown as Record<string, unknown>)[k] !== 'function');
       assert.deepEqual(
         missing,
         [],
         `打包产物缺少导出：${missing.join(', ')}（眼镜端 chart-source.js 会直接崩）`,
+      );
+    });
+
+    await t.test('打包产物的运限三层与源码引擎一致', () => {
+      // 时间层是眼镜端独有的功能，只能跑在打包产物上；
+      // 如果打包时运限函数的行为漂了，源码测试全绿也照样算错。
+      const c = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      const fromBundle = bundle.chart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+
+      // 大限：当前大限落宫的宫位序号
+      const dxPalace = c.palaces.find((p) => p.isCurrentDaXian);
+      const dxIndex = dxPalace
+        ? c.daXians.findIndex((d) => d.palaceBranch === dxPalace.branch)
+        : -1;
+      assert.ok(dxIndex >= 0, '找不到当前大限，测试样本选得不对');
+      assert.deepEqual(
+        bundle.daXianLayer(fromBundle, dxIndex),
+        srcDaXianLayer(c, dxIndex),
+        '打包产物与源码引擎的大限层不一致',
+      );
+
+      assert.deepEqual(
+        bundle.liuNianLayer(fromBundle, 2026),
+        srcLiuNianLayer(c, 2026),
+        '打包产物与源码引擎的流年层不一致',
+      );
+
+      assert.deepEqual(
+        bundle.liuYueLayer(fromBundle, 2026, 9),
+        srcLiuYueLayer(c, 2026, 9),
+        '打包产物与源码引擎的流月层不一致',
       );
     });
 
@@ -510,6 +599,104 @@ export const suite = async (t: Tester): Promise<void> => {
       assert.equal(cell.branchName, '丑', '没给 branchName 时应回退到地支名');
     });
 
+    await t.test('formatStar：运限层里运限四化优先，本命四化隐藏', () => {
+      // 单色绿 HUD 上没有颜色可区分，本命四化和运限四化会长得一模一样。
+      // 规则：进了运限层就只看这一层的四化，带「限」/「流」前缀。
+      const fortune = {
+        kind: 'daxian',
+        siHua: { lu: '廉贞', quan: '破军', ke: '武曲', ji: '太阳' },
+        palaces: [],
+      };
+      assert.equal(
+        layout.formatStar({ name: '廉贞', siHua: '禄' }, fortune),
+        '廉贞(限禄)',
+        '大限层的化禄星应渲染成「限禄」',
+      );
+      assert.equal(
+        layout.formatStar({ name: '太阳', siHua: '忌' }, fortune),
+        '太阳(限忌)',
+        '大限层的化忌星应渲染成「限忌」',
+      );
+      // 本命四化在这一层被顶掉，不该同时挂两个标记
+      assert.equal(
+        layout.formatStar({ name: '紫微', siHua: '禄' }, fortune),
+        '紫微',
+        '本命四化在运限层应隐藏',
+      );
+      // 流年 / 流月用「流」前缀
+      const liunian = { kind: 'liunian', siHua: { lu: '天同', quan: '', ke: '', ji: '' }, palaces: [] };
+      assert.equal(
+        layout.formatStar({ name: '天同' }, liunian),
+        '天同(流禄)',
+        '流年层的化禄星应渲染成「流禄」',
+      );
+      // 本命层不受影响
+      assert.equal(
+        layout.formatStar({ name: '紫微', siHua: '禄' }),
+        '紫微(禄)',
+        '本命层的本命四化应照常显示',
+      );
+    });
+
+    await t.test('buildCell：运限层给出宫名小标，且与本命宫名相同时不显示', () => {
+      const palace = {
+        branch: 0,
+        branchName: '子',
+        stemName: '甲',
+        name: '命宫',
+        stars: [{ name: '紫微', type: 'major' }],
+      };
+      const fortune = {
+        kind: 'liunian',
+        siHua: { lu: '', quan: '', ke: '', ji: '' },
+        palaces: [
+          { branch: 0, name: '命宫' },
+          { branch: 1, name: '兄弟' },
+        ],
+      };
+      const cell = layout.buildCell(palace, fortune);
+      assert.equal(cell.name, '命宫', '本命宫名不能被运限层覆盖');
+      assert.equal(
+        cell.fortuneShort,
+        '',
+        '本命宫名与运限宫名相同时不该重复显示小标',
+      );
+
+      const other = layout.buildCell({ ...palace, branch: 1, name: '财帛宫' }, fortune);
+      assert.equal(
+        other.fortuneShort,
+        '兄弟宫',
+        '运限宫名应补上「宫」字并作为小标显示',
+      );
+
+      // 本命层没有小标
+      assert.equal(
+        layout.buildCell(palace).fortuneShort,
+        '',
+        '本命层不该出现运限宫名小标',
+      );
+    });
+
+    await t.test('buildBoard：运限层的宫名小标与本命盘宫名不打架', () => {
+      // 引擎里同一个宫有两套叫法（本命「仆役宫」/ 运限「交友宫」）。
+      // 不归一的话一格里会出现「仆役宫 交友宫」，看着像 bug。
+      const c = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      const layer = srcLiuNianLayer(c, 2026);
+      const board = layout.buildBoard(c, layer);
+      for (const cell of board.cells) {
+        if (!cell.fortuneShort) continue;
+        assert.notEqual(
+          cell.fortuneShort,
+          '交友宫',
+          `地支 ${cell.branchName} 的运限小标仍是「交友宫」，没跟本命盘口径统一`,
+        );
+        assert.ok(
+          cell.fortuneShort.endsWith('宫'),
+          `运限小标应带「宫」字：${cell.fortuneShort}`,
+        );
+      }
+    });
+
     await t.test('markActive：只有选中的宫带 activeClass=on', () => {
       const cells = [
         layout.buildCell({ branch: 0, stars: [] }),
@@ -537,6 +724,9 @@ export const suite = async (t: Tester): Promise<void> => {
     });
 
     await t.test('dimensionOfPalace：十二宫映射到解读维度，且维度都在引擎的 13 维里', () => {
+      // 键用的是**本命盘真正写出来的宫名**（含「仆役宫」）。
+      // 引擎里同一个宫有两套叫法：本命盘叫「仆役宫」（iztro 血统），
+      // 运限十二宫叫「交友宫」（PALACE_NAMES_ORDER）—— 见 PALACE_NAME_CANON。
       const expected: Record<string, string> = {
         命宫: 'overview',
         兄弟宫: 'family',
@@ -545,7 +735,7 @@ export const suite = async (t: Tester): Promise<void> => {
         财帛宫: 'wealth',
         疾厄宫: 'health',
         迁移宫: 'move',
-        交友宫: 'friends',
+        仆役宫: 'friends',
         官禄宫: 'career',
         田宅宫: 'home',
         福德宫: 'spirit',
@@ -578,6 +768,31 @@ export const suite = async (t: Tester): Promise<void> => {
           `维度 ${dimension} 的中文标签与引擎 DIMENSION_LABELS 不一致`,
         );
       }
+    });
+
+    await t.test('dimensionOfPalace：引擎真实产出的宫名都能查到维度（不许有宫取不到解读）', () => {
+      // 这是踩过的坑：映射表写的是「交友宫」，引擎的盘上却是「仆役宫」，
+      // 结果这一宫永远落到 null → 解读静默退回「命格总览」，
+      // 人际那一维在眼镜端根本取不到。
+      // 这里不写死宫名，直接拿引擎排出来的盘逐宫验证。
+      const c = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      for (const p of c.palaces) {
+        const dimension = layout.dimensionOfPalace(p.name);
+        assert.ok(
+          dimension,
+          `引擎盘上的「${p.name}」（${p.branchName}）查不到解读维度 —— 这一宫会退回总览`,
+        );
+        assert.ok(
+          (READING_DIMENSIONS as readonly string[]).includes(dimension),
+          `「${p.name}」映射到的维度 ${dimension} 不在引擎的 READING_DIMENSIONS 里`,
+        );
+      }
+      // 别名也要认：运限层给的「交友宫」是同一个宫
+      assert.equal(
+        layout.dimensionOfPalace('交友宫'),
+        'friends',
+        '「交友宫」应与「仆役宫」指向同一维度',
+      );
     });
   }
 
@@ -901,6 +1116,235 @@ export const suite = async (t: Tester): Promise<void> => {
         { year: 1990, month: 1, day: 2, hour: 0 },
         '语音解析的晚子时口径与引擎不一致',
       );
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * E. time-layer.js —— 运限四层（时间层）
+   * ---------------------------------------------------------------- */
+  if (!fs.existsSync(TIMELAYER_MODULE)) {
+    t.skip('眼镜端运限层（E 组全部用例）', `缺少 ${path.relative(REPO_ROOT, TIMELAYER_MODULE)}`);
+  } else {
+    const tl = await loadModule<TimeLayerModule>(TIMELAYER_MODULE);
+
+    /** 引擎三件套（运限层只依赖这三个函数） */
+    const fortuneEngine = {
+      chart: srcChart,
+      daXianLayer: srcDaXianLayer,
+      liuNianLayer: srcLiuNianLayer,
+      liuYueLayer: srcLiuYueLayer,
+    };
+
+    /** 固定「当下」：2026-11-06（农历九月廿八） */
+    const NOW = new Date(2026, 10, 6);
+    const CN_MONTH_NAMES = [
+      '正月', '二月', '三月', '四月', '五月', '六月',
+      '七月', '八月', '九月', '十月', '冬月', '腊月',
+    ];
+
+    await t.test('nextLayerKey：四层循环，且会跳过算不出来的层', () => {
+      assert.deepEqual(
+        tl.TIME_LAYER_KEYS,
+        ['natal', 'daxian', 'liunian', 'liuyue'],
+        '时间层顺序应为本命 → 大限 → 流年 → 流月',
+      );
+      assert.equal(tl.nextLayerKey('natal', 1), 'daxian', '本命的下一层是大限');
+      assert.equal(tl.nextLayerKey('liuyue', 1), 'natal', '流月的下一层回到本命');
+      assert.equal(tl.nextLayerKey('natal', -1), 'liuyue', '本命的上一层是流月');
+
+      // 算不出来的层要跳过，不能让用户按到一层空白
+      const onlyNatalAndLiunian = (k: string) => k === 'natal' || k === 'liunian';
+      assert.equal(
+        tl.nextLayerKey('natal', 1, onlyNatalAndLiunian),
+        'liunian',
+        '大限缺失时应跳过到流年',
+      );
+      assert.equal(
+        tl.nextLayerKey('natal', -1, onlyNatalAndLiunian),
+        'liunian',
+        '流月缺失时应跳到流年',
+      );
+      assert.equal(
+        tl.nextLayerKey('natal', 1, () => false),
+        'natal',
+        '一层都不可用时应留在原地',
+      );
+    });
+
+    await t.test('currentLunarOf：取「今天」的农历月，不是出生那天的', () => {
+      // 这是一个真 bug 的回归：
+      // 流月层一度直接用 chart.lunar.lunarMonth —— 那是**出生时**的农历月。
+      // 1990-01-01 生的人农历在腊月，于是标签写成「流月 腊月」，
+      // 而用户当下明明在九月 —— 盘面说的是别人的月份。
+      const lunar = tl.currentLunarOf({ chart: srcChart }, NOW);
+      assert.ok(lunar, 'currentLunarOf 应返回结果');
+
+      // 独立 oracle：直接用历法库换算（不走引擎 chart 那条路径）
+      const direct = Solar.fromYmd(2026, 11, 6).getLunar();
+      assert.equal(lunar!.year, Number(direct.getYear()), '农历年应与历法库一致');
+      assert.equal(lunar!.month, Math.abs(Number(direct.getMonth())), '农历月应与历法库一致');
+      assert.equal(lunar!.day, Number(direct.getDay()), '农历日应与历法库一致');
+
+      const birthChart = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      assert.equal(birthChart.lunar.lunarMonth, 12, '1990-01-01 的农历月应为腊月（12）');
+      assert.notEqual(
+        lunar!.month,
+        birthChart.lunar.lunarMonth,
+        '测试样本的出生农历月必须与当月不同，否则这条断言没有意义',
+      );
+    });
+
+    await t.test('buildTimeLayers：四层与源码引擎逐字段一致', () => {
+      const c = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      const layers = tl.buildTimeLayers(c, fortuneEngine, { now: NOW });
+
+      /* 大限 */
+      const dxPalace = c.palaces.find((p) => p.isCurrentDaXian);
+      const dxIndex = dxPalace
+        ? c.daXians.findIndex((d) => d.palaceBranch === dxPalace.branch)
+        : -1;
+      const srcDx = srcDaXianLayer(c, dxIndex)!;
+      const dx = layers.daxian;
+      assert.ok(dx, '大限层应存在');
+      assert.equal(dx!.label, `大限 ${srcDx.label}`, '大限标签应与引擎一致');
+      assert.equal(dx!.mingBranch, srcDx.mingBranch, '大限命宫落支应与引擎一致');
+      assert.deepEqual(dx!.siHua, srcDx.siHua, '大限四化应与引擎一致');
+      assert.deepEqual(dx!.palaces, srcDx.palaces, '大限十二宫应与引擎一致');
+      assert.equal(dx!.kind, 'daxian', '大限层的 kind 应是 daxian');
+
+      /* 流年 */
+      const srcLn = srcLiuNianLayer(c, 2026);
+      const ln = layers.liunian;
+      assert.ok(ln, '流年层应存在');
+      assert.equal(ln!.label, `流年 ${srcLn.ganzhi} ${srcLn.year}`, '流年标签应与引擎一致');
+      assert.equal(ln!.mingBranch, srcLn.mingBranch, '流年命宫落支应与引擎一致');
+      assert.deepEqual(ln!.siHua, srcLn.siHua, '流年四化应与引擎一致');
+      assert.deepEqual(ln!.palaces, srcLn.palaces, '流年十二宫应与引擎一致');
+
+      /* 流月：月序取当下农历月 */
+      const currentMonth = tl.currentLunarOf({ chart: srcChart }, NOW)!.month;
+      const srcLy = srcLiuYueLayer(c, 2026, currentMonth);
+      const ly = layers.liuyue;
+      assert.ok(ly, '流月层应存在');
+      assert.equal(ly!.mingBranch, srcLy.mingBranch, '流月命宫落支应与引擎一致');
+      assert.deepEqual(ly!.siHua, srcLy.siHua, '流月四化应与引擎一致');
+      assert.ok(
+        ly!.label.includes(CN_MONTH_NAMES[currentMonth - 1]),
+        `流月标签应写当下的农历月（${CN_MONTH_NAMES[currentMonth - 1]}）：${ly!.label}`,
+      );
+      assert.ok(
+        !ly!.label.includes('腊月'),
+        '流月标签不该写出生那天的农历月（1990-01-01 是腊月）',
+      );
+    });
+
+    await t.test('buildTimeLayers：没有端侧引擎时四层全空（降级不崩）', () => {
+      const c = srcChart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+      const layers = tl.buildTimeLayers(c, null);
+      assert.equal(layers.daxian, null, '没有引擎时大限层应为空');
+      assert.equal(layers.liunian, null, '没有引擎时流年层应为空');
+      assert.equal(layers.liuyue, null, '没有引擎时流月层应为空');
+      assert.equal(layers.natal, null, '本命层不在这套返回值里（它就是原盘）');
+    });
+
+    await t.test('fortuneSiHuaOf：运限四化带「限」「流」前缀', () => {
+      // 单色绿 HUD 上没有颜色可区分本命四化和运限四化，只能靠前缀。
+      const daxian = {
+        kind: 'daxian',
+        siHua: { lu: '廉贞', quan: '破军', ke: '武曲', ji: '太阳' },
+        palaces: [],
+      };
+      assert.equal(tl.fortuneSiHuaOf('廉贞', daxian), '限禄', '大限化禄应为「限禄」');
+      assert.equal(tl.fortuneSiHuaOf('太阳', daxian), '限忌', '大限化忌应为「限忌」');
+      assert.equal(tl.fortuneSiHuaOf('紫微', daxian), null, '不是四化星的返回 null');
+
+      const liunian = { kind: 'liunian', siHua: { lu: '天同', quan: '', ke: '', ji: '' }, palaces: [] };
+      assert.equal(tl.fortuneSiHuaOf('天同', liunian), '流禄', '流年化禄应为「流禄」');
+
+      const liuyue = { kind: 'liuyue', siHua: { lu: '贪狼', quan: '', ke: '', ji: '' }, palaces: [] };
+      assert.equal(tl.fortuneSiHuaOf('贪狼', liuyue), '流禄', '流月化禄应为「流禄」');
+
+      assert.equal(tl.fortuneSiHuaOf('廉贞', null), null, '没有运限层时返回 null');
+    });
+
+    await t.test('detectLayer：从问句里认出时间层，认不出就不猜', () => {
+      assert.equal(tl.detectLayer('今年整体运势如何'), 'liunian', '「今年」应认出流年');
+      assert.equal(tl.detectLayer('这个月怎么样'), 'liuyue', '「这个月」应认出流月');
+      assert.equal(tl.detectLayer('我这步大限如何'), 'daxian', '「大限」应认出大限');
+      assert.equal(tl.detectLayer('回到本命盘'), 'natal', '「本命」应认出本命');
+      assert.equal(tl.detectLayer('今天天气怎么样'), null, '认不出来返回 null，绝不猜');
+      assert.equal(tl.detectLayer(''), null, '空串返回 null');
+    });
+
+    await t.test('focusFromQuestion：问题里说了就听问题的，没说就跟当前层', () => {
+      assert.deepEqual(
+        tl.focusFromQuestion('今年怎么样', 'natal'),
+        { time: 'liunian' },
+        '问题说「今年」→ 流年焦点',
+      );
+      assert.deepEqual(
+        tl.focusFromQuestion('大限呢', 'natal'),
+        { time: 'daxian' },
+        '问题说「大限」→ 大限焦点',
+      );
+      assert.deepEqual(
+        tl.focusFromQuestion('随便聊聊', 'liunian'),
+        { time: 'liunian' },
+        '没说就跟当前层（用户正在看的就是他要问的）',
+      );
+      assert.deepEqual(
+        tl.focusFromQuestion('随便聊聊', 'daxian'),
+        { time: 'daxian' },
+        '没说就跟当前层',
+      );
+      assert.equal(tl.focusFromQuestion('随便聊聊', 'natal'), null, '都没说就不给焦点');
+      assert.equal(
+        tl.focusFromQuestion('随便聊聊', 'liuyue'),
+        null,
+        '后端只认流年/大限两种焦点，流月不给焦点',
+      );
+    });
+
+    await t.test('fortuneSiHuaText：运限四化摘要（中宫一行）', () => {
+      const layer = { siHua: { lu: '廉贞', quan: '破军', ke: '武曲', ji: '太阳' } };
+      assert.equal(
+        tl.fortuneSiHuaText(layer),
+        '禄廉贞　权破军　科武曲　忌太阳',
+        '四化摘要应四段齐全',
+      );
+      assert.equal(tl.fortuneSiHuaText(null), '', '没有运限层时返回空串');
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * F. index.ink —— 界面文案契约
+   * ---------------------------------------------------------------- */
+  if (!fs.existsSync(INK_PAGE)) {
+    t.skip('眼镜端界面文案契约（F 组全部用例）', `缺少 ${path.relative(REPO_ROOT, INK_PAGE)}`);
+  } else {
+    const ink = fs.readFileSync(INK_PAGE, 'utf8');
+
+    await t.test('界面文案不得承诺没实现的交互', () => {
+      // 工程里**没有任何 tap / dblclick 处理**，文案却写着「单击」「双击」——
+      // 用户按了没反应，这是失效承诺，比没有提示更糟。
+      assert.ok(!ink.includes('单击'), '界面文案不该出现「单击」（工程没有 tap 处理）');
+      assert.ok(!ink.includes('双击'), '界面文案不该出现「双击」（工程没有双击处理）');
+      // 实际实现的交互要写清楚
+      assert.ok(ink.includes('确认键'), '界面应写明确认键的用法');
+      assert.ok(ink.includes('返回键'), '界面应写明返回键的用法');
+    });
+
+    await t.test('时间层接线完整（上下键切层 + 运限层渲染）', () => {
+      // 只写规范不写代码 = 装饰。这里盯住接线点真的在页面里。
+      for (const needle of [
+        '_cycleLayer',
+        '_verticalIsLayer',
+        'buildTimeLayers',
+        'fortuneShort',
+        'layerTitle',
+      ]) {
+        assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
+      }
     });
   }
 };

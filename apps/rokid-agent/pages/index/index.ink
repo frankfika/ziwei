@@ -55,7 +55,6 @@ import {
     updateTilt,
 } from '../../lib/head-cursor.js';
 import {
-    TIME_LAYER_KEYS,
     TIME_LAYER_NAMES,
     buildTimeLayers,
     focusFromQuestion,
@@ -270,7 +269,7 @@ export default {
 
             upsertProfile(birth);
 
-            const layerView = this._layerView('natal');
+            const layerView = this._layerView('natal', board.center);
 
             this.setData({
                 ready: true,
@@ -310,16 +309,17 @@ export default {
      *   第 3 行  本命层=农历日期            运限层=本层四化
      *
      * @param {string} key
+     * @param {Object} [center] 本命盘中宫信息（首次排盘时 data 里还是空的，必须显式传）
      * @returns {{ layerTitle: string, layerSub: string, layerExtra: string }}
      */
-    _layerView(key) {
-        const center = this.data.center || {};
+    _layerView(key, center) {
+        const info = center || this.data.center || {};
         const layer = this._layers ? this._layers[key] : null;
         if (key === 'natal' || !layer) {
             return {
                 layerTitle: '本命盘',
-                layerSub: `${center.yinYangGender || ''}　${center.wuxingJuName || ''}`.trim(),
-                layerExtra: center.lunarText || '',
+                layerSub: `${info.yinYangGender || ''}　${info.wuxingJuName || ''}`.trim(),
+                layerExtra: info.lunarText || '',
             };
         }
         return {
@@ -341,7 +341,7 @@ export default {
         const fortune = key === 'natal' ? null : layer;
         const board = buildBoard(chart, fortune);
         const branch = this.data.selectedBranch;
-        const view = this._layerView(key);
+        const view = this._layerView(key, board.center);
         const cell = cellAt(board.cells, branch);
 
         this.setData({
@@ -512,10 +512,21 @@ export default {
         if (!cell) return;
 
         const dimension = dimensionOfPalace(cell.name);
+        /**
+         * 解读原文来自**本命盘**的数据集（13 维按本命宫位收录，没有运限版本），
+         * 所以必须把「这段话说的是哪一宫」讲清楚 —— 尤其在运限层里，
+         * 同一个地支在本命和本层的宫名不是一回事。
+         */
+        const dimensionLabel = dimension ? DIMENSION_LABELS[dimension] : '命盘';
+        const roleText =
+            this.data.layerKey === 'natal' || !this.data.layerRole
+                ? ''
+                : `　·　本层为${this.data.layerRole}`;
+
         this.setData({
             overlay: 'reading',
             readingTitle: `${cell.name}　${cell.stemName}${cell.branchName}`,
-            readingDimension: dimension ? DIMENSION_LABELS[dimension] : '命盘',
+            readingDimension: `本命${cell.name} · ${dimensionLabel}${roleText}`,
             readingText: '',
             readingLoading: true
         });
@@ -564,11 +575,54 @@ export default {
         return fallback ? fallback.text : '这一段解读暂时没有收录。';
     },
 
+    /**
+     * 追问焦点：宫位 + 时间层。
+     *
+     * 时间层焦点靠**问题里的话**决定（「今年怎么样」→ 流年），
+     * 问题没说就跟随当前盘面停在哪一层 —— 用户正在看的就是他要问的。
+     * 后端只认白名单里的时间层（liunian / daxian），其余一律不传。
+     *
+     * @param {string} question
+     * @returns {Object} focus
+     */
+    _focusFor(question) {
+        const cell = cellAt(this.data.cells, this.data.selectedBranch);
+        const focus = {};
+        if (cell) {
+            const dimension = dimensionOfPalace(cell.name);
+            if (dimension) focus.dimension = dimension;
+            focus.palace = cell.name;
+        }
+        const timeFocus = focusFromQuestion(question, this.data.layerKey);
+        if (timeFocus && timeFocus.time) {
+            focus.time = timeFocus.time;
+            if (timeFocus.time === 'liunian') focus.targetYear = new Date().getFullYear();
+        }
+        return focus;
+    },
+
+    /**
+     * 焦点的人话版（界面上要让用户看见自己在问哪一块）。
+     *
+     * @param {string} question
+     * @returns {string}
+     */
+    _focusLabel(question) {
+        const parts = [];
+        const cell = cellAt(this.data.cells, this.data.selectedBranch);
+        if (cell) parts.push(cell.name);
+        const focus = this._focusFor(question);
+        if (focus.time) parts.push(TIME_LAYER_NAMES[focus.time] || '');
+        return parts.length ? `焦点：${parts.join('　·　')}` : '';
+    },
+
     _openAsk() {
+        const question = this.data.presets[0];
         this.setData({
             overlay: 'ask',
-            askQuestion: this.data.presets[0],
-            askAnswer: ''
+            askQuestion: question,
+            askAnswer: '',
+            askFocus: this._focusLabel(question)
         });
     },
 
@@ -576,16 +630,16 @@ export default {
         const list = this.data.presets;
         const current = list.indexOf(this.data.askQuestion);
         const next = list[((current < 0 ? 0 : current) + delta + list.length) % list.length];
-        this.setData({ askQuestion: next });
+        this.setData({ askQuestion: next, askFocus: this._focusLabel(next) });
     },
 
     async _submitAsk(question) {
         const q = (question || '').trim();
         if (!q || this.data.askLoading) return;
 
-        this.setData({ askLoading: true, askQuestion: q, askAnswer: '' });
+        this.setData({ askLoading: true, askQuestion: q, askAnswer: '', askFocus: this._focusLabel(q) });
         try {
-            const res = await requestAsk(this._birth, q, []);
+            const res = await requestAsk(this._birth, q, [], this._focusFor(q));
             const answer = (res && res.answer) || '这一问暂时没有回答。';
             this.setData({
                 askAnswer: answer,
@@ -638,7 +692,10 @@ export default {
     <view class="board">
         <view ink:for="{{cells}}" ink:key="branch" class="cell p{{item.branch}} {{item.activeClass}}">
             <view class="cell-head">
-                <text class="palace-name">{{item.name}}</text>
+                <view class="head-left">
+                    <text class="palace-name">{{item.name}}</text>
+                    <text class="fortune-name" ink:if="{{item.fortuneShort}}">{{item.fortuneShort}}</text>
+                </view>
                 <text class="gan-zhi">{{item.stemName}}{{item.branchName}}</text>
             </view>
             <text class="major">{{item.majorText}}</text>
@@ -646,13 +703,17 @@ export default {
         </view>
 
         <view class="center">
-            <text class="center-title">{{center.yinYangGender}}　{{center.wuxingJuName}}</text>
+            <text class="center-title">{{layerTitle}}</text>
             <text class="center-line">命主 {{center.mingZhu}}　身主 {{center.shenZhu}}</text>
-            <text class="center-line dim">{{center.lunarText}}</text>
+            <text class="center-line dim">{{layerSub}}</text>
+            <text class="center-line dim">{{layerExtra}}</text>
             <text class="center-line dim">{{center.pillarsText}}</text>
             <view class="center-divider"></view>
-            <text class="center-line strong">{{selectedName}}</text>
-            <text class="center-hint">{{sensorLabel}}　单击听解读</text>
+            <view class="selected-row">
+                <text class="center-line strong">{{selectedName}}</text>
+                <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
+            </view>
+            <text class="center-hint">{{sensorLabel}}　{{navHint}}　确认键听解读</text>
             <text class="center-hint dim">{{sourceLabel}}</text>
         </view>
 
@@ -662,7 +723,7 @@ export default {
             <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
             <text class="overlay-body dim">格式：1990年1月1日 子时 男</text>
             <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
-            <text class="overlay-hint">单击开始识别　双击返回</text>
+            <text class="overlay-hint">确认键开始识别　返回键退出</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'reading'}}">
@@ -674,19 +735,20 @@ export default {
             </scroll-view>
             <text class="overlay-note" ink:if="{{readingCitation}}">{{readingCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">单击追问　双击返回</text>
+            <text class="overlay-hint">确认键追问　返回键退出</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'ask'}}">
             <text class="overlay-title">追问</text>
             <text class="overlay-body strong">{{askQuestion}}</text>
+            <text class="overlay-body dim" ink:if="{{askFocus}}">{{askFocus}}</text>
             <scroll-view class="reading-scroll" scroll-y="{{true}}">
                 <text class="reading-text" ink:if="{{!askLoading}}">{{askAnswer}}</text>
                 <text class="reading-text dim" ink:if="{{askLoading}}">正在推演……</text>
             </scroll-view>
             <text class="overlay-note" ink:if="{{askCitation}}">{{askCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">上下切换问题　单击发送</text>
+            <text class="overlay-hint">上下键选问题　确认键发送　返回键退出</text>
         </view>
     </view>
 </page>
@@ -738,10 +800,30 @@ page {
     height: 15px;
 }
 
+/* 本命宫名 + 运限宫名小标并排 */
+.head-left {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
 .palace-name {
     font-size: 13px;
     line-height: 15px;
     font-weight: bold;
+}
+
+/*
+ * 运限宫名小标（只在运限层出现，且与本命宫名相同时不显示）。
+ *
+ * 字号压到 10px、颜色用次级绿：它是**补充信息**，
+ * 不能抢本命宫名的视觉权重，也不能让 120px 宽的格子溢出。
+ */
+.fortune-name {
+    font-size: 10px;
+    line-height: 15px;
+    color: #4da86c;
+    margin-left: 2px;
 }
 
 .gan-zhi {
@@ -824,7 +906,21 @@ page {
     font-size: 16px;
     line-height: 20px;
     font-weight: bold;
+}
+
+/* 选中宫：本命宫名（大字）+ 运限层宫名（小字） */
+.selected-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
     margin-top: 4px;
+}
+
+.center-role {
+    font-size: 12px;
+    line-height: 20px;
+    color: #4da86c;
+    margin-left: 5px;
 }
 
 .center-divider {

@@ -230,8 +230,19 @@ export default function AskPanel({
   embedChart = false,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
-  const { messages, loaded, append, clear, threads, activeId, newThread, selectThread } =
-    useAskThread(identity);
+  const {
+    messages,
+    loaded,
+    append,
+    clear,
+    threads,
+    archivedThreads,
+    activeId,
+    newThread,
+    selectThread,
+    archiveThread,
+    unarchiveThread,
+  } = useAskThread(identity);
   const [question, setQuestion] = useState('');
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
@@ -619,7 +630,7 @@ export default function AskPanel({
         )}
 
         {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 新开一段不再「找不到旧的」 */}
-        {bare && loaded && threads.length > 0 && (
+        {bare && loaded && threads.length + archivedThreads.length > 0 && (
           <div className="mb-3 flex shrink-0 items-center gap-2">
             <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
               对话记录
@@ -628,8 +639,13 @@ export default function AskPanel({
               id="ask-thread-select"
               value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
               onChange={(e) => {
-                if (e.target.value === '__draft__') handleNewThread();
-                else handleSelectThread(e.target.value);
+                const v = e.target.value;
+                if (v === '__draft__') handleNewThread();
+                else {
+                  // 选中已归档的对话 = 恢复它
+                  if (archivedThreads.some((t) => t.id === v)) unarchiveThread(v);
+                  handleSelectThread(v);
+                }
               }}
               className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
@@ -647,6 +663,19 @@ export default function AskPanel({
                   })}
                 </option>
               ))}
+              {archivedThreads.length > 0 && (
+                <optgroup label="已归档（选中即恢复）">
+                  {archivedThreads.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} ·{' '}
+                      {new Date(t.updatedAt).toLocaleString('zh-CN', {
+                        month: 'numeric',
+                        day: 'numeric',
+                      })}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <button
               type="button"
@@ -1058,7 +1087,7 @@ export default function AskPanel({
               </p>
             )}
             {messages.length > 0 && (
-              <div className="mt-2 text-center">
+              <div className="mt-2 flex items-center justify-center gap-4 text-center">
                 <button
                   type="button"
                   onClick={() => {
@@ -1068,6 +1097,16 @@ export default function AskPanel({
                 >
                   清空对话
                 </button>
+                {activeId && activeId !== '__draft__' && (
+                  <button
+                    type="button"
+                    onClick={() => archiveThread(activeId)}
+                    title="从对话记录里收起来，可在「对话记录」下拉的「已归档」分组找回"
+                    className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                  >
+                    归档这段对话
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -40,7 +40,7 @@ Rokid 团队您好，
 |---|---|
 | 1 | **作品名**「紫微星盘」（英文 `Ziwei Star Chart`）能否通过？《APP 内容体验规范》4.11 条列举的不收录名称是否覆盖此类？如不能，备选「十二宫盘 / Twelve Palace Chart」是否可行？ |
 | 2 | **题材与分类**：传统命理（紫微斗数）在智能体商店是否可收录？分类选「学习」还是「娱乐」更合适？描述需要哪一档免责声明措辞？（我目前的理解是：传统术数、非邪教，但语义邻域希望你们给口径） |
-| 3 | **软件著作权**：《APP 内容体验规范》第 6 条写「原则上需要提交相应的软件著作权」，该条是否适用于 AIUI 智能体商店的上架？如需要，登记周期与主体要求是什么？周期以月计的话我需要尽早启动。 |
+| 3 | **软件著作权**：AIUI 智能体商店上架是否需要提交软件著作权？如需要，登记周期与主体要求是什么？周期以月计的话我需要尽早启动。 |
 | 4 | **描述用词**：作品描述里能否出现「命盘」「紫微斗数」「十二宫」？「传统文化」的表述是否被接受？ |
 | 5 | **规范适用**：智能体商店是否有独立的《内容体验规范》？若有，与 APP 版（尤其「宣扬封建迷信」「赌博」两条）是否一致？ |
 | 6 | **署名**：描述中能否明写「解读文本来自 CC BY 4.0 公开数据集的原文检索」？是否需要随包附数据集许可原文与作者署名页？ |
@@ -70,7 +70,7 @@ I am an individual developer entering the AI Track of Spatial Joy 2026 with an A
 
 1. **Verification & registration.** I have completed Rokid account real-name submission; Professional Authentication (Personal) is currently *Under Review*, and the registration page blocks on "Verification not completed". How long does review take? **Can I register / pre-register the project while the review is pending?** Would corporate verification (organization information) be faster?
 2. **Title & category.** Is "紫微星盘 / Ziwei Star Chart" acceptable under the APP Content Experience Guidelines (art. 4.11)? Is traditional Chinese fortune-telling (Zi Wei Dou Shu) admissible in the agent store, and under which category (Learning vs. Entertainment) should it be filed?
-3. **Software copyright.** Art. 6 of the guidelines states a software copyright is "in principle required". Does this apply to AIUI agents in the agent store, and what are the registration timeline and eligible entity requirements?
+3. **Software copyright.** Does listing an AIUI agent in the agent store require a software copyright registration? If so, what are the registration timeline and eligible entity requirements?
 
 Secondary questions (also in the Chinese version above): permitted wording in the store description; whether a separate content guideline exists for agents; how to present the CC BY 4.0 dataset attribution; required demo asset count / format; sensitive-word pre-screening; post-launch update obligations; and whether a self-hosted backend domain is acceptable.
 

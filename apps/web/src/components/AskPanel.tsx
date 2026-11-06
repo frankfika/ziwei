@@ -488,6 +488,18 @@ export default function AskPanel({
               thinking: (s?.thinking ?? '') + t,
             })),
           onDone: (p) => {
+            // 空正文不落库：历史里存一条空白回答，页面上就是一块「什么都没有」的黑洞
+            if (!p.answer.trim()) {
+              setTransient({
+                kind: 'error',
+                message:
+                  '模型这次没有产出正文（思考可能占满了输出预算）。可以直接点重试；' +
+                  '如果反复出现，到 ⚙ AI 设置把「单次输出上限」调大（如 20000 以上）。',
+                retryQuestion: text,
+              });
+              setStream(null);
+              return;
+            }
             append({
               question: text,
               answer: p.answer,

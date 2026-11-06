@@ -128,7 +128,10 @@ export interface QuotaCopy {
 
 const ZH: QuotaCopy = {
   dailyNote: (n) => `（本站免费提供 · 每天 ${n} 次）`,
-  statusBuiltin: (model, n) => `当前 AI：${model}（本站免费提供 · 每天 ${n} 次）`,
+  statusBuiltin: (model, n) =>
+    n >= 1000
+      ? `当前 AI：${model}（本站免费提供 · 不限次）`
+      : `当前 AI：${model}（本站免费提供 · 每天 ${n} 次）`,
   statusVip: (model, n) =>
     n > 0
       ? `当前 AI：${model}（VIP · 每天 ${n} 次）`
@@ -179,7 +182,7 @@ const ZH: QuotaCopy = {
   loginOk: '登录成功。',
   accountTitle: '我的额度',
   accountEmail: '登录邮箱',
-  accountFree: (r, l) => `今日免费剩余 ${r} / ${l} 次`,
+  accountFree: (r, l) => (l >= 1000 ? '今日免费不限次' : `今日免费剩余 ${r} / ${l} 次`),
   accountFreeLabel: '免费额度',
   accountPack: (n) => `流量包余额 ${n} 次`,
   accountPackLabel: '流量包',
@@ -194,7 +197,10 @@ const ZH: QuotaCopy = {
 
 const EN: QuotaCopy = {
   dailyNote: (n) => `(free on-site AI · ${n} per day)`,
-  statusBuiltin: (model, n) => `Current AI: ${model} (free on-site AI · ${n} per day)`,
+  statusBuiltin: (model, n) =>
+    n >= 1000
+      ? `Current AI: ${model} (free on-site AI · unlimited)`
+      : `Current AI: ${model} (free on-site AI · ${n} per day)`,
   statusVip: (model, n) =>
     n > 0 ? `Current AI: ${model} (VIP · ${n} per day)` : `Current AI: ${model} (VIP · unlimited)`,
   statusUser: (model) => `Current AI: ${model} (your key · unlimited)`,
@@ -243,7 +249,7 @@ const EN: QuotaCopy = {
   loginOk: 'Signed in.',
   accountTitle: 'My quota',
   accountEmail: 'Signed in as',
-  accountFree: (r, l) => `Free follow-ups left today: ${r} / ${l}`,
+  accountFree: (r, l) => (l >= 1000 ? 'Unlimited free follow-ups today' : `Free follow-ups left today: ${r} / ${l}`),
   accountFreeLabel: 'Free quota',
   accountPack: (n) => `Traffic pack balance: ${n}`,
   accountPackLabel: 'Traffic pack',

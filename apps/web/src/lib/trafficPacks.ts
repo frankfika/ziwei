@@ -7,6 +7,8 @@
  * 用户自备 Key 仍然不限量 —— 流量包只针对「站内内置 AI」的免费额度。
  */
 
+import { alipayConfigured } from './alipay';
+
 /** 流量包 checkout stub 的路径（POST { packId }） */
 export const CHECKOUT_PATH = '/api/checkout';
 
@@ -41,7 +43,13 @@ export interface PackEntry {
   checkout: string;
 }
 
-/** 构造流量包入口（服务端下发给前端用） */
+/**
+ * 构造流量包入口（服务端下发给前端用）。
+ *
+ * 支付没配好（商户凭据缺失 / 暂不开放购买）时**不下发任何套餐** ——
+ * 额度墙只讲免费额度，不摆一排点了只会报错的购买按钮。
+ */
 export function packEntry(): PackEntry {
+  if (!alipayConfigured()) return { packs: [], checkout: CHECKOUT_PATH };
   return { packs: TRAFFIC_PACKS, checkout: CHECKOUT_PATH };
 }

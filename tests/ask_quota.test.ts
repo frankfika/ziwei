@@ -131,9 +131,31 @@ export const suite = async (t: Tester): Promise<void> => {
     assert.equal(findPack('nope'), undefined);
   });
 
-  await t.test('packEntry 带上下单入口', () => {
-    const e = packEntry();
-    assert.equal(e.checkout, '/api/checkout');
-    assert.equal(e.packs.length, TRAFFIC_PACKS.length);
+  await t.test('packEntry：支付未配置时不摆购买入口，配置后下发全套套餐', () => {
+    const saved = {
+      id: process.env.ZIWEI_ALIPAY_APP_ID,
+      key: process.env.ZIWEI_ALIPAY_PRIVATE_KEY,
+      pub: process.env.ZIWEI_ALIPAY_PUBLIC_KEY,
+    };
+    try {
+      delete process.env.ZIWEI_ALIPAY_APP_ID;
+      delete process.env.ZIWEI_ALIPAY_PRIVATE_KEY;
+      delete process.env.ZIWEI_ALIPAY_PUBLIC_KEY;
+      assert.equal(packEntry().packs.length, 0, '支付没配好时不应下发套餐');
+
+      process.env.ZIWEI_ALIPAY_APP_ID = 'test';
+      process.env.ZIWEI_ALIPAY_PRIVATE_KEY = 'test';
+      process.env.ZIWEI_ALIPAY_PUBLIC_KEY = 'test';
+      const e = packEntry();
+      assert.equal(e.checkout, '/api/checkout');
+      assert.equal(e.packs.length, TRAFFIC_PACKS.length);
+    } finally {
+      if (saved.id === undefined) delete process.env.ZIWEI_ALIPAY_APP_ID;
+      else process.env.ZIWEI_ALIPAY_APP_ID = saved.id;
+      if (saved.key === undefined) delete process.env.ZIWEI_ALIPAY_PRIVATE_KEY;
+      else process.env.ZIWEI_ALIPAY_PRIVATE_KEY = saved.key;
+      if (saved.pub === undefined) delete process.env.ZIWEI_ALIPAY_PUBLIC_KEY;
+      else process.env.ZIWEI_ALIPAY_PUBLIC_KEY = saved.pub;
+    }
   });
 };

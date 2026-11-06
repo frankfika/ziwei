@@ -112,7 +112,7 @@ export default function HomeChat({
           onClick={() => setShowConfig((v) => !v)}
           data-ai-status
           title="点开 AI 设置"
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[11px] leading-snug text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:text-xs sm:leading-normal"
         >
           <span
             aria-hidden="true"

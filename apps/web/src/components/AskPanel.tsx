@@ -666,7 +666,9 @@ export default function AskPanel({
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
         >
-          {visibleMessages.length === 0 && !pending && !transient && bare && (
+          {/* 空态引导卡片只属于「全新对话」：历史折叠后 visibleMessages 也是空，
+              但那是聊天记录被收起来，不是没聊过 —— 再渲染引导卡会和折叠条打架 */}
+          {messages.length === 0 && !pending && !transient && bare && (
             /* 空态就是「引导」：不给一排灰字链接，直接给几张能点的卡片 ——
                没人会主动提问，就让人点一下就有回答 */
             <div className="flex flex-1 flex-col justify-center gap-3" role="status">

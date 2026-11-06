@@ -21,10 +21,10 @@ export function SiteHeader() {
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/"
-          className="group flex items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          className="group flex shrink-0 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
           <ZiweiMark className="h-[18px] w-[18px] shrink-0 text-zhu drop-shadow-[0_0_7px_rgba(61,90,133,0.35)] transition-transform duration-300 group-hover:rotate-12" />
-          <span className="font-serif text-[15px] font-semibold tracking-[0.16em] text-ink">
+          <span className="whitespace-nowrap font-serif text-[15px] font-semibold tracking-[0.16em] text-ink">
             紫微助手
           </span>
           <span className="hidden text-[10px] tracking-[0.3em] text-ink-3/70 sm:inline">

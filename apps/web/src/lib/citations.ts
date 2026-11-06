@@ -36,6 +36,33 @@ export function resolveCitationMode(raw?: string): CitationMode {
   return 'full';
 }
 
+/**
+ * 眼镜端（Rokid AIUI 智能体）专用的模式解析 —— **默认 `inline`，不是 `full`**。
+ *
+ * 差别只有一个，但很关键：
+ *  · Web 端的 `full` 是给本地自用 / 演示 / 研究留的默认值（引文是数据集价值的一部分）；
+ *  · 眼镜端是要上架 Rokid 商店的**公开作品**，属于「商业分发」场景，
+ *    docs/LEGAL_NOTES.md 第 5 节明确要求商用前切到 `inline`。
+ *
+ * 如果这里直接复用 `resolveCitationMode`，环境变量没配就会退回 `full`，
+ * 等于把受限的《天纪》原话原样推给用户 —— 这是合规事故，不是配置疏漏。
+ * 所以口径反过来：**只有显式写 `ZIWEI_CITATION_MODE=full` 才放宽**，
+ * 没写、写错、空值一律按 `inline` 处理。
+ */
+export function resolveAgentCitationMode(raw?: string): CitationMode {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (v === 'full') return 'full';
+  if (v === 'drop-line') return 'drop-line';
+  return 'inline';
+}
+
+/** 眼镜端对外披露用的模式说明（要能让用户看懂当前拿到的文本是什么形态） */
+export const AGENT_CITATION_MODE_LABEL: Record<CitationMode, string> = {
+  full: '完整展示（含《天纪》原话与出处标注）',
+  inline: '引文已降级（《天纪》原话以「引文略」代替）',
+  'drop-line': '含引文的整行已略去',
+};
+
 export interface CitationApplied {
   /** 处理后的正文 */
   text: string;

@@ -1,6 +1,13 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # Rokid AIUI 智能体工程（apps/rokid-agent）**不是本仓库的依赖成员**：
+  #   · 它零依赖，不需要 workspace 里的任何包；
+  #   · 它的产物（AIX 包）要单独提交到 Rokid 平台，版本需要冻结；
+  #   · 放进 workspace 会让 pnpm-lock.yaml 少一个 importer，
+  #     CI 的 `pnpm install --frozen-lockfile` 会直接红。
+  # 排除它不影响类型检查 —— scripts/typecheck.sh 是按 tsconfig.json 找目录的。
+  - '!apps/rokid-agent'
 allowBuilds:
   esbuild: set this to true or false
 onlyBuiltDependencies:

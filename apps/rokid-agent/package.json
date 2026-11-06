@@ -1,0 +1,8 @@
+{
+    "name": "ziwei-chart-agent",
+    "version": "1.0.0",
+    "description": "紫微星盘 · Rokid AI Glasses 十二宫命盘智能体：确定性排盘 + 原文检索解读 + 头部准星选宫",
+    "main": "app.js",
+    "type": "module",
+    "dependencies": {}
+}

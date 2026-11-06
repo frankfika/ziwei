@@ -1,0 +1,14 @@
+{
+    "pages": [
+        "pages/index/index"
+    ],
+    "permissions": [
+        "INTERNET"
+    ],
+    "window": {
+        "navigationBarTitleText": "紫微星盘",
+        "viewport": {
+            "width": "device-width"
+        }
+    }
+}

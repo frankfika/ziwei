@@ -43,6 +43,14 @@ export interface AskServiceOptions {
   maxTokens?: number;
   /** 传给 provider 的 temperature。 */
   temperature?: number;
+  /**
+   * 追加到系统提示末尾的额外约束（可选）。
+   *
+   * 用途：让**调用方**按自己的场景加约束，而不必改动共享的 ASK_SYSTEM_PROMPT ——
+   * 例如眼镜端（Rokid 商店商业分发）要加「不得复述引文原话」这类许可红线，
+   * Web 端本地自用不需要。不传时提示词与原来逐字一致。
+   */
+  extraSystem?: string;
 }
 
 export type AskResult =
@@ -110,6 +118,7 @@ export class AskService {
   private readonly maxContextChars: number;
   private readonly maxTokens?: number;
   private readonly temperature?: number;
+  private readonly extraSystem?: string;
 
   constructor(opts: AskServiceOptions = {}) {
     this.service = opts.service ?? new ZiweiService();
@@ -117,6 +126,7 @@ export class AskService {
     this.maxContextChars = opts.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
     this.maxTokens = opts.maxTokens;
     this.temperature = opts.temperature;
+    this.extraSystem = opts.extraSystem;
   }
 
   /**
@@ -130,13 +140,16 @@ export class AskService {
     const reading = this.service.reading(birth);
     if (reading.status === 'not-covered') return undefined;
     const chart = this.service.chart(birth);
-    const prompt = buildAskPrompt({
+    const built = buildAskPrompt({
       birth,
       question,
       chartSummary: chartSummary(chart),
       dimensions: reading.dimensions,
       maxContextChars: this.maxContextChars,
     });
+    const prompt: BuiltPrompt = this.extraSystem
+      ? { ...built, system: `${built.system}\n\n${this.extraSystem.trim()}` }
+      : built;
     return { prompt, chart };
   }
 
@@ -225,7 +238,7 @@ export class AskService {
       ].join('\n');
     }
 
-    const prompt = buildAskPrompt({
+    const built = buildAskPrompt({
       birth,
       question,
       chartSummary: summary,
@@ -235,6 +248,11 @@ export class AskService {
       ...(fortuneNote ? { fortuneNote } : {}),
       maxContextChars: this.maxContextChars,
     });
+
+    // 额外约束接在系统提示末尾 —— 放在硬约束之后，模型对最后一条的服从度更高。
+    const prompt: BuiltPrompt = this.extraSystem
+      ? { ...built, system: `${built.system}\n\n${this.extraSystem.trim()}` }
+      : built;
 
     return {
       status: 'ready',

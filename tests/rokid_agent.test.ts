@@ -57,6 +57,7 @@ const ENGINE_BUNDLE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'assets', 'eng
 const LAYOUT_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'chart-layout.js');
 const CURSOR_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'head-cursor.js');
 const PARSER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-parser.js');
+const KEY_GUARD_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'key-guard.js');
 const TIMELAYER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'time-layer.js');
 
 /** 眼镜端页面模板（界面文案契约） */
@@ -1402,6 +1403,45 @@ export const suite = async (t: Tester): Promise<void> => {
       ]) {
         assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
       }
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * G. key-guard.js —— 镜腿按键去抖（真机 GlobalHook 滑动误报防线）
+   * ---------------------------------------------------------------- */
+  if (!fs.existsSync(KEY_GUARD_MODULE)) {
+    t.skip('镜腿按键去抖（G 组全部用例）', `缺少 ${path.relative(REPO_ROOT, KEY_GUARD_MODULE)}`);
+  } else {
+    const kg = await loadModule<{
+      shouldAcceptKey(
+        guard: { lastCode: string | null; lastTs: number },
+        code: string,
+        now: number,
+        windowMs?: number,
+      ): boolean;
+      KEY_REPEAT_WINDOW_MS: number;
+    }>(KEY_GUARD_MODULE);
+
+    await t.test('同一按键在窗口内的重复上报被丢弃', () => {
+      const g = { lastCode: null as string | null, lastTs: 0 };
+      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1000), true, '首次按键应接受');
+      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1040), false, '40ms 内同 code 应丢弃');
+      assert.equal(
+        kg.shouldAcceptKey(g, 'ArrowRight', 1000 + kg.KEY_REPEAT_WINDOW_MS),
+        true,
+        '满窗口后的真实连按应重新接受',
+      );
+    });
+
+    await t.test('不同按键不受去抖影响', () => {
+      const g = { lastCode: null as string | null, lastTs: 0 };
+      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1000), true);
+      assert.equal(kg.shouldAcceptKey(g, 'ArrowUp', 1010), true, '换键应接受，不能被上一键的去抖窗口吞掉');
+    });
+
+    await t.test('空 code 直接拒绝', () => {
+      const g = { lastCode: null as string | null, lastTs: 0 };
+      assert.equal(kg.shouldAcceptKey(g, '', 1000), false, '没有 code 的事件不该产生动作');
     });
   }
 };

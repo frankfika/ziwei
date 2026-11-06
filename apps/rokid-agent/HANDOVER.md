@@ -54,7 +54,7 @@ Rokid 专业认证审核中（报名表打不开）、眼镜真机零验证、�
 | `apps/rokid-agent/lib/chart-layout.js` | 运限四化优先渲染、`fortuneShort` 运限宫名小标、`RING_ORDER` + `stepRing` 外圈巡宫、`speakableStars` 朗读文本、宫名归一 |
 | `apps/rokid-agent/pages/index/index.ink` | 上下键切层、中宫 7 行改版、追问带时间层焦点、切层语音播报 |
 | `apps/rokid-agent/lib/chart-source.js` | `resolveChart` 返回 `{ chart, source, engine }`（运限层要端侧引擎） |
-| `tests/rokid_agent.test.ts` | 47 → **64 项**（+17） |
+| `tests/rokid_agent.test.ts` | 47 → **67 项**（+17 时间层，+3 按键去抖 `/lib/key-guard.js`） |
 
 **最终键位映射（全模式一致）**：
 

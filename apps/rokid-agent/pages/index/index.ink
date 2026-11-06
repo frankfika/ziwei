@@ -56,6 +56,7 @@ import {
     createTiltState,
     updateTilt,
 } from '../../lib/head-cursor.js';
+import { shouldAcceptKey } from '../../lib/key-guard.js';
 import {
     TIME_LAYER_NAMES,
     buildTimeLayers,
@@ -147,6 +148,7 @@ export default {
     onLoad(query) {
         this._cursor = createCursorState();
         this._tilt = createTiltState();
+        this._keyGuard = { lastCode: null, lastTs: 0 };
         this._sensorMode = 'none';
         this._readingCache = null;
         this._citationLabel = '';
@@ -187,6 +189,8 @@ export default {
     onKeyUp(event) {
         const code = event && event.code;
         if (!code) return;
+        // 同 code 在 150ms 内的重复上报（GlobalHook 滑动误报）直接丢弃
+        if (!shouldAcceptKey(this._keyGuard, code, Date.now())) return;
 
         if (this.data.overlay === 'input') {
             if (code === KeyCode.CONFIRM) this._startVoiceInput();

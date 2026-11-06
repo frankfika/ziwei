@@ -137,10 +137,11 @@ cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-
 未验证项：传感器轴向、tilt 的 `axis`/`signFlip`、镜腿 `event.code` 实际键值、
 TTS 音质、**新加的上下键切层与外圈巡宫手感**、运限层实际渲染效果。
 
-### 6.3 生产接口未部署
+### 6.3 生产接口 —— 已部署（2026-11-06 22:40 完成）
 
-`https://ziwei.secondplanet.cc/api/agent/{chart,reading,ask}` → **404**（代码就位但没发上去）。
-眼镜端的「听解读」「追问」全部依赖它。**本轮尝试部署失败**，详见第 7 节。
+`https://ziwei.secondplanet.cc/api/agent/{chart,reading,ask}` 三个接口已上线并实测通过
+（chart 返回十二宫、reading 返回 13 维正文、ask 16s 返回带运限的真实模型回答）。
+镜像 `ziwei-assistant:agent-20261106` 由 feature 分支构建，回滚标签 `ziwei-assistant:backup-20261106`。
 
 ---
 
@@ -165,7 +166,11 @@ dial tcp 69.63.176.143:443: i/o timeout
 服务器连不上 docker.io（境内网络）。`--build-context node:22-slim=docker-image://...`
 **对多阶段 Dockerfile 的 FROM 不生效**（三个阶段各有一行 FROM）。
 
-**下一步（二选一，推荐 A）**：
+**已完成（2026-11-06 22:40）**：按方案 A 执行 —— `git archive HEAD` 导出到 `/opt/ziwei.new`（服务器上旧的已被清理）、
+`sudo sed` 三处 FROM → `docker.m.daocloud.io/library/node:22-slim`、带 `--build-arg DEBIAN_MIRROR=mirrors.aliyun.com` 构建
+（20.8s 完成 Next 构建阶段，整机约 6 分钟），旧镜像打 `backup-20261106` 标签，
+容器按原参数用 `--env-file /opt/ziwei-runtime.env`（由 `docker inspect` 导出的现容器 env，chmod 600）重建，
+三个接口 curl 实测通过。原始操作步骤留档如下：
 
 - **A（不动仓库）**：在服务器侧改构建副本的 FROM：
   ```bash

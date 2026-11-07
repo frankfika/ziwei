@@ -27,5 +27,11 @@ apps/web/.verify/
 .playwright-mcp/
 apps/web/.data/
 
+# 报名用作品策划案 PDF：由 `npm run proposal:pdf` 从 PROPOSAL.md 生成。
+# 不入库的理由与 /data/ 一样 —— 它是**生成物**，随 PROPOSAL.md 每改一次就变一次，
+# 入库会让 git 历史反复存几 MB 几乎相同的大文件。
+# 需要提交物时跑一次 `npm run proposal:pdf`，产物落在 submit-kit/proposal/。
+apps/rokid-agent/submit-kit/proposal/*.pdf
+
 # 运行状态（账户 / 会话 / 订单 / 额度计数）
 /.data/

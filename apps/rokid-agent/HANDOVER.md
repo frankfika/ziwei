@@ -9,8 +9,8 @@
 
 ## 0. 一句话现状
 
-工程主体、**时间层（运限）功能**、提审材料包全部完成并通过验证；卡在**三个外部依赖**上：
-Rokid 专业认证审核中（报名表打不开）、眼镜真机零验证、生产接口未部署。
+工程主体、**时间层（运限）功能**、提审材料包全部完成并通过验证；后端三个接口已部署并验证通过。
+卡在**两个外部依赖**上：Rokid 专业认证审核中（报名表打不开）、眼镜真机零验证。
 
 ---
 
@@ -37,10 +37,12 @@ Rokid 专业认证审核中（报名表打不开）、眼镜真机零验证、�
 4. **眼镜端口径必须与 Web 端一致**（运限层的「今年」取**公历年**，与
    `apps/web/src/app/chart/page.tsx` 同一口径；农历年到正月初一才换）。
 5. **只在 `feat/rokid-spatial-joy-2026` 分支干活**，不要在 main 上直接改。
+<!-- compliance:internal -->
 6. **合规禁用词**（PROPOSAL.md 9.3 全表）：预测吉凶、转运、开运、改命、化解厄运、
    消灾避祸、趋吉避凶、算命、占卜、卜卦、看运势、灵验、准不准、准确率、命中率、
    风水调理、能量/磁场/灵力、注定、一生命运、开光、法事、灵摆。
    界面文案与提审材料一律不得出现（PROPOSAL 9.3 词表本身除外）。
+<!-- /compliance:internal -->
 
 ---
 
@@ -73,8 +75,8 @@ Rokid 专业认证审核中（报名表打不开）、眼镜真机零验证、�
 
 ### 3.2 提审材料包（`apps/rokid-agent/submit-kit/`，5 个文件）
 
-`store-description.md`（171 行）/ `community-post.md`（182）/ `video-script.md`（168，9 镜 88 秒，旁白 285 字）/
-`faq.md`（255，16 条）/ `compliance-checklist.md`（183，56 项可勾选）。
+`store-description.md`（176 行）/ `community-post.md`（183）/ `video-script.md`（168，9 镜 88 秒，旁白 285 字）/
+`faq.md`（312，20 条）/ `compliance-checklist.md`（235，72 项可勾选，其中 2 项已完成）。
 禁用词扫描 0 命中（仅「禁止使用它们」的说明句属预期例外）。
 
 ### 3.3 文档同步
@@ -121,7 +123,7 @@ cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-
 
 ---
 
-## 6. 三个硬阻塞（当前无法靠写代码解决）
+## 6. 两个硬阻塞（当前无法靠写代码解决）
 
 ### 6.1 Rokid 专业认证审核中 —— 报名表打不开
 
@@ -129,6 +131,8 @@ cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-
 - 账户中心 `account-web.rokid.com/verify`：Frank 的 Professional Authentication（Personal）= **Under Review**
   （身份证正反面已交），无补充材料提示、无 SLA。
 - 报名页只显示「Verification not completed」，表单点不开。
+- **报名资格只认专业认证**：赛事前端 `front/user/checkAuth` 返回的 `majorCheckStatus` 必须等于 `2` 才解锁报名表；
+  **Basic Authentication（基础实名认证）不能替代** —— 不要把「先补基础实名」当成报名前的准备工作。
 - 邮件草稿已在 `apps/rokid-agent/MAIL-TO-ROKID.md`（中英双版），**署名方式尚未定**（个人 / 个人+公司 / 公司主体）。
 
 ### 6.2 眼镜真机零验证 —— 最大风险项
@@ -137,28 +141,30 @@ cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-
 未验证项：传感器轴向、tilt 的 `axis`/`signFlip`、镜腿 `event.code` 实际键值、
 TTS 音质、**新加的上下键切层与外圈巡宫手感**、运限层实际渲染效果。
 
-### 6.3 生产接口 —— 已部署（2026-11-06 22:40 完成）
+### 6.3 生产接口 —— **不再是阻塞**（2026-11-06 22:40 部署完成，2026-11-07 复测通过）
 
 `https://ziwei.secondplanet.cc/api/agent/{chart,reading,ask}` 三个接口已上线并实测通过
-（chart 返回十二宫、reading 返回 13 维正文、ask 16s 返回带运限的真实模型回答）。
+（各 POST 一次均 **HTTP 200**：排盘返回十二宫 JSON、`palaces` 12 项；解读返回 `status: "ok"` +
+`citationMode: "inline"`，受限引文已按三层防线降级；追问返回真实回答文本）。
 镜像 `ziwei-assistant:agent-20261106` 由 feature 分支构建，回滚标签 `ziwei-assistant:backup-20261106`。
+**注意**：服务端可用 ≠ 眼镜上跑通，`wx.request` 跨域与朗读链路仍未在真机实测（见 6.2）。部署操作步骤留档见第 7 节。
 
 ---
 
-## 7. 生产部署：现状、失败原因、下一步
+## 7. 生产部署：留档与操作步骤（已于 2026-11-06 22:40 完成）
 
 **服务器**：`49.234.25.35`（腾讯云上海 CVM，与 SecondPlanet 企业版同机）
 → `ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35`（**sshd 只认 RSA 密钥**）
 
-**现状**：
+**部署前的现状（2026-11-06 22:40 之前，留档）**：
 - `/opt/ziwei` = 源码副本（**不是 git 仓库**），`/opt/ziwei.new` = 本轮同步的 feature 分支 HEAD。
-- 容器 `ziwei-assistant` 跑 `ziwei-assistant:compact`（21:36 构建，**来自 main，没有 agent 路由**），状态健康。
+- 当时容器 `ziwei-assistant` 跑 `ziwei-assistant:compact`（21:36 构建，**来自 main，没有 agent 路由**），状态健康。
 - 容器是 **`docker run` 建的**（没有 compose 标签），env 直接在容器里：
   `ZIWEI_ASK_API_KEY`（125 字符）/ `BASE_URL` / `MODEL` / `PROVIDER` / `DAILY_LIMIT` / `MAX_TOKENS` / `VIP_EMAILS` —— **都非空**。
 - 卷：`ziwei-data → /app/data`、`ziwei-state → /app/state`（重建容器不丢）。
 - `deploy/docker-compose.yml` 里的 `${VAR:-}` 会解析成空 —— **别用 compose 重跑**，会把模型 key 弄丢。
 
-**本轮失败原因**：
+**当时的失败原因（留档）**：
 ```
 ERROR: failed to resolve source metadata for docker.io/library/node:22-slim:
 dial tcp 69.63.176.143:443: i/o timeout
@@ -233,23 +239,29 @@ curl -s -X POST -H 'content-type: application/json' \
    是否附作品视频链接。
 2. **软件著作权**：是否立即登记？规范疑似要求，周期以月计，不启动会卡死 2027-01-28。
 3. **作品名与分类定稿**：「紫微星盘 / 学习」为主选，备选「十二宫盘 / Twelve Palace Chart」。
-4. **借一台 Rokid Glasses**：真机验证 + 提审素材视频的前置。
+4. **借一台 Rokid Glasses**：真机验证 + 提审素材视频的前置。可在赛事系统申请开发样机借用（每赛道限 1 台，先到先得；已有设备可点「我有设备跳过」；借用需签合同，3 个工作日内签，邮寄地址精确到省市区）。
 5. **生产模型 key**：本地 `apps/web/.env.local` 已有 `ZIWEI_ASK_*`（含 125 字符 key），
    确认是否就用它发生产；模型**禁用思维链型**（会撞 180s 超时），推荐 `deepseek-chat` 或 `MiniMax-M1`。
-6. **提审素材**：1 图 + 1 视频必须**真机实拍**，现在没有。
+6. **提审素材**：AIUI 商店提审的「1 图 + 1 视频」必须**真机实拍**，现在没有。赛事侧的**作品提交材料是另一套**：
+   APK（≤500MB，AI 赛道配套安装包，**提审上架后才有**）+ PPT（≤1GB，作品信息介绍）+ 视频（≤1GB，实机录制），
+   另有可选的测试说明；提交时要填**应用 ID**。
 
 ---
 
 ## 10. 赛事信息（已实测，别再重复调研）
 
-- **赛程**：报名开始 2026.10.27 / 作品提交 2026.10.27–2027.01.28 / 评选 2027.01.28–2027.02.28 / 决赛 2027.3 中旬。
+- **赛程**：12 周循环赛，2026.10.27 起至 2027.01.28 止；报名开始 2026.10.27 / 作品提交 2026.10.27–2027.01.28 / 评选 2027.01.28–2027.02.28 / 决赛 2027.3 中旬。**2027-03-02 公布决赛入围名单，决赛为线下路演 + 答辩**。
+- **流程节点**：报名提交作品策划案 → 策划案审核**约 3 个工作日**反馈 → 通过即获得参赛资格（对应 500 美金 Token）→ 可申请开发样机借用（每赛道限 1 台，先到先得；已有设备可点「我有设备跳过」；需签合同，3 个工作日内签，邮寄地址精确到省市区）→ 提审上架国内 Agent 商店 → 提交作品材料（APK / PPT / 视频，需填应用 ID）→ 上架后在 Rokid 用户社区发帖。
+- **作品提交材料（三样必填）**：**APK（≤500MB，AI 赛道配套安装包 —— 这一项来自「提审上架后才有」）** + PPT（≤1GB，作品信息介绍）+ 视频（≤1GB，实机录制），另有可选的测试说明。与 AIUI 商店提审的「1 图 + 1 视频」不是同一套，别混。
+- **报名资格**：只认**专业认证**（赛事前端 `checkAuth` 的 `majorCheckStatus` 必须为 `2`），Basic Authentication 不能替代。
+- **作品类型（子赛道）只有四类**：生活 / 工作 / 娱乐 / 学习。当前 AI 赛道榜单 8 个作品里「学习」类为 0，「生活」4 个、「娱乐」4 个 —— 只作客观现状，不作胜负承诺。
 - **榜单**：每周四 18:00 更新；10.27 当周轮空；11.05 首榜。当前累计 **8 个作品**，
   TOP1「跑步大师」7.03，TOP5「颈动书空」3.67（娱乐，用颈部动作 → **与我们的头部准星撞创意**）。
 - **评分**：综合榜 = 评委 70% + 用户使用 30%。
   - 用户使用榜：UV 30% / 总有效时长 30% / **作品完成度 20%** / PV 20%。
   - 评委榜：实用价值 30% / 产品体验 20% / 差异亮点 20% / **作品完成度 20%** / 使用频率与传播性 10%。
 - **硬要求**：中文化 + 通过 `aiui.rokid.com` 提审并上架**国内** Agent 商店 +
-  提交资料到赛事管理系统 + 上架后**在 Rokid 用户社区发帖**。
+  提交资料到赛事管理系统 + 上架后**在 Rokid 用户社区发帖**（国际化单项奖才免发帖）。
   **用户使用分只统计国内商店上架后的有效使用。**
 - 另有 3 个国际化单项奖（需 `aiui-global.rokid.com` 海外提审）。
 - **奖项**：每周 TOP1–5 = ¥2000/1500/1000/700/500，霸榜奖 ¥30,000，1–10 名 $100 算力额度/团队。
@@ -279,7 +291,7 @@ curl -s -X POST -H 'content-type: application/json' \
 
 ## 12. 建议的下一步顺序
 
-1. 部署 `apps/agent/*` 到生产（第 7 节），让眼镜端能演示解读与追问。
+1. 三个接口已部署并验证通过（第 6.3 / 第 7 节）；接下来是**在眼镜上实测解读与追问这条链路**（按 `submit-kit/compliance-checklist.md` 第五节逐项过）。
 2. 同时发 `MAIL-TO-ROKID.md` 给官方（先定署名），问「在审期间能否预登记 + 审核时长」。
 3. 启动软著登记（第 9 节第 2 项，周期最长）。
 4. 借真机：按 `submit-kit/compliance-checklist.md` 逐项验（含时间层渲染、上下键手感、外圈巡宫手感），

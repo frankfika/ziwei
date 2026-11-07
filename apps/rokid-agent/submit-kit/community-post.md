@@ -75,7 +75,7 @@ HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上
 ### 现在的状态
 
 - 端侧排盘引擎已打包（约 860 KB，单文件 ESM），有 9 份金标准盘的回归测试背书；
-- 服务端三个接口（解读 / 追问 / 排盘兜底）代码写完了，部署还在推进；
+- 服务端三个接口（解读 / 追问 / 排盘兜底）已经上线并验证通过；
 - 时间层（运限四层）已接进页面，上下键切层，在端侧算；真机上还没验证过；
 - 真机全链路还在跑通的路上。
 
@@ -152,7 +152,7 @@ Has anyone hit something similar? When a dataset carries third-party restricted 
 ### Where things stand
 
 - The on-device engine is bundled (about 860 KB, single-file ESM) and backed by a nine-chart regression suite.
-- The three server endpoints (interpretation, follow-up, chart fallback) are implemented; deployment is still in progress.
+- The three server endpoints (interpretation, follow-up, chart fallback) are live and verified.
 - The four time layers are wired into the page and computed on the device, but they have not been verified on the hardware yet.
 - The full device flow is still being brought up.
 
@@ -177,6 +177,7 @@ Criticism welcome, especially on question one.
 2. **不要在评论区回答「结果有多准」这类提问。** 统一口径：盘面由规则算出，同一生辰必得同一张盘；解读是传统文本的原文检索。回答不了的问题就说「这个我不做」。
 3. **转述数据集内容要带出处。** 帖子里提到解读正文来自公开数据集时，作者与许可（CC BY 4.0 / 王多鱼AI）至少出现一次；CC BY 的署名义务不因为换到社区就不成立。
 4. **如果有人问「能不能用它做决定」**，按 `AGENTS.md` 的口径回：只讲盘面上客观存在的结构性事实，不给决策建议，并说明这是传统术数的文化解读。
-5. **别在帖子里贴未部署的接口地址。** 服务端接口当前生产域名返回 404，帖子里提到接口时只说「部署推进中」，不要贴链接让人试。
+5. **别在帖子里贴具体的接口地址。** 服务端三个接口已上线并验证通过，帖子里提到接口时只说「已上线」，不要贴具体 endpoint 或链接让人试。
 6. **看到「数字 + 百分比」这类结论性评论不要接。** 一旦应下具体数字，后续截图就会被当证据。
 7. **别把时间层说成「运势」「转运」「命好命坏」。** 运限层的口径是结构定位：这一层的命宫落在哪一宫、哪几个宫被四化引动。有人问「这层是什么意思」，就按这个说法答，不要往「预测」上靠，也不要承诺任何判断。
+8. **帖子要等上架之后发。** 非国际化奖项的硬要求是：完成中文化 → 通过 `aiui.rokid.com` 提审并上架**国内** Agent 商店 → 上架后在 Rokid 用户社区发帖（国际化单项奖才免发帖）。用户使用分只统计国内商店上架后的有效使用，所以顺序不能倒。

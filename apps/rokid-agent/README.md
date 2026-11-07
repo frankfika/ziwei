@@ -181,6 +181,30 @@ AIUI Studio 地址：**`https://aiui.rokid.com/`**（浏览器内运行，无需
 
 `AGENTS.md` 里写的是「不申请任何权限：不使用摄像头、麦克风采集、定位或系统媒体库」——语音输入走**设备自带的识别能力**，录音不落盘、不上传。提审时「权限依赖」栏必须与代码一致，不要因为用了 TTS/ASR 就申请麦克风权限。
 
+### 4.7 赛事侧要交的材料与节点（与商店提审不是同一套）
+
+AIUI 商店提审要的是「1 图 + 1 视频」，赛事**作品提交**要的是**三样必填**：
+
+| 材料 | 规格 | 说明 |
+|---|---|---|
+| **APK** | ≤ 500 MB | AI 赛道配套安装包。**这一项来自「提审上架后才有」** —— 顺序不能倒 |
+| **PPT** | ≤ 1 GB | 作品信息介绍 |
+| **视频** | ≤ 1 GB | 实机录制 |
+| 测试说明 | 可选 | 补充说明 |
+
+提交时要填**应用 ID**，所以顺序是：**提审上架国内 Agent 商店 → 拿到应用 ID 与安装包 → 回赛事管理系统提交作品材料 → 上架后在 Rokid 用户社区发帖**。
+
+**从报名到提交的节点**：
+
+```
+报名提交作品策划案 → 策划案审核（约 3 个工作日反馈）→ 通过即获得参赛资格（对应 500 美金 Token）
+  → 可申请开发样机借用（每赛道限 1 台，先到先得；已有设备可点「我有设备跳过」；需签合同，3 个工作日内签，邮寄地址精确到省市区）
+  → 提审上架国内 Agent 商店 → 提交作品材料（APK / PPT / 视频，填应用 ID）→ 上架后在 Rokid 用户社区发帖
+```
+
+- **赛程**：12 周循环赛，2026-10-27 起至 2027-01-28 止；2026-11-05 首榜，之后每周四 18:00 更新；2027-03-02 公布决赛入围名单；决赛为线下路演 + 答辩。
+- **评分权重**（AI 赛道，综合榜 = 评委打分 70% + 用户使用榜 30%）：评委侧 实用价值 30% / 产品体验 20% / 使用频率与传播性 10% / **作品完成度 20%** / 差异亮点 20%；用户使用侧 UV 30% / 总有效时长 30% / PV 20% / **作品完成度 20%**。**作品完成度在两处各占一次。**
+
 ---
 
 ## 5. 真机调试要点与已知坑
@@ -323,24 +347,31 @@ Rokid AI Glasses 的 HUD 是 **480 × 352 px、单色绿 Micro-LED、30° FOV**�
 | 报名 URL | `https://spatialjoy.rokid.com/signup?eventId=15`（**没有 `/2026` 前缀**，带前缀会 404） |
 | 报名页实际显示 | *"Verification not completed. Please complete professional verification in the Rokid account center before registering. You will return to this page afterwards."* —— **报名表进不去** |
 | 账户中心 `account-web.rokid.com/verify` | Basic Authentication（基本实名）未做；**Professional Authentication（Personal）= Under Review**（已提交身份证正反面，在审） |
+| 赛事前端怎么判定报名资格 | `front/user/checkAuth` 返回的 `majorCheckStatus` 必须等于 `2` 才解锁报名表。**Basic Authentication（基础实名认证）不能替代专业认证** —— 只补基础实名这条路走不通，不要按「先做基础实名就能报名」排期 |
 | 页面上有没有补充材料提示 / 审核 SLA | **都没有** |
 | 另一条路 | 左侧菜单 `organization information`（企业认证）—— 需企业材料，是否更快未知 |
 
 **这排在所有技术项之前**：认证不通过 → 报名表打不开 → 作品名、分类、提审素材、提交全部无从谈起。
 连「等 Rokid 官方回复分类口径」都排在它后面 —— 官方回得再快，认证不过照样报不了名。
 
+**补认证只有「专业认证」这一条有效路径**：基础实名认证不计入，不要把它当成报名前的准备工作。
+
 ---
 
-### 7.3 后端部署缺口（**Demo 的硬阻塞**）
+### 7.3 后端接口（**已部署并验证通过**）
 
-| # | 项 | 状态 |
+三个接口已上线生产域名 `ziwei.secondplanet.cc`（2026-11-06 部署完成，2026-11-07 复测），逐个 POST 实测：
+
+| # | 项 | 实测结果 |
 |---|---|---|
-| 1 | `POST /api/agent/reading` | 2026-11-06 实测：生产域名 `ziwei.secondplanet.cc` 返回 **HTTP 404**（站点本身 200，确认是路由缺失）。**代码已实现**（`apps/web/src/app/api/agent/reading/route.ts`），差的是**部署** |
-| 2 | `POST /api/agent/ask` | 同上，**HTTP 404**；代码已实现（含引文三层降级），未部署 |
-| 3 | `POST /api/agent/chart` | 同上，**HTTP 404**（端侧成功时用不到，但兜底路径失效）；代码已实现，未部署 |
+| 1 | `POST /api/agent/chart` | **HTTP 200**，返回十二宫 JSON（`palaces` 数组 12 项） |
+| 2 | `POST /api/agent/reading` | **HTTP 200**，`status: "ok"`，`citationMode: "inline"`，标签为「引文已降级（《天纪》原话以「引文略」代替）」 |
+| 3 | `POST /api/agent/ask` | **HTTP 200**，返回真实回答文本 |
 | 4 | `/api/agent/reading` 的 **`inline` 引文降级接入** | **已实现**（2026-11-06）。三层防线：① 输入层 `redactingService` 先降级再拼提示词，模型看不到受限原文；② 输出层再降级一次模型吐出的引文片段；③ 提示词追加「只讲机制、不复述原话」的许可红线。模式由 `resolveAgentCitationMode` 解析，**默认 `inline`**（与 Web 端默认 `full` 刻意不同），响应里带 `citationMode` / `citationModeLabel` 供界面披露。回归网见 `tests/agent_citation.test.ts`（10 例） |
 
-**接口未补齐前，可演示的只有「出盘 + 准星选宫 + 上下键切层」三步**（这三步全在端侧，不依赖服务端）；解读与追问两步需要在 Demo 前打通，或按 `PROPOSAL.md` 8.2 节的备份路径准备离线兜底。
+**请求参数**：`year` / `month` / `day` / `hour` / `gender`；`hour` 是**时辰序号 0–11**（子时 = 0），`ask` 另需 `question`。
+
+**服务端可用 ≠ 眼镜上跑通**：接口这边已经通了，但眼镜端的 `wx.request` 跨域与弱网表现、朗读链路都还没在真机上实测过（见 7.1）。Demo 前仍要按 `PROPOSAL.md` 8.2 节的备份路径准备离线兜底。
 
 ---
 

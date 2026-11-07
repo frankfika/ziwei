@@ -33,6 +33,7 @@ const SUITE_FILES = [
   'tests/quota_copy.test.ts',
   'tests/rokid_agent.test.ts',
   'tests/agent_citation.test.ts',
+  'tests/rokid_compliance.test.ts',
 ];
 
 /** 一个文件跑完的结果 */

@@ -37,7 +37,7 @@ const files = [
   ...collect(join(AGENT_ROOT, 'submit-kit'), ['.md']),
   ...collect(join(AGENT_ROOT, 'lib'), ['.js']),
   ...collect(join(AGENT_ROOT, 'pages'), ['.ink']),
-  ...['PROPOSAL.md', 'README.md', 'HANDOVER.md', 'MAIL-TO-ROKID.md', 'MAIL-TO-ROKID.send.txt', 'app.json']
+  ...['PROPOSAL.md', 'README.md', 'HANDOVER.md', 'MAIL-TO-ROKID.md', 'MAIL-TO-ROKID.send.txt', 'app.json', 'DEVICE-CHECKLIST.md']
     .map((f) => join(AGENT_ROOT, f))
     .filter((f) => existsSync(f)),
 ];

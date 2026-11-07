@@ -30,6 +30,17 @@
 - ⚖️ 版权归属：AI 赛道作品版权为开发者所有，获奖后默认授权在 Rokid 商店上架
 - ⏰ **还剩 82 天**（截止 2027-01-28），本周四 18:00 更新第一张榜
 
+**2026-11-07 第四轮（调试修复 + 材料补齐）**：
+
+- 🔧 **修好「模拟器出不了盘」**（这是最要紧的一处）：出生参数三级兜底（入参 → 本机存档 → 内置示例盘）
+  + 盘面态返回键改为「回到生辰录入」（原来直接退出应用，语音失败一次就被锁死）。
+  详见 §3.4。
+- 🧪 **新增本地首启模拟器**（`npm run agent:first-launch`）：把首屏变成可自动回归的门禁。
+  实测**端侧引擎真的加载成功**（中宫显示「端侧计算」而非「服务端计算」）、四层运限可用 —— 此前是「不知道」。
+- 📋 **真机验证清单成文**：`DEVICE-CHECKLIST.md`（417 行，A–H 8 组 + 21 条故障对照 + 录屏清单 + 10 条硬门槛）
+- 📑 **软著材料包完成**：源程序打印稿（61 页，每页恰好 50 行）+ 说明书 PDF（8 页）+ 登记要点与提交指引
+- ⚠️ **Studio 工程与 AIX 现在是旧代码** —— 上面这些改动在仓库里已验证，Studio 侧必须**重新导入 + 重新打包**才能复验
+
 ---
 
 ## 1. 阻塞项（唯一硬阻塞）
@@ -65,6 +76,11 @@ async function T(e){                     // e = front/user/login 的返回
 | 智能体图标 | `icon/icon-{1024,512,256}.png` | `npm run icon:render` | ✅ 1:1；**默认图标会被打回，必须换**（已换上） |
 | 盘面预览图 | `preview/board-{natal,liunian}.png` | `npm run board:preview` | ✅ 480×352 @3x，**模拟器渲染** |
 | 商店描述 / 社区帖 / FAQ / 视频脚本 / 合规清单 | `store-description.md` `community-post.md` `faq.md` `video-script.md` `compliance-checklist.md` | 手写 | ✅ |
+| 软著说明书 | `copyright/软件说明书.md` | 手写 | ✅ 10 章 + 附录 A |
+| 软著源程序打印稿 | `copyright/紫微星盘-源程序.pdf` | `npm run copyright:materials` | ✅ 61 页（前 30 + 省略说明 1 + 后 30），每页**恰好 50 行** |
+| 软著说明书打印稿 | `copyright/紫微星盘-软件说明书.pdf` | `npm run copyright:materials` | ✅ 8 页 / A4 |
+| 软著登记要点与提交指引 | `copyright/登记要点与提交指引.md` | 手写 | ✅ 含登记依据、提交步骤、时间预期 |
+| 真机验证清单 | `DEVICE-CHECKLIST.md`（在 `apps/rokid-agent/` 根） | 手写 | ✅ 417 行；A–H 8 组步骤 + 21 条故障对照 + 录屏清单 + 10 条硬门槛 |
 | AIX 包（AIUI Studio 产出） | `bcdceff1163f4e6e8dea474d03b50c9-1794011125685.aix` | AIUI Studio「打包并保存」 | ✅ 1.89 MB |
 
 > 盘面预览图是**模拟器渲染**（真实引擎数据 + 真实布局函数 + 真实 Ink 样式），不是真机照片。
@@ -199,6 +215,11 @@ const birth = this._resolveBirth(query);   // query.year/month/day/hour/gender
 ### 步骤 4 · 真机调试（当前最大的质量缺口，也是权重最高、最容易补齐的一项）
 
 「作品完成度」在评委打分榜（占 20%）与用户使用榜（占 20%）里**各算一次**。
+
+> 📋 **照着做就行：`apps/rokid-agent/DEVICE-CHECKLIST.md`**（417 行，A–H 8 组步骤 + 21 条故障对照表
+> + 录屏清单 + 10 条硬门槛 + 现场记录表）。2026-11-07 已成文。
+> 本节只列**风险清单**，具体操作看那份清单。
+
 2026-11-07 之前**全链路从未在 Rokid AI Glasses 真机上跑过**，以下全部未验：
 
 - `AbsoluteOrientationSensor` 在真机是否可用、要不要宿主显式 enable（代码有 1.5 s 首帧超时降级）
@@ -323,10 +344,18 @@ const birth = this._resolveBirth(query);   // query.year/month/day/hour/gender
 
 ---
 
-## 8. 待官方回复的问题（已随 `MAIL-TO-ROKID.md` 发出）
+## 8. 待官方回复的问题（邮件已定稿，**尚未发出**）
 
 软著是否必需、题材可否收录与分类口径、敏感词预检、后端域名是否符合上架要求、
-持续运营下限、个人认证审核周期与能否预登记。**那封邮件还没发** —— 需要 Frank 确认署名口径后再发。
+持续运营下限、个人认证审核周期与能否预登记。
+
+- 邮件正文：`MAIL-TO-ROKID.send.txt`（6785 B，实际发送 payload）
+- **阻塞不是内容，是发信凭证**：本机 Mail.app 四个账号
+  （`chenpitang2020@gmail.com` / `frank.chen@dgrid.ai` / `helloworld@frankfika.com` / `fang.chen@opencsg.com`）
+  全部认证失败（`ECAuthenticationErrorDomain Code=1032`，SMTP `500 5.5.1 Invalid command`，IMAP `BAD invalid command`）。
+- 解法二选一：① 在 Lark 后台给 `helloworld@frankfika.com` 生成**客户端专用密码**并重填 Mail.app；
+  ② 在「邮箱工作台」MiniApp 里由 Frank 本人连接账号（授权码由他本人填，Agent 不代填凭证）。
+- 发出后：官方回复要 2–4 周，**软著是否必需**就靠这封邮件的回复 —— 这是软著与材料包并行启动的原因。
 
 > 素材规格这一问（3–5 个文件、含 1 图 1 视频）**已经在 AIUI Studio 提审页实测确认**，
 > 邮件里可以改成「已知，附实测口径」，只剩视频格式与时长上限仍待确认。

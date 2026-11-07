@@ -38,5 +38,13 @@ apps/rokid-agent/submit-kit/proposal/*.pdf
 # HTML 随每次改动都变，且可由脚本重新生成 —— 不入库。
 apps/rokid-agent/submit-kit/preview/*.html
 
+# 软著登记打印稿：由 `npm run copyright:materials` 从「说明书 md + 仓库源码」生成。
+# 与策划案 PDF 同理 —— 是生成物，随源码每改一次就变一次，重复入库会让 git 历史堆几 MB 近似文件。
+# 入库的只有它的**源**（submit-kit/copyright/软件说明书.md + 登记要点与提交指引.md）。
+#
+# ⚠️ 例外：**提交给版权局的那一份定稿**必须留档 —— 走 `copyright/submitted/`，
+#    那个目录不忽略，只在正式提交时落一次（文件名带日期），作为「交出去的是哪一版」的凭证。
+apps/rokid-agent/submit-kit/copyright/*.pdf
+
 # 运行状态（账户 / 会话 / 订单 / 额度计数）
 /.data/

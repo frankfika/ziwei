@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    紫微星盘 · AIUI Studio 提审用智能体图标（1:1，建议 1024×1024）
+    设计沿用 Web 端 apps/web/src/app/icon.svg 的品牌符号（深底 + 紫四芒星 = 紫微星），
+    补上产品自己的两个视觉语言：
+      · 十二宫 —— 四四方阵，中央 2×2 是中宫，十二宫环绕（与 lib/chart-layout.js 的 GRID_POS 一致）
+      · 准星 —— 中宫里的四向光标，对应眼镜端「抬头低头转头用准星选宫」
+    配色：盘面结构用品牌紫，眼睛（准星）用 HUD 单色绿 —— 紫是「紫微」的紫，绿是 Micro-LED 的绿。
+  -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="76%">
+      <stop offset="0%" stop-color="#171E3C"/>
+      <stop offset="100%" stop-color="#070A14"/>
+    </radialGradient>
+    <linearGradient id="star" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#CFC4FF"/>
+      <stop offset="55%" stop-color="#A793FF"/>
+      <stop offset="100%" stop-color="#7C6BF0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2FBF71" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#2FBF71" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <!-- 中宫辉光 -->
+  <circle cx="512" cy="512" r="230" fill="url(#glow)"/>
+
+  <!--
+    十二宫格：4×4 方阵，外框 150..874，每格 181。
+    中宫 = 第 2、3 行 × 第 2、3 列，即 331..693；中宫内部不画分隔线。
+  -->
+  <g stroke="#8B7CF6" stroke-opacity="0.55" stroke-width="10" fill="none" stroke-linecap="square">
+    <rect x="150" y="150" width="724" height="724" rx="16"/>
+    <!-- 竖分隔 -->
+    <path d="M331 150 V874 M693 150 V874"/>
+    <path d="M512 150 V331 M512 693 V874"/>
+    <!-- 横分隔 -->
+    <path d="M150 331 H874 M150 693 H874"/>
+    <path d="M331 512 H150 M693 512 H874"/>
+  </g>
+
+  <!-- 中宫边框：当前聚焦的宫位 -->
+  <rect x="331" y="331" width="362" height="362" rx="12"
+        fill="none" stroke="#8B7CF6" stroke-opacity="0.9" stroke-width="12"/>
+
+  <!-- 准星：四向光标 + 中心点（连续二维，不是跳格） -->
+  <g stroke="#2FBF71" stroke-width="13" stroke-linecap="round">
+    <path d="M512 352 V400 M512 624 V672"/>
+    <path d="M352 512 H400 M624 512 H672"/>
+  </g>
+  <circle cx="512" cy="512" r="150" fill="none" stroke="#2FBF71" stroke-opacity="0.45" stroke-width="9"/>
+
+  <!-- 紫微星：四芒星（Web 端 icon.svg 同款形状） -->
+  <g transform="translate(512 512) scale(7.6) translate(-12 -12)">
+    <path fill="url(#star)" d="M12 3.5c.7 4.8 3.7 7.8 8.5 8.5-4.8.7-7.8 3.7-8.5 8.5-.7-4.8-3.7-7.8-8.5-8.5 4.8-.7 7.8-3.7 8.5-8.5Z"/>
+  </g>
+</svg>

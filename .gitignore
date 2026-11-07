@@ -33,5 +33,10 @@ apps/web/.data/
 # 需要提交物时跑一次 `npm run proposal:pdf`，产物落在 submit-kit/proposal/。
 apps/rokid-agent/submit-kit/proposal/*.pdf
 
+# 盘面预览图的中间产物：board-*.html 是 render-board-preview.mjs 渲染时的
+# 一次性页面（真引擎数据 + 仿真器 DOM + Ink 样式内联），PNG 才是交付物。
+# HTML 随每次改动都变，且可由脚本重新生成 —— 不入库。
+apps/rokid-agent/submit-kit/preview/*.html
+
 # 运行状态（账户 / 会话 / 订单 / 额度计数）
 /.data/

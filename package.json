@@ -26,7 +26,10 @@
     "ask:selftest": "tsx packages/ask/src/__selftest.ts",
     "ask:typecheck": "tsc --noEmit -p packages/ask/tsconfig.json",
     "compliance:check": "node apps/rokid-agent/scripts/check-compliance.mjs",
-    "proposal:pdf": "node apps/rokid-agent/scripts/build-proposal-pdf.mjs"
+    "proposal:pdf": "node apps/rokid-agent/scripts/build-proposal-pdf.mjs",
+    "icon:render": "node apps/rokid-agent/scripts/render-icon.mjs",
+    "board:preview": "node apps/rokid-agent/scripts/render-board-preview.mjs",
+    "submit:ppt": "node apps/rokid-agent/scripts/build-submit-ppt.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

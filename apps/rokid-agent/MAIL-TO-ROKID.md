@@ -4,8 +4,10 @@
 **建议主题**：`Spatial Joy 2026 AI 赛道 · 作品「紫微星盘」合规口径与报名流程咨询`
 **英文主题（备选）**：`Spatial Joy 2026 AI Track — Compliance & Registration Questions for "Ziwei Star Chart"`
 
-> **署名已定：A. 个人署名**（Frank 已确认）。发送前只剩两件小事：
-> ① 英文段保留（建议保留，审稿可能是英文同事）；② 作品链接暂不附 ——
+> **署名已定：A. 个人署名**（Frank 2026-11-06 确认；2026-11-07 再确认「发」）。
+> **发送参数**：From `helloworld@frankfika.com`（Mail.app「私人邮箱（frankfika.com）」；frankfika.com 的 MX 指向 Lark，国内可正常收信）
+> → To `arplatform@rokid.com`
+> ① 英文段保留（审稿可能是英文同事）；② 作品链接暂不附 ——
 > 还没有真机实拍视频，等有了再补发一封即可。
 
 ---
@@ -14,7 +16,7 @@
 
 Rokid 团队您好，
 
-我是参赛开发者，作品名暂定「紫微星盘」（AI 赛道，AIUI 智能体形态，跑在 Rokid AI Glasses 上）。
+我是参赛开发者，作品名「紫微星盘」（AI 赛道，AIUI 智能体形态，跑在 Rokid AI Glasses 上）。
 在报名之前有一批合规口径想先跟你们确认，避免提交后被打回、耽误后面的赛程。
 
 先说一个流程上的问题，它比其他问题都靠前：
@@ -40,7 +42,7 @@ Rokid 团队您好，
 |---|---|
 | 1 | **作品名**「紫微星盘」（英文 `Ziwei Star Chart`）能否通过？《APP 内容体验规范》4.11 条列举的不收录名称是否覆盖此类？如不能，备选「十二宫盘 / Twelve Palace Chart」是否可行？ |
 | 2 | **题材与分类**：传统命理（紫微斗数）在智能体商店是否可收录？分类选「学习」还是「娱乐」更合适？描述需要哪一档免责声明措辞？（我目前的理解是：传统术数、非邪教，但语义邻域希望你们给口径） |
-| 3 | **软件著作权**：AIUI 智能体商店上架是否需要提交软件著作权？如需要，登记周期与主体要求是什么？周期以月计的话我需要尽早启动。 |
+| 3 | **软件著作权**：AIUI 智能体商店上架是否需要提交软件著作权？如需要，登记周期与主体要求是什么？**我计划本周即启动登记**；若主体须与认证主体一致（个人），我会以个人名义申请 —— 请确认这条路可行。 |
 | 4 | **描述用词**：作品描述里能否出现「命盘」「紫微斗数」「十二宫」？「传统文化」的表述是否被接受？ |
 | 5 | **规范适用**：智能体商店是否有独立的《内容体验规范》？若有，与 APP 版（尤其「宣扬封建迷信」「赌博」两条）是否一致？ |
 | 6 | **署名**：描述中能否明写「解读文本来自 CC BY 4.0 公开数据集的原文检索」？是否需要随包附数据集许可原文与作者署名页？ |
@@ -48,17 +50,18 @@ Rokid 团队您好，
 | 8 | **敏感词预检**：是否有官方词表或接口可提前自检？能否安排一次免费预审？ |
 | 9 | **持续运营**：上架后是否有版本更新频率下限？ |
 | 10 | **后端形态**：解读与追问由我方自有服务器提供（自有域名，非 Rokid 服务），是否符合上架要求？ |
+| 11 | **开发样机**：我打算在作品策划案审核通过后申请 AI 赛道开发样机（每赛道限 1 台、先到先得）。**AI 赛道对应的样机型号是「AI 暴龙眼镜」吗？** 申请后多久发货？需要签署哪些材料？ |
 
-以上第 1–3 条最影响我的排期，**如果方便，希望能优先回复这三条**。
+以上第 1–3 条与第 11 条最影响我的排期，**如果方便，希望能优先回复这几条**。
 
 需要的话我可以提供作品演示视频、完整代码，以及数据集的许可与署名说明。
 
 谢谢！
 
 陈放（Frank Chen）
-开发者 / 个人参赛
-邮箱：[你的邮箱]
-微信 / 电话：[你的联系方式]
+开发者 / 个人参赛（个人专业认证在审）
+邮箱：helloworld@frankfika.com
+微信 / 电话：13916784060
 
 ---
 
@@ -66,13 +69,13 @@ Rokid 团队您好，
 
 Dear Rokid team,
 
-I am an individual developer entering the AI Track of Spatial Joy 2026 with an AIUI agent for Rokid AI Glasses, tentatively titled "Ziwei Star Chart". Before submitting, I would appreciate your guidance on three points that block my schedule:
+I am an individual developer entering the AI Track of Spatial Joy 2026 with an AIUI agent for Rokid AI Glasses, titled "Ziwei Star Chart". Before submitting, I would appreciate your guidance on the points below that block my schedule:
 
 1. **Verification & registration.** I have completed Rokid account real-name submission; Professional Authentication (Personal) is currently *Under Review*, and the registration page blocks on "Verification not completed". How long does review take? **Can I register / pre-register the project while the review is pending?** Would corporate verification (organization information) be faster?
 2. **Title & category.** Is "紫微星盘 / Ziwei Star Chart" acceptable under the APP Content Experience Guidelines (art. 4.11)? Is traditional Chinese fortune-telling (Zi Wei Dou Shu) admissible in the agent store, and under which category (Learning vs. Entertainment) should it be filed?
 3. **Software copyright.** Does listing an AIUI agent in the agent store require a software copyright registration? If so, what are the registration timeline and eligible entity requirements?
 
-Secondary questions (also in the Chinese version above): permitted wording in the store description; whether a separate content guideline exists for agents; how to present the CC BY 4.0 dataset attribution; required demo asset count / format; sensitive-word pre-screening; post-launch update obligations; and whether a self-hosted backend domain is acceptable.
+Secondary questions (also in the Chinese version above): permitted wording in the store description; whether a separate content guideline exists for agents; how to present the CC BY 4.0 dataset attribution; required demo asset count / format; sensitive-word pre-screening; post-launch update obligations; a self-hosted backend domain; and the expected timeline for the AI-track development prototype (one per track, first come first served).
 
 The product: a structured learning tool for traditional Chinese chart computation. Chart casting is fully deterministic (no LLM in the calculation); interpretations are retrieved verbatim from a public CC BY 4.0 dataset; and the restricted quotations contained in that dataset are redacted before output, with the current citation mode disclosed in the UI.
 
@@ -80,6 +83,9 @@ Happy to share a demo video, the full source code, and the dataset licence/attri
 
 Best regards,
 Chen Fang (Frank Chen)
+Individual developer / personal entry
+Email: helloworld@frankfika.com
+Phone / WeChat: 13916784060
 
 ---
 
@@ -99,9 +105,14 @@ Chen Fang (Frank Chen)
 
 ## 发送前自检
 
-- [ ] 收件人：`arplatform@rokid.com`
-- [ ] 主题行已按最终署名/是否附链接调整
-- [ ] 英文段保留（建议保留，审稿可能是英文同事）
-- [ ] 签名档已填（邮箱 + 联系方式）
-- [ ] **没有**附上身份证号、认证状态截图等任何身份信息 —— 邮件里只说「已提交、审核中」
-- [ ] 若附作品视频链接，链接是**只读、不需要登录**的地址
+> **实际发送的正文是 `MAIL-TO-ROKID.send.txt`（纯文本）**，本文件的 Markdown 版是母稿，两者内容一致；
+> 发送以 `.send.txt` 为准，便于事后审计「到底发了什么」。
+
+- [x] 收件人：`arplatform@rokid.com`
+- [x] 发件账号：`helloworld@frankfika.com`（Mail.app「私人邮箱（frankfika.com）」）
+- [x] 主题行：`Spatial Joy 2026 AI 赛道 · 作品「紫微星盘」合规口径与报名流程咨询`
+- [x] 英文段保留（审稿可能是英文同事）
+- [x] 签名档已填：邮箱 `helloworld@frankfika.com` / 微信·电话 `13916784060`
+- [x] **没有**附上身份证号、认证状态截图等任何身份信息 —— 邮件里只说「已提交、审核中」
+- [x] 不附作品视频链接（还没有真机实拍视频，等有了再补发一封）
+- [x] 提问数从 10 条增至 11 条：新增第 11 问「AI 赛道开发样机型号与发货时间」（Frank 拍板走**赛事免费样机**路线，此问直接决定排期）

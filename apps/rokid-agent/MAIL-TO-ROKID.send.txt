@@ -1,0 +1,71 @@
+Rokid 团队您好，
+
+我是参赛开发者，作品名「紫微星盘」（AI 赛道，AIUI 智能体形态，跑在 Rokid AI Glasses 上）。
+在报名之前有一批合规口径想先跟你们确认，避免提交后被打回、耽误后面的赛程。
+
+先说一个流程上的问题，它比其他问题都靠前：
+
+我已完成 Rokid 账户的实名提交，目前 Professional Authentication（Personal）状态为 Under Review。报名页提示 "Verification not completed"，要求先完成 professional verification 才能注册。想请教三点：
+
+  1. 个人专业认证的审核周期大概是多久？
+  2. 审核期间能否先报名或预登记作品？如果可以，我想先把作品信息占住、把素材准备起来，等审核通过后直接提交。
+  3. 如果等审核时间偏长，走 organization information 的企业认证是否更快？两者的材料要求与出证时间分别是什么？
+
+作品本身的情况，方便的话请一并过目：
+
+它是一个传统文化命盘（紫微斗数）的结构化学习工具。用户说出生辰后，眼镜端用确定性规则（安星、五行局、大限由固定算法计算）排出十二宫盘面，抬头低头用准星选宫，逐宫朗读解读原文，并可基于这张盘追问。
+
+刻意说明三点，因为它们是我理解自己落在「学习」而不是「生活/娱乐」的原因：
+
+  - 排盘不经过模型。十二宫的星曜落位、五行局、大限全部由确定性引擎计算，同一生辰在任何设备上结果一致，可以复算、可以复核。
+  - 解读不凭空生成。文字来自一份公开数据集的原文检索（CC BY 4.0，674,976 张命盘 × 13 个维度），模型只负责把原文讲成一段话，不参与排盘、不自由发挥。
+  - 数据集中引用的前人原话已做许可处理。该部分原文属 CC BY-NC-SA，不在可商用范围内，因此眼镜端对外输出时会先做降级（受限引文以占位符代替），并在界面上明确标注当前文本形态。
+
+以下是我希望确认的具体口径：
+
+  1. 作品名「紫微星盘」（英文 Ziwei Star Chart）能否通过？《APP 内容体验规范》4.11 条列举的不收录名称是否覆盖此类？如不能，备选「十二宫盘 / Twelve Palace Chart」是否可行？
+  2. 题材与分类：传统命理（紫微斗数）在智能体商店是否可收录？分类选「学习」还是「娱乐」更合适？描述需要哪一档免责声明措辞？（我目前的理解是：传统术数、非邪教，但语义邻域希望你们给口径）
+  3. 软件著作权：AIUI 智能体商店上架是否需要提交软件著作权？如需要，登记周期与主体要求是什么？我计划本周即启动登记；若主体须与认证主体一致（个人），我会以个人名义申请 —— 请确认这条路可行。
+  4. 描述用词：作品描述里能否出现「命盘」「紫微斗数」「十二宫」？「传统文化」的表述是否被接受？
+  5. 规范适用：智能体商店是否有独立的《内容体验规范》？若有，与 APP 版（尤其「宣扬封建迷信」「赌博」两条）是否一致？
+  6. 署名：描述中能否明写「解读文本来自 CC BY 4.0 公开数据集的原文检索」？是否需要随包附数据集许可原文与作者署名页？
+  7. 提审素材：数量与格式我已在提审页看到（3–5 个，JPG/PNG/MP4，至少 1 图 1 视频）。单个视频的时长与分辨率上限是多少？
+  8. 敏感词预检：是否有官方词表或接口可提前自检？能否安排一次免费预审？
+  9. 持续运营：上架后是否有版本更新频率下限？
+  10. 后端形态：解读与追问由我方自有服务器提供（自有域名，非 Rokid 服务），是否符合上架要求？
+  11. 开发样机：我打算在作品策划案审核通过后申请 AI 赛道开发样机（每赛道限 1 台、先到先得）。AI 赛道对应的样机型号是「AI 暴龙眼镜」吗？申请后多久发货？需要签署哪些材料？
+
+以上第 1–3 条与第 11 条最影响我的排期，如果方便，希望能优先回复这几条。
+
+需要的话我可以提供作品演示视频、完整代码，以及数据集的许可与署名说明。
+
+谢谢！
+
+陈放（Frank Chen）
+开发者 / 个人参赛（个人专业认证在审）
+邮箱：helloworld@frankfika.com
+微信 / 电话：13916784060
+
+
+------------------------------
+(English summary below, for colleagues reviewing in English.)
+
+Dear Rokid team,
+
+I am an individual developer entering the AI Track of Spatial Joy 2026 with an AIUI agent for Rokid AI Glasses, titled "Ziwei Star Chart". Before submitting, I would appreciate your guidance on the points below that block my schedule:
+
+1. Verification & registration. I have completed Rokid account real-name submission; Professional Authentication (Personal) is currently Under Review, and the registration page blocks on "Verification not completed". How long does review take? Can I register / pre-register the project while the review is pending? Would corporate verification (organization information) be faster?
+2. Title & category. Is "紫微星盘 / Ziwei Star Chart" acceptable under the APP Content Experience Guidelines (art. 4.11)? Is traditional Chinese fortune-telling (Zi Wei Dou Shu) admissible in the agent store, and under which category (Learning vs. Entertainment) should it be filed?
+3. Software copyright. Does listing an AIUI agent in the agent store require a software copyright registration? If so, what are the registration timeline and eligible entity requirements? I plan to start the registration this week, in my own name if the entity must match my personal verification.
+
+Secondary questions (also in the Chinese version above): permitted wording in the store description; whether a separate content guideline exists for agents; how to present the CC BY 4.0 dataset attribution; required demo asset count / format; sensitive-word pre-screening; post-launch update obligations; a self-hosted backend domain; and the expected timeline for the AI-track development prototype (one per track, first come first served).
+
+The product: a structured learning tool for traditional Chinese chart computation. Chart casting is fully deterministic (no LLM in the calculation); interpretations are retrieved verbatim from a public CC BY 4.0 dataset; and the restricted quotations contained in that dataset are redacted before output, with the current citation mode disclosed in the UI.
+
+Happy to share a demo video, the full source code, and the dataset licence/attribution page on request.
+
+Best regards,
+Chen Fang (Frank Chen)
+Individual developer / personal entry
+Email: helloworld@frankfika.com
+Phone / WeChat: 13916784060

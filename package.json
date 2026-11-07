@@ -29,6 +29,7 @@
     "proposal:pdf": "node apps/rokid-agent/scripts/build-proposal-pdf.mjs",
     "icon:render": "node apps/rokid-agent/scripts/render-icon.mjs",
     "board:preview": "node apps/rokid-agent/scripts/render-board-preview.mjs",
+    "agent:first-launch": "node apps/rokid-agent/scripts/simulate-first-launch.mjs",
     "submit:ppt": "node apps/rokid-agent/scripts/build-submit-ppt.mjs"
   },
   "devDependencies": {

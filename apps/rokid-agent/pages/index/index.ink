@@ -128,6 +128,8 @@ export default {
         navHint: '左右选宫　上下切层',
         sourceLabel: '',
         sensorLabel: '',
+        /** 中宫状态行（传感器通道 + 计算来源），见 _statusLine() */
+        statusLine: '',
         /**
          * 示例盘标注。
          *
@@ -306,6 +308,7 @@ export default {
                 layersReady: this._layersReady,
                 navHint: this._navHint(),
                 sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算',
+                statusLine: this._statusLine(result.source === 'device' ? '端侧计算' : '服务端计算'),
                 demoLabel: demo ? '示例盘　返回键换成你的生辰' : ''
             });
         } catch (err) {
@@ -424,6 +427,23 @@ _navHint() {
 },
 
 /**
+ * 中宫状态行：传感器通道 + 计算来源。
+ *
+ * 为什么不用模板里的 `{{sensorLabel}}　{{sourceLabel}}`：
+ * 传感器标签为空时（例如模拟器没有传感器），那行会留下一个前导全角空格，
+ * 把「端侧计算」顶得缩进一格，看起来像排版坏了。
+ * 而且中宫内容宽只有 220px，操作提示 + 状态拼一起正好 220px 会折行 ——
+ * 所以状态**独占一行**才是对的。
+ *
+ * @param {string} [sourceLabel] 传了就用传值，否则用 data 里已有的
+ * @returns {string}
+ */
+_statusLine(sourceLabel) {
+    const parts = [this.data.sensorLabel, sourceLabel || this.data.sourceLabel].filter(Boolean);
+    return parts.join('　');
+},
+
+/**
  * 上下键：切层 or 选宫（纵向）。
  *
  * @param {number} delta -1 上 / +1 下
@@ -470,7 +490,11 @@ _vertical(delta) {
             }, SENSOR.FIRST_FRAME_TIMEOUT_MS);
 
             this._sensorMode = 'cursor';
-            this.setData({ sensorLabel: '头部准星', navHint: this._navHint() });
+            this.setData({
+                sensorLabel: '头部准星',
+                navHint: this._navHint(),
+                statusLine: this._statusLine()
+            });
         } catch (err) {
             this._fallbackToTilt();
         }
@@ -479,7 +503,11 @@ _vertical(delta) {
     _fallbackToTilt() {
         if (this._sensorMode === 'tilt') return;
         this._sensorMode = 'tilt';
-        this.setData({ sensorLabel: '抬头选宫', navHint: this._navHint() });
+        this.setData({
+            sensorLabel: '抬头选宫',
+            navHint: this._navHint(),
+            statusLine: this._statusLine()
+        });
 
         try {
             const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
@@ -496,7 +524,11 @@ _vertical(delta) {
             sensor.start();
         } catch (err) {
             this._sensorMode = 'none';
-            this.setData({ sensorLabel: '镜腿选宫', navHint: this._navHint() });
+            this.setData({
+                sensorLabel: '镜腿选宫',
+                navHint: this._navHint(),
+                statusLine: this._statusLine()
+            });
         }
     },
 
@@ -760,7 +792,7 @@ _vertical(delta) {
                 <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
             </view>
             <text class="center-hint">确认键听解读　{{navHint}}</text>
-            <text class="center-hint dim">{{sensorLabel}}　{{sourceLabel}}</text>
+            <text class="center-hint dim">{{statusLine}}</text>
             <text class="center-hint demo" ink:if="{{demoLabel}}">{{demoLabel}}</text>
         </view>
 

@@ -459,6 +459,21 @@ const MANUAL_COVER = `
 </div>
 `;
 
+/** 去掉正文开头的 H1 与元信息块（封面已承载）。 */
+function stripLeadBlock(text) {
+  const lines = text.split('\n');
+  let i = 0;
+  // 跳过 H1
+  while (i < lines.length && !lines[i].trim()) i++;
+  if (i < lines.length && lines[i].startsWith('# ')) i++;
+  // 跳过 `**键**：值` 形式的元信息行
+  while (i < lines.length && (!lines[i].trim() || /^\*\*[^*]+\*\*/.test(lines[i]))) i++;
+  // 跳到第一个 `---` 分隔线之后
+  while (i < lines.length && lines[i].trim() !== '---') i++;
+  if (i < lines.length) i++; // 吃掉分隔线本身
+  return lines.slice(i).join('\n').replace(/^\n+/, '');
+}
+
 async function main() {
   const onlyIdx = process.argv.indexOf('--only');
   const only = onlyIdx > -1 ? process.argv[onlyIdx + 1] : 'all';
@@ -517,8 +532,13 @@ async function main() {
         process.exit(1);
       }
       const md = readFileSync(mdPath, 'utf8');
-      // 去掉正文开头重复的 H1 与元信息（封面已承载）
-      const body = md.replace(/^# .*\n+/, '').replace(/^\*\*[^\n]*\*\*\n(.*\n)*?\n---\n/, '');
+      // 去掉正文开头的 H1 与元信息块（封面已承载）。
+      // ⚠️ 第一版的正则 `^\*\*[^\n]*\*\*\n(.*\n)*?\n---\n` 剥不掉 ——
+      //    元信息首行是 `**软件名称**：紫微星盘`，`**` 后面还跟着 `：紫微星盘`，
+      //    `\*\*` 直接跟 `\n` 的假设不成立 → 元信息块原样进了 PDF 正文。
+      //    改成按行判断：从 H1 之后开始，跳过所有 `**` 开头的元信息行，
+      //    一直跳到第一个 `---` 分隔线。
+      const body = stripLeadBlock(md);
 
       const cleanPath = join(work, 'manual.md');
       const tplPath = join(work, 'manual.tpl');

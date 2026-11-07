@@ -59,6 +59,7 @@ const CURSOR_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'head-c
 const PARSER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-parser.js');
 const KEY_GUARD_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'key-guard.js');
 const TIMELAYER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'time-layer.js');
+const BIRTH_SOURCE_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-source.js');
 
 /** 眼镜端页面模板（界面文案契约） */
 const INK_PAGE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'pages', 'index', 'index.ink');
@@ -1404,6 +1405,21 @@ export const suite = async (t: Tester): Promise<void> => {
         assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
       }
     });
+
+    await t.test('首启兜底接线完整（示例盘 + 重新说生辰入口）', () => {
+      // 模拟器没有麦克风 → 页面必须能自己亮出一张盘；
+      // 盘面态也必须留得住「重新说生辰」的入口，否则语音失败一次就锁死。
+      for (const needle of [
+        'resolveInitialBirth',
+        'birth-source.js',
+        'demoLabel',
+        '_openInput',
+      ]) {
+        assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
+      }
+      // 出生参数解析只允许有一个来源，否则两份校验迟早会跑偏
+      assert.ok(!ink.includes('_resolveBirth'), '出生参数解析应只有 lib/birth-source.js 一个来源');
+    });
   }
 
   /* ---------------------------------------------------------------- *
@@ -1442,6 +1458,115 @@ export const suite = async (t: Tester): Promise<void> => {
     await t.test('空 code 直接拒绝', () => {
       const g = { lastCode: null as string | null, lastTs: 0 };
       assert.equal(kg.shouldAcceptKey(g, '', 1000), false, '没有 code 的事件不该产生动作');
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * H. birth-source.js —— 出生参数三级兜底（入参 → 存档 → 内置示例）
+   *
+   * 为什么这组必须有：模拟器没有麦克风，语音录入走不通，
+   * 页面之前永远停在「说出你的生辰」浮层、盘面一次都出不来。
+   * 第三级（内置示例盘）就是为此存在的，必须钉死它的边界。
+   * ---------------------------------------------------------------- */
+  if (!fs.existsSync(BIRTH_SOURCE_MODULE)) {
+    t.skip('出生参数三级兜底（H 组全部用例）', `缺少 ${path.relative(REPO_ROOT, BIRTH_SOURCE_MODULE)}`);
+  } else {
+    interface BirthLike {
+      year: number;
+      month: number;
+      day: number;
+      hour: number;
+      gender: string;
+      name?: string;
+    }
+    const bs = await loadModule<{
+      DEMO_BIRTH: BirthLike;
+      birthFromQuery: (query?: unknown) => BirthLike | null;
+      resolveInitialBirth: (
+        query?: unknown,
+        saved?: BirthLike | null,
+      ) => { birth: BirthLike; demo: boolean };
+    }>(BIRTH_SOURCE_MODULE);
+
+    const pick = (b: BirthLike) => ({
+      year: b.year,
+      month: b.month,
+      day: b.day,
+      hour: b.hour,
+      gender: b.gender,
+    });
+
+    await t.test('对话流入参优先，且不标记为示例盘', () => {
+      const r = bs.resolveInitialBirth({ year: 1988, month: 3, day: 12, hour: 7, gender: 'female' }, null);
+      assert.equal(r.demo, false, '有入参就不该是示例盘');
+      assert.deepEqual(pick(r.birth), {
+        year: 1988,
+        month: 3,
+        day: 12,
+        hour: 7,
+        gender: 'female',
+      });
+    });
+
+    await t.test('入参非法时回落本机存档，仍不是示例盘', () => {
+      const saved = { year: 1975, month: 6, day: 6, hour: 3, gender: 'male' };
+      const r = bs.resolveInitialBirth({ year: 1899, hour: 99 }, saved);
+      assert.equal(r.demo, false, '有存档就不该是示例盘');
+      assert.deepEqual(pick(r.birth), {
+        year: 1975,
+        month: 6,
+        day: 6,
+        hour: 3,
+        gender: 'male',
+      });
+    });
+
+    await t.test('入参与存档都没有时，回落到内置示例盘', () => {
+      const r = bs.resolveInitialBirth(undefined, null);
+      assert.equal(r.demo, true, '既无入参又无存档时必须标记为示例盘');
+      assert.deepEqual(pick(r.birth), {
+        year: 1990,
+        month: 1,
+        day: 1,
+        hour: 0,
+        gender: 'male',
+      });
+    });
+
+    await t.test('示例盘是冻结对象，调用方改不动', () => {
+      assert.equal(Object.isFrozen(bs.DEMO_BIRTH), true, '示例盘必须冻结，防止被就地改写');
+    });
+
+    await t.test('时辰序号边界：0 与 11 合法，越界非法', () => {
+      assert.ok(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' }));
+      assert.ok(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 11, gender: 'male' }));
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 12, gender: 'male' }), null);
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: -1, gender: 'male' }), null);
+    });
+
+    await t.test('性别只认 male / female', () => {
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 0, gender: 'other' }), null);
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 0 }), null);
+      assert.ok(bs.birthFromQuery({ year: 1990, month: 1, day: 1, hour: 0, gender: 'female' }));
+    });
+
+    await t.test('年 / 月 / 日边界与端侧口径一致', () => {
+      assert.equal(bs.birthFromQuery({ year: 1899, month: 1, day: 1, hour: 0, gender: 'male' }), null);
+      assert.equal(bs.birthFromQuery({ year: 2101, month: 1, day: 1, hour: 0, gender: 'male' }), null);
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 13, day: 1, hour: 0, gender: 'male' }), null);
+      assert.equal(bs.birthFromQuery({ year: 1990, month: 1, day: 32, hour: 0, gender: 'male' }), null);
+      assert.ok(bs.birthFromQuery({ year: 1900, month: 12, day: 31, hour: 0, gender: 'male' }));
+      assert.ok(bs.birthFromQuery({ year: 2100, month: 12, day: 31, hour: 0, gender: 'male' }));
+    });
+
+    await t.test('示例盘不会被当成用户自己的盘读回来', () => {
+      // 示例盘不进本机命盘库，所以下一次启动 resolveInitialBirth 拿到的 saved 仍是 null，
+      // 仍然回落到示例盘 —— 而不是「用户上次的那张盘」。
+      const first = bs.resolveInitialBirth(undefined, null);
+      assert.equal(first.demo, true);
+      const second = bs.resolveInitialBirth(undefined, null);
+      assert.equal(second.demo, true);
+      assert.deepEqual(pick(second.birth), pick(first.birth), '示例盘必须可复现');
     });
   }
 };

@@ -67,6 +67,7 @@ import {
 import { resolveChart } from '../../lib/chart-source.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
 import { latestProfile, upsertProfile } from '../../lib/storage.js';
+import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
 import { listenOnce } from '../../lib/voice-input.js';
@@ -127,6 +128,13 @@ export default {
         navHint: '左右选宫　上下切层',
         sourceLabel: '',
         sensorLabel: '',
+        /**
+         * 示例盘标注。
+         *
+         * 拿不到任何出生信息时会先亮一张内置示例盘（见 lib/birth-source.js），
+         * 这一行必须告诉用户「这不是你的盘」——否则会被误读成算错了。
+         */
+        demoLabel: '',
         voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男',
         heardText: '',
         readingTitle: '',
@@ -158,13 +166,16 @@ export default {
         /** 运限层是否可用 */
         this._layersReady = false;
 
-        const birth = this._resolveBirth(query);
-        if (!birth) {
-            this.setData({ needInput: true, overlay: 'input', ready: true });
-            return;
-        }
+        /**
+         * 出生参数三级兜底：对话流入参 → 本机存档 → 内置示例盘。
+         *
+         * 模拟器没有麦克风，`startRecognition` 永远拿不到文本 —— 之前页面因此
+         * 永远停在「说出你的生辰」浮层，盘面一次都出不来（2026-11-07 实测）。
+         * 所以第三级是**必须的**，不是兜底装饰。
+         */
+        const { birth, demo } = resolveInitialBirth(query, latestProfile());
         this._birth = birth;
-        this._chart(birth);
+        this._chart(birth, { demo, persist: !demo });
     },
 
     onReady() {
@@ -216,7 +227,14 @@ export default {
         else if (code === KeyCode.LEFT) this._select(stepRing(this.data.selectedBranch, -1));
         else if (code === KeyCode.RIGHT) this._select(stepRing(this.data.selectedBranch, 1));
         else if (code === KeyCode.CONFIRM) this._openReading();
-        else if (code === KeyCode.BACK) this.finish();
+        /**
+         * 返回键 = 回到上一步 = 重新说生辰（再按一次返回键才退出应用）。
+         *
+         * 之前这里直接 `this.finish()`，于是**盘面态没有任何入口能重新说生辰**：
+         * 语音录入只在「还没排出盘」时可达，一旦语音失败一次，用户就被锁死在
+         * 第一张盘上，只能退出重开。
+         */
+        else if (code === KeyCode.BACK) this._openInput();
 
         if (typeof event.preventDefault === 'function') {
             event.preventDefault();
@@ -227,29 +245,13 @@ export default {
      * 排盘
      * ---------------------------------------------------------------- */
 
-    _resolveBirth(query) {
-        const q = query || {};
-        const year = Number(q.year);
-        const month = Number(q.month);
-        const day = Number(q.day);
-        const hour = Number(q.hour);
-        const gender = q.gender === 'female' ? 'female' : q.gender === 'male' ? 'male' : null;
+    /**
+     * 出生参数解析已抽到 lib/birth-source.js（resolveInitialBirth）。
+     * 抽出来是为了能被单测直接跑 —— 页面模板里的方法在 node 里测不了。
+     */
 
-        if (
-            Number.isInteger(year) && year >= 1900 && year <= 2100 &&
-            Number.isInteger(month) && month >= 1 && month <= 12 &&
-            Number.isInteger(day) && day >= 1 && day <= 31 &&
-            Number.isInteger(hour) && hour >= 0 && hour <= 11 &&
-            gender
-        ) {
-            return { year, month, day, hour, gender, name: q.name || '' };
-        }
-
-        const saved = latestProfile();
-        return saved ? { ...saved } : null;
-    },
-
-    async _chart(birth) {
+    async _chart(birth, opts = {}) {
+        const demo = opts.demo === true;
         this.setData({ ready: false, errorText: '' });
         try {
             const result = await resolveChart(birth);
@@ -273,9 +275,21 @@ export default {
                 result.engine && (this._layers.daxian || this._layers.liunian || this._layers.liuyue),
             );
 
-            upsertProfile(birth);
+            /**
+             * 示例盘**不写本机命盘库** —— 否则下次启动它会被当成「用户自己的盘」读回来，
+             * 用户说了自己的生辰却看到别人的盘。
+             */
+            if (opts.persist !== false) {
+                upsertProfile(birth);
+            }
 
             const layerView = this._layerView('natal', board.center);
+
+            console.info(
+                '[ziwei-agent] 盘面来源=' + result.source +
+                ' 运限层可用=' + this._layersReady +
+                ' 示例盘=' + demo,
+            );
 
             this.setData({
                 ready: true,
@@ -291,13 +305,19 @@ export default {
                 layerRole: '',
                 layersReady: this._layersReady,
                 navHint: this._navHint(),
-                sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算'
+                sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算',
+                demoLabel: demo ? '示例盘　返回键换成你的生辰' : ''
             });
         } catch (err) {
+            console.info(
+                '[ziwei-agent] 排盘失败：',
+                err && err.message ? err.message : String(err),
+            );
             this.setData({
                 ready: true,
                 needInput: true,
                 overlay: 'input',
+                demoLabel: '',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
@@ -676,6 +696,21 @@ _vertical(delta) {
      * 语音录入生辰
      * ---------------------------------------------------------------- */
 
+    /**
+     * 打开生辰录入浮层 —— **盘面态唯一的「重新说生辰」入口**（返回键）。
+     *
+     * 之前盘面态没有这个入口：返回键直接退出应用，而语音录入只在「还没排出盘」
+     * 时可达。语音失败一次，用户就再也换不了自己的盘。
+     */
+    _openInput() {
+        this.setData({
+            overlay: 'input',
+            needInput: true,
+            heardText: '',
+            voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男'
+        });
+    },
+
     async _startVoiceInput() {
         this.setData({ voiceHint: '在听……请说出你的生辰', heardText: '' });
         const text = await listenOnce();
@@ -726,6 +761,7 @@ _vertical(delta) {
             </view>
             <text class="center-hint">确认键听解读　{{navHint}}</text>
             <text class="center-hint dim">{{sensorLabel}}　{{sourceLabel}}</text>
+            <text class="center-hint demo" ink:if="{{demoLabel}}">{{demoLabel}}</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'input'}}">
@@ -955,6 +991,16 @@ page {
  */
 .center-hint.dim {
     color: #4da86c;
+}
+
+/*
+ * 示例盘标注。
+ *
+ * 「这不是你的盘」这一行必须**比正文更亮**，不能调暗 —— 用户第一眼看到的是
+ * 一张陌生人的盘，如果这行很淡，误读成「算错了」的代价很大。
+ */
+.center-hint.demo {
+    color: #7fe3a0;
 }
 
 .overlay {

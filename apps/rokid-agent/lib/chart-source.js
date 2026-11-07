@@ -24,8 +24,16 @@ async function loadDeviceEngine() {
     if (mod && typeof mod.chart === 'function') {
       return mod;
     }
+    console.info('[ziwei-agent] 端侧引擎已加载但没有 chart 导出，回落服务端排盘');
     return null;
   } catch (err) {
+    // 端侧引擎加载失败是**静默**的（界面只显示「服务端计算」），
+    // 所以必须在这里打一条日志 —— 否则真机上算错了都看不出原因，
+    // 模拟器的日志面板也什么都看不到（2026-11-07 加）。
+    console.info(
+      '[ziwei-agent] 端侧引擎加载失败，回落服务端排盘：',
+      err && err.message ? err.message : String(err),
+    );
     return null;
   }
 }
@@ -46,15 +54,21 @@ export async function resolveChart(birth, deps = {}) {
     try {
       const chart = engine.chart(birth);
       if (chart && Array.isArray(chart.palaces) && chart.palaces.length === 12) {
+        console.info('[ziwei-agent] 使用端侧引擎排盘');
         return { chart, source: 'device', engine };
       }
+      console.info('[ziwei-agent] 端侧排盘结果不完整（宫位数不为 12），回落服务端');
     } catch (err) {
-      // 端侧算失败 → 落服务端
+      console.info(
+        '[ziwei-agent] 端侧排盘抛错，回落服务端：',
+        err && err.message ? err.message : String(err),
+      );
     }
   }
 
   const requestChart = deps.requestChart || (await import('./api.js')).requestChart;
   const chart = await requestChart(birth);
+  console.info('[ziwei-agent] 使用服务端排盘');
   return { chart, source: 'server', engine: null };
 }
 

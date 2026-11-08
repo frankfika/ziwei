@@ -223,12 +223,16 @@ interface ParsedBirth {
   hour: number;
   gender: 'male' | 'female';
   name: string;
+  /** 时辰是兜底估的（缺失或用户明说不知道）——界面必须明示 */
+  hourEstimated: boolean;
 }
 
 interface BirthParserModule {
   HOUR_BY_NAME: Record<string, number>;
   HOUR_BY_LABEL: Record<string, number>;
   HOUR_BY_PERIOD: Record<string, number>;
+  /** 时辰缺失时的兜底落点（午时 = 6） */
+  DEFAULT_HOUR: number;
   cnToNumber: (text: string) => number | null;
   hourFromClock: (clockHour: number) => number;
   parseBirthFromSpeech: (text: string) => ParsedBirth | null;
@@ -1193,12 +1197,44 @@ export const suite = async (t: Tester): Promise<void> => {
       );
     });
 
-    await t.test('缺时辰 → 返回 null', () => {
-      assert.equal(
-        parser.parseBirthFromSpeech('1990年1月1日 男'),
-        null,
-        '缺时辰时不该猜一个时辰，应返回 null 让用户补',
-      );
+    await t.test('缺时辰 → 落午时并标记为估算（不再是死路）', () => {
+      // 旧行为是 return null（"缺时辰时不该猜一个时辰，应返回 null 让用户补"）。
+      // 但眼镜上没有键盘，用户**补不了**「子时」这种术语，也没有第二个机会 ——
+      // 他会被永久卡在录入浮层。2026-11-08 改成：落兜底时辰 + 显式标记为估算，
+      // 界面必须把「时辰按午时估算」显示出来。
+      const parsed = parser.parseBirthFromSpeech('1990年1月1日 男');
+      assert.ok(parsed, '缺时辰不该再让整次解析失败');
+      assert.equal(parsed.hour, parser.DEFAULT_HOUR, '缺时辰应落到兜底时辰');
+      assert.equal(parsed.hourEstimated, true, '兜底时辰必须标记为估算');
+    });
+
+    await t.test('「不知道时辰」→ 同样落兜底并标估算', () => {
+      const parsed = parser.parseBirthFromSpeech('1990年1月1日 我不知道时辰 男');
+      assert.ok(parsed, '「不知道时辰」不该解析失败');
+      assert.equal(parsed.hour, parser.DEFAULT_HOUR, '「不知道时辰」应落到兜底时辰');
+      assert.equal(parsed.hourEstimated, true, '必须标记为估算');
+    });
+
+    await t.test('明说「不确定是子时还是丑时」→ 不采信时辰名', () => {
+      // 「辰时/子时」这类词在「不确定」语境里是二选一的一项，不是答案；
+      // 而且「时辰」这个词本身会被时辰名正则误读成「辰时」。
+      const parsed = parser.parseBirthFromSpeech('1990年1月1日 我不确定是子时还是丑时 男');
+      assert.ok(parsed, '这类说法不该解析失败');
+      assert.equal(parsed.hour, parser.DEFAULT_HOUR, '不确定时不能采信句子里的时辰名');
+      assert.equal(parsed.hourEstimated, true, '必须标记为估算');
+    });
+
+    await t.test('说了「早上」→ 卯时且不标估算', () => {
+      const parsed = parser.parseBirthFromSpeech('1990年1月1日 早上 男');
+      assert.ok(parsed, '「早上」应能解析');
+      assert.equal(parsed.hour, 3, '早上应落到卯时（时辰序号 3）');
+      assert.equal(parsed.hourEstimated, false, '用户给了时段，不该标成估算');
+    });
+
+    await t.test('明确说了时辰 → 不标估算', () => {
+      const parsed = parser.parseBirthFromSpeech('1990年1月1日 子时 男');
+      assert.ok(parsed);
+      assert.equal(parsed.hourEstimated, false, '用户明说了时辰，不该标成估算');
     });
 
     await t.test('缺性别 → 返回 null', () => {

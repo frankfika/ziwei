@@ -18,6 +18,13 @@
  * 时辰口径与引擎严格一致（packages/chart-engine 的 shichenFromClock）：
  *   子=0(23:00–00:59) 丑=1 寅=2 卯=3 辰=4 巳=5 午=6 未=7 申=8 酉=9 戌=10 亥=11
  * 23 点是**晚子时**，按**次日**排盘（引擎 resolveChartDate 同口径）。
+ *
+ * ⚠️ **时辰缺失不再是死路**（2026-11-08 改）：
+ *   旧行为是「缺时辰 → 返回 null，让用户补」。但眼镜上**没有键盘**，
+ *   用户既补不了「子时」这种术语，也没有第二个机会 —— 他会被永久卡在录入浮层。
+ *   现在：时辰缺失（或用户明说「不知道时辰」）→ 落**午时**并标记
+ *   `hourEstimated = true`，界面必须把「时辰按午时估算」显示出来。
+ *   紫微斗数里时辰决定命宫落点，错一格整张盘都变，所以**估算必须明示，不能静默**。
  */
 
 /** 辰/时 → 时辰序号 0–11 */
@@ -31,6 +38,46 @@ export const HOUR_BY_LABEL = {
   子时: 0, 丑时: 1, 寅时: 2, 卯时: 3, 辰时: 4, 巳时: 5,
   午时: 6, 未时: 7, 申时: 8, 酉时: 9, 戌时: 10, 亥时: 11,
 };
+
+/** 时辰序号 → 中文名（界面标注用） */
+export const HOUR_LABELS = Object.freeze([
+  '子时', '丑时', '寅时', '卯时', '辰时', '巳时',
+  '午时', '未时', '申时', '酉时', '戌时', '亥时',
+]);
+
+/**
+ * 时辰缺失时的兜底落点：**午时**（时辰序号 6，11:00–12:59）。
+ *
+ * 为什么选午时：
+ *  · 午时是一天里最"正"的位置，两侧时辰（巳/未）离它最近，取中段误差最小；
+ *  · 子时虽然人口占比最高，但它横跨 23:00–00:59，**还带晚子时次日排盘**的规则，
+ *    拿它当默认值会把"猜错"和"跨日"两个变量叠在一起；
+ *  · 巳/未/申 这些名字用户更不认识，午时至少和"中午"能对上。
+ *
+ * ⚠️ 兜底**必须**同时打上 `hourEstimated` 标记，由界面明示"时辰按午时估算"。
+ */
+export const DEFAULT_HOUR = 6;
+
+/**
+ * 用户明说"不知道时辰"的表达。
+ *
+ * 命中时：**不采信**句子里出现的时辰名（"我不记得是子时还是丑时"里的"子时"
+ * 是二选一里的一个，不是答案），改走钟点 / 时段；都没有就落午时并标估算。
+ */
+const UNCERTAIN_HOUR_WORDS = Object.freeze([
+  '不知道', '不确定', '没查过', '记不清', '不记得', '忘了', '想不起', '不清楚',
+]);
+
+/**
+ * 句子里是否明说了"时辰不确定"。
+ *
+ * @param {string} s 已归一化的文本
+ * @returns {boolean}
+ */
+export function isHourUncertain(s) {
+  if (!s) return false;
+  return UNCERTAIN_HOUR_WORDS.some((w) => s.includes(w));
+}
 
 /**
  * 口语时段 → 时辰序号（**没有更精确的钟点时**的兜底落点）。
@@ -224,7 +271,9 @@ function resolveClockWithPeriod(clock, period) {
  * 从一句话里解析出生辰。
  *
  * @param {string} text 语音转写文本
- * @returns {{ year: number, month: number, day: number, hour: number, gender: 'male'|'female', name: string } | null}
+ * @returns {{ year: number, month: number, day: number, hour: number, gender: 'male'|'female', name: string, hourEstimated: boolean } | null}
+ *   `hourEstimated = true` 表示时辰是兜底估的（缺失或用户明说不知道），
+ *   界面**必须**把它显示出来 —— 时辰决定命宫落点，静默兜底等于给错盘。
  */
 export function parseBirthFromSpeech(text) {
   if (!text || typeof text !== 'string') return null;
@@ -243,6 +292,14 @@ export function parseBirthFromSpeech(text) {
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/：/g, ':')
     .replace(/[，,、。．；;]+/g, ' ')
+    /**
+     * 「时辰」这个词本身**不是**时辰名。
+     *
+     * 「什么时辰」「哪个时辰」「不知道时辰」里的"辰"紧跟着"时"，
+     * 会被时辰名正则读成「辰时」（序号 4）—— 一个用户根本没给过的答案。
+     * 先把这两个字抹掉，别让它污染后面的匹配（"辰时"本身不含"时辰"两字，不受影响）。
+     */
+    .replace(/时辰/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -300,11 +357,21 @@ export function parseBirthFromSpeech(text) {
   let hour = null;
   /** 钟点 0–23（仅当用户说了具体钟点时有值） */
   let clockHour = null;
+  /** 时辰是不是"猜的"（缺失或用户明说不知道）——界面据此明示估算 */
+  let hourEstimated = false;
+
+  /**
+   * 用户明说"不知道时辰"时，句子里出现的时辰名**不可信**
+   * （"我不记得是子时还是丑时"里的"子时"是二选一里的一个，不是答案）。
+   */
+  const uncertain = isHourUncertain(s);
 
   // 1) 明确的时辰名（子时…亥时）—— 最明确，优先级最高
-  const labelMatch = s.match(/([子丑寅卯辰巳午未申酉戌亥])\s*时/);
-  if (labelMatch) {
-    hour = HOUR_BY_NAME[labelMatch[1]];
+  if (!uncertain) {
+    const labelMatch = s.match(/([子丑寅卯辰巳午未申酉戌亥])\s*时/);
+    if (labelMatch) {
+      hour = HOUR_BY_NAME[labelMatch[1]];
+    }
   }
 
   // 2) 口语时段（先记下来，可能与钟点组合）
@@ -330,7 +397,14 @@ export function parseBirthFromSpeech(text) {
     hour = HOUR_BY_PERIOD[period];
   }
 
-  if (hour === null || hour === undefined) return null;
+  // 5) 时辰缺失 → 落午时并标记为估算（**不再直接失败**）
+  //
+  // 旧行为：return null → 用户在眼镜上永远补不上「子时」这个答案，
+  // 只能反复重试、反复失败。现在给一条能走通的路，代价是盘面带"估算"标注。
+  if (hour === null) {
+    hour = DEFAULT_HOUR;
+    hourEstimated = true;
+  }
 
   // ── 性别 ───────────────────────────────────────────────
   /** @type {'male' | 'female' | null} */
@@ -353,5 +427,5 @@ export function parseBirthFromSpeech(text) {
     d = next.getUTCDate();
   }
 
-  return { year: y, month: m, day: d, hour, gender, name: '' };
+  return { year: y, month: m, day: d, hour, gender, name: '', hourEstimated };
 }

@@ -137,7 +137,22 @@ export default {
          * 这一行必须告诉用户「这不是你的盘」——否则会被误读成算错了。
          */
         demoLabel: '',
-        voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男',
+        /**
+         * 「时辰按午时估算」标注。
+         *
+         * 用户说不出时辰是常态（他自己多半也不知道），所以缺时辰时按午时兜底排盘，
+         * 但**必须明示** —— 时辰决定命宫落点，静默兜底等于给出一张看起来很真的错盘。
+         */
+        hourNote: '',
+        /**
+         * 中宫最后一行（示例盘 / 时辰估算）的合并文案。
+         *
+         * ⚠️ 中宫高度是死的（176px，padding 8px → 内容区 160px），
+         * 现有几行**已经排满**，再加一行就会压到下排宫位上。
+         * 所以两类提示合并成一行显示。
+         */
+        noticeLabel: '',
+        voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
         heardText: '',
         readingTitle: '',
         readingDimension: '',
@@ -287,15 +302,32 @@ export default {
 
             const layerView = this._layerView('natal', board.center);
 
+            /**
+             * 中宫最后一行：示例盘标注 + 时辰估算标注（合并成一行，见 data.noticeLabel）。
+             */
+            const hourNote = !demo && birth && birth.hourEstimated ? '时辰按午时估算' : '';
+            const demoLabel = demo ? '示例盘　返回键换成你的生辰' : '';
+            const noticeLabel = [demoLabel, hourNote].filter(Boolean).join('　');
+
             console.info(
                 '[ziwei-agent] 盘面来源=' + result.source +
                 ' 运限层可用=' + this._layersReady +
-                ' 示例盘=' + demo,
+                ' 示例盘=' + demo +
+                ' 时辰估算=' + hourNote,
             );
 
             this.setData({
                 ready: true,
                 needInput: false,
+                /**
+                 * 关掉生辰录入浮层。
+                 *
+                 * ⚠️ 这里以前**漏了**，后果是：用户说完生辰 → 解析成功 → 排盘成功，
+                 * 但录入浮层还盖在盘面上；而浮层态下按返回键是 `this.finish()`（退出应用），
+                 * 于是用户**永远看不到自己刚排出来的盘**，只能退出重开。
+                 * 眼镜上没有别的出口 —— 模拟器没有麦克风，这条路径以前从没被跑到过。
+                 */
+                overlay: '',
                 cells: markActive(board.cells, mingBranch),
                 center: board.center,
                 selectedBranch: mingBranch,
@@ -309,7 +341,9 @@ export default {
                 navHint: this._navHint(),
                 sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算',
                 statusLine: this._statusLine(result.source === 'device' ? '端侧计算' : '服务端计算'),
-                demoLabel: demo ? '示例盘　返回键换成你的生辰' : ''
+                demoLabel,
+                hourNote,
+                noticeLabel
             });
         } catch (err) {
             console.info(
@@ -321,6 +355,8 @@ export default {
                 needInput: true,
                 overlay: 'input',
                 demoLabel: '',
+                hourNote: '',
+                noticeLabel: '',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
@@ -739,7 +775,7 @@ _vertical(delta) {
             overlay: 'input',
             needInput: true,
             heardText: '',
-            voiceHint: '说出你的生辰，例如：1990年1月1日 子时 男'
+            voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女'
         });
     },
 
@@ -747,7 +783,7 @@ _vertical(delta) {
         this.setData({ voiceHint: '在听……请说出你的生辰', heardText: '' });
         const text = await listenOnce();
         if (!text) {
-            this.setData({ voiceHint: '没听清，再说一次：1990年1月1日 子时 男' });
+            this.setData({ voiceHint: '没听清，再说一次：1990年1月1日 早上 男' });
             return;
         }
 
@@ -755,11 +791,23 @@ _vertical(delta) {
 
         const birth = parseBirthFromSpeech(text);
         if (!birth) {
-            this.setData({ voiceHint: '没解析出年月日和时辰，换个说法试试' });
+            this.setData({ voiceHint: '没听清出生日期，再说一次：1990年1月1日 早上 男' });
             return;
         }
 
-        this.setData({ voiceHint: '已识别，正在排盘' });
+        /**
+         * 语音反馈。
+         *
+         * 眼镜上没有屏幕回看，识别结果**必须念出来**才算确认 ——
+         * 用户需要知道自己听成了什么，尤其是时辰被估算的时候。
+         */
+        if (birth.hourEstimated) {
+            this.setData({ voiceHint: '已识别，时辰按午时估算，正在排盘' });
+            speak('已识别，时辰未指定，按午时估算，正在排盘');
+        } else {
+            this.setData({ voiceHint: '已识别，正在排盘' });
+            speak('已识别，正在排盘');
+        }
         this._birth = birth;
         this._chart(birth);
     }
@@ -793,14 +841,14 @@ _vertical(delta) {
             </view>
             <text class="center-hint">确认键听解读　{{navHint}}</text>
             <text class="center-hint dim">{{statusLine}}</text>
-            <text class="center-hint demo" ink:if="{{demoLabel}}">{{demoLabel}}</text>
+            <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'input'}}">
             <text class="overlay-title">说出你的生辰</text>
             <text class="overlay-body">{{voiceHint}}</text>
             <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
-            <text class="overlay-body dim">格式：1990年1月1日 子时 男</text>
+            <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
             <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
             <text class="overlay-hint">确认键开始识别　返回键退出</text>
         </view>

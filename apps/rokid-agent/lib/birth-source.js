@@ -33,6 +33,8 @@ export const DEMO_BIRTH = Object.freeze({
     hour: 0,
     gender: 'male',
     name: '',
+    /** 示例盘时辰是明确的（子时），不是估算 */
+    hourEstimated: false,
 });
 
 /**
@@ -56,7 +58,16 @@ export function birthFromQuery(query) {
         Number.isInteger(hour) && hour >= 0 && hour <= 11 &&
         gender
     ) {
-        return { year, month, day, hour, gender, name: q.name || '' };
+        return {
+            year,
+            month,
+            day,
+            hour,
+            gender,
+            name: q.name || '',
+            /** 入参也可以带"时辰是估的"标记（如对话流已解析过一次） */
+            hourEstimated: q.hourEstimated === true,
+        };
     }
 
     return null;
@@ -83,7 +94,12 @@ export function resolveInitialBirth(query, saved) {
         Number.isInteger(saved.hour) &&
         (saved.gender === 'male' || saved.gender === 'female')
     ) {
-        return { birth: { ...saved }, demo: false };
+        // 存档里带过"时辰是估的"，读回来也要继续标 —— 否则下次启动用户
+        // 看到自己的盘却没有"时辰按午时估算"这行说明。
+        return {
+            birth: { ...saved, hourEstimated: saved.hourEstimated === true },
+            demo: false,
+        };
     }
 
     return { birth: { ...DEMO_BIRTH }, demo: true };

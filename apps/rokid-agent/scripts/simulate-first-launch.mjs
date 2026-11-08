@@ -15,12 +15,15 @@
  *  2. **端侧引擎真的能加载**（assets/engine.js 动态 import）→ 中宫显示「端侧计算」；
  *  3. **四层运限可用**（layersReady）；
  *  4. **示例盘标注在界面上**，且不会写进本机命盘库；
- *  5. **盘面态的返回键能回到生辰录入**（重新说生辰的唯一入口）。
+ *  5. **盘面态的返回键能回到生辰录入**（重新说生辰的唯一入口）；
+ *  6. **语音路径**（给了 --asr 才跑）：说完生辰 → 解析 → 排盘 → **关掉录入浮层**，
+ *     并在盘面上标出「时辰按午时估算」（缺时辰时的兜底口径）。
  *
  * 用法：
  *   node apps/rokid-agent/scripts/simulate-first-launch.mjs
  *   node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
  *   node apps/rokid-agent/scripts/simulate-first-launch.mjs --query year=1988&month=3&day=12&hour=7&gender=female
+ *   node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png --asr "1990年1月1日 我不知道时辰 男"
  */
 
 import { execFileSync } from 'node:child_process';
@@ -50,8 +53,13 @@ function arg(flag, fallback) {
  *
  * 只做一件事：把 `from '../../lib/x.js'` 里的相对路径换成绝对 file:// URL。
  * 页面里的相对导入在 node 下会解析到临时目录，所以必须换。
+ *
+ * @param {string} [asrText] 若给了，就把语音识别**替换成固定返回这一句**。
+ *   node 里没有麦克风、`import('wx')` 必然失败，语音路径在本地永远走不通；
+ *   换成桩之后，「用户说完生辰 → 解析 → 排盘 → 关掉录入浮层」这条真路径
+ *   才能在本地被跑到（这正是 2026-11-08 修的那个致命 bug 所在的那条路径）。
  */
-async function loadPageModule() {
+async function loadPageModule(asrText = '') {
   const ink = fs.readFileSync(INK_PAGE, 'utf8');
   const start = ink.indexOf('<script setup>');
   const end = ink.indexOf('</script>', start);
@@ -64,6 +72,19 @@ async function loadPageModule() {
     /from\s+'\.\.\/\.\.\/lib\/([^']+)'/g,
     (_m, rel) => `from '${pathToFileURL(path.join(libDir, rel)).href}'`,
   );
+
+  // 语音识别桩：把 listenOnce 换成一个固定返回值的假函数，
+  // 这样「确认键 → 听 → 解析 → 排盘 → 关浮层」整条路径能在本地跑通。
+  if (asrText) {
+    const before = body;
+    body = body.replace(
+      /import\s*\{\s*listenOnce\s*\}\s*from\s*'[^']*voice-input\.js';/,
+      `const listenOnce = async () => ${JSON.stringify(asrText)};`,
+    );
+    if (body === before) {
+      throw new Error('没能替换掉 listenOnce 导入 —— index.ink 的导入写法变了？');
+    }
+  }
 
   const tmp = path.join(os.tmpdir(), `ziwei-ink-setup-${process.pid}.mjs`);
   fs.writeFileSync(tmp, body, 'utf8');
@@ -97,6 +118,16 @@ async function waitReady(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (page.data.ready) return true;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  return false;
+}
+
+/** 等一个条件成立 */
+async function waitFor(fn, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fn()) return true;
     await new Promise((r) => setTimeout(r, 40));
   }
   return false;
@@ -168,6 +199,11 @@ ${centerHtml}
 
 async function main() {
   const queryArg = arg('--query', '');
+  /**
+   * 语音识别桩的返回文本（给了就跑完整条语音路径）。
+   * 例：--asr "1990年1月1日 我不知道时辰 男"
+   */
+  const asrText = arg('--asr', '');
   const query = {};
   for (const pair of queryArg.split('&').filter(Boolean)) {
     const [k, v] = pair.split('=');
@@ -185,7 +221,7 @@ async function main() {
     /* 没有 localStorage 就算了，本来就是冷启动 */
   }
 
-  const mod = await loadPageModule();
+  const mod = await loadPageModule(asrText);
   const page = makePage(mod.default);
 
   await page.onLoad(query);
@@ -221,6 +257,49 @@ async function main() {
   if (d.overlay !== 'input') {
     problems.push('盘面态按返回键没有回到生辰录入浮层');
   }
+  const overlayAfterBack = d.overlay;
+
+  /**
+   * 语音路径（给了 --asr 才跑）：确认键 → 听 → 解析 → 排盘 → 关掉录入浮层。
+   *
+   * ⚠️ 这条路径以前**从没在本地跑到过**（模拟器没有麦克风，语音入口进不去），
+   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见：
+   * 用户说完生辰 → 排盘成功 → 录入浮层还盖在盘面上 →
+   * 而浮层态按返回键是**退出应用** ⇒ 用户永远看不到自己刚排出来的盘。
+   */
+  let asrResult = null;
+  if (asrText) {
+    /**
+     * 期望值由**解析器自己**算（不是写死「应该有估算标注」）——
+     * 这样才能同时抓住两处不一致：解析器说估了但界面没标，或反之。
+     */
+    const parserMod = await import(
+      pathToFileURL(path.join(AGENT_ROOT, 'lib', 'birth-parser.js')).href
+    );
+    const parsed = parserMod.parseBirthFromSpeech(asrText);
+    const expectedNotice = parsed && parsed.hourEstimated ? '时辰按午时估算' : '';
+
+    page.onKeyUp({ code: 'Enter', preventDefault() {} });
+    await waitFor(() => page.data.overlay === '' && page.data.ready, 8000);
+    asrResult = {
+      overlay: page.data.overlay,
+      notice: page.data.noticeLabel || '',
+      cells: (page.data.cells || []).length,
+      hour: parsed ? parsed.hour : null,
+      expectedNotice,
+    };
+    if (page.data.overlay !== '') {
+      problems.push('语音识别成功后录入浮层没有关掉 —— 用户看不到自己的盘');
+    }
+    if (!(page.data.cells || []).length) {
+      problems.push('语音识别后排盘格子为空');
+    }
+    if (page.data.noticeLabel !== expectedNotice) {
+      problems.push(
+        `时辰估算标注与解析器不一致（界面=${page.data.noticeLabel || '空'}｜期望=${expectedNotice || '空'}）`,
+      );
+    }
+  }
 
   console.log('── 本地首启模拟 ──────────────────────────────────────────');
   console.log(`  入参          : ${Object.keys(query).length ? JSON.stringify(query) : '（无）'}`);
@@ -229,7 +308,14 @@ async function main() {
   console.log(`  计算来源      : ${d.sourceLabel || '（空）'}`);
   console.log(`  运限层可用    : ${d.layersReady}`);
   console.log(`  示例盘标注    : ${d.demoLabel || '（无）'}`);
-  console.log(`  返回键→生辰录入: ${d.overlay === 'input' ? '可达 ✓' : '不可达 ✗'}`);
+  console.log(`  返回键→生辰录入: ${overlayAfterBack === 'input' ? '可达 ✓' : '不可达 ✗'}`);
+  if (asrResult) {
+    console.log(`  语音识别      : 「${asrText}」`);
+    console.log(`  解析时辰序号  : ${asrResult.hour}`);
+    console.log(`  识别后浮层    : ${asrResult.overlay || '（无）'} ${asrResult.overlay === '' ? '✓ 已回到盘面' : '✗ 仍盖着'}`);
+    console.log(`  识别后标注    : ${asrResult.notice || '（无）'}`);
+    console.log(`  识别后宫位    : ${asrResult.cells}`);
+  }
   console.log('──────────────────────────────────────────────────────────');
 
   if (wantPng) {

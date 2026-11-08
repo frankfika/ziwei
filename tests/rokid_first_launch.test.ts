@@ -99,4 +99,35 @@ export const suite: SuiteFn = async (t) => {
       throw new Error(`返回键回不到生辰录入\n${r.stdout}\n${r.stderr}`);
     }
   });
+
+  /**
+   * 语音路径（`--asr` 桩）：说完生辰 → 解析 → 排盘 → **关掉录入浮层**。
+   *
+   * ⚠️ 这条路径以前**从没被任何测试跑到过** —— 模拟器没有麦克风，
+   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见：
+   * 用户说完生辰 → 排盘成功 → 录入浮层还盖在盘面上 →
+   * 而浮层态按返回键是**退出应用** ⇒ 用户永远看不到自己刚排出来的盘。
+   */
+  await t.test('语音说完生辰后能回到盘面（录入浮层必须关掉）', () => {
+    const r = runSimulator(['--asr', '1990年1月1日 早上 男']);
+    if (r.code !== 0) {
+      throw new Error(`语音路径退出码 ${r.code}\n${r.stdout}\n${r.stderr}`);
+    }
+    if (!/识别后浮层\s*:\s*（无）\s*✓ 已回到盘面/.test(r.stdout)) {
+      throw new Error(`说完生辰后仍停在录入浮层\n${r.stdout}\n${r.stderr}`);
+    }
+    if (!/识别后宫位\s*:\s*12/.test(r.stdout)) {
+      throw new Error(`语音识别后排盘格子不是 12\n${r.stdout}\n${r.stderr}`);
+    }
+  });
+
+  await t.test('缺时辰时按午时兜底，并在盘面上明示「时辰按午时估算」', () => {
+    const r = runSimulator(['--asr', '1990年1月1日 我不知道时辰 男']);
+    if (r.code !== 0) {
+      throw new Error(`缺时辰路径退出码 ${r.code}\n${r.stdout}\n${r.stderr}`);
+    }
+    if (!/识别后标注\s*:\s*时辰按午时估算/.test(r.stdout)) {
+      throw new Error(`缺时辰时没有标注估算\n${r.stdout}\n${r.stderr}`);
+    }
+  });
 };

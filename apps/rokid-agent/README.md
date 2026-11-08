@@ -43,7 +43,7 @@ apps/rokid-agent/
 │   ├── chart-layout.js        # 十二宫网格布局 + 宫位↔维度映射（与 Web 端 GRID_POS 一致）
 │   ├── head-cursor.js         # IMU：四元数 → 欧拉角 → 准星网格 → 地支；加速度计兜底
 │   ├── time-layer.js          # 时间层（运限）：本命/大限/流年/流月四层的构建与焦点判定
-│   ├── birth-parser.js        # 口语生辰 → 年/月/日/时辰/性别（纯函数）
+│   ├── birth-parser.js        # 口语生辰 → 年/月/日/时辰/性别（纯函数；缺时辰落午时并标估算）
 │   ├── chart-source.js        # 端侧引擎优先，失败静默落服务端
 │   ├── api.js                 # wx.request 优先 / fetch 兜底，带超时
 │   ├── tts.js                 # TTS 双通道（wx.speech / speechSynthesis）

@@ -26,6 +26,9 @@ importers:
       '@ziwei/reading-index':
         specifier: workspace:*
         version: link:packages/reading-index
+      lunar-javascript:
+        specifier: ^1.7.3
+        version: 1.7.8
       tsx:
         specifier: ^4.19.0
         version: 4.23.15
@@ -127,7 +130,7 @@ importers:
         version: 2.6.3
       lunar-javascript:
         specifier: ^1.7.3
-        version: 1.7.7
+        version: 1.7.8
     devDependencies:
       typescript:
         specifier: ^5
@@ -813,8 +816,8 @@ packages:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
     engines: {node: '>=8'}
 
-  lunar-javascript@1.7.7:
-    resolution: {integrity: sha512-u/KYiwPIBo/0bT+WWfU7qO1d+aqeB90Tuy4ErXenr2Gam0QcWeezUvtiOIyXR7HbVnW2I1DKfU0NBvzMZhbVQw==}
+  lunar-javascript@1.7.8:
+    resolution: {integrity: sha512-T79Lq2t5zjPu7nnkuUn3xFqIMIB5LCVSn6uJXQLvgWEqUGdE4KQXqQOVBaoYsVHY/8MIwFd7ol9dJ5bP2ItXUQ==}
 
   lunar-lite@0.2.8:
     resolution: {integrity: sha512-Y4tba4RaIFI0ikImJhgoEsyqtDE64lJIM3yFwRX01dbmagCDq7rNmpDQFrSFFy4WXeuywdRVFpIBoT1GGCEizw==}
@@ -1611,7 +1614,7 @@ snapshots:
     dependencies:
       p-locate: 4.1.0
 
-  lunar-javascript@1.7.7: {}
+  lunar-javascript@1.7.8: {}
 
   lunar-lite@0.2.8:
     dependencies:

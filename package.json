@@ -43,7 +43,8 @@
     "@ziwei/core": "workspace:*",
     "@ziwei/reading-index": "workspace:*",
     "tsx": "^4.19.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "lunar-javascript": "^1.7.3"
   },
   "engines": {
     "node": ">=20"

@@ -554,6 +554,25 @@ export default function AskPanel({
 
   const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
 
+  // 深度思考开关：空态时单独一行，有消息后收进意图芯片行末尾（不再独占一行）
+  const deepThinkChip = (
+    <button
+      type="button"
+      onClick={toggleDeepThink}
+      aria-pressed={deepThink}
+      title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+      className={
+        'shrink-0 ' +
+        CHIP_CLASS +
+        (deepThink
+          ? ' border-zhu/50 text-ink'
+          : ' border-line text-ink-2 opacity-70')
+      }
+    >
+      {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+    </button>
+  );
+
   return (
     <div
       className={bare ? 'flex min-h-0 flex-1 flex-col print:hidden' : 'print:hidden'}
@@ -641,7 +660,7 @@ export default function AskPanel({
 
         {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 新开一段不再「找不到旧的」 */}
         {bare && loaded && threads.length + archivedThreads.length > 0 && (
-          <div className="mb-3 flex shrink-0 items-center gap-2">
+          <div className="mb-2 flex shrink-0 items-center gap-2">
             <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
               对话记录
             </label>
@@ -772,7 +791,7 @@ export default function AskPanel({
 
           {/* 上次的对话：默认折叠成一行，不点开就不占屏 */}
           {bare && historyCount > 0 && (
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-lineSoft bg-surface/70 px-3 py-2">
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-lineSoft bg-surface/70 px-3 py-2">
               <p className="min-w-0 truncate text-xs text-ink-2">
                 上次这段对话有 {historyCount} 条
                 {!showHistory && ' · 没展开，不算这次对话的上下文'}
@@ -788,7 +807,7 @@ export default function AskPanel({
           )}
 
           {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
-          <div className={bare ? 'mt-auto space-y-4' : 'space-y-5'}>
+          <div className={bare ? 'mt-auto space-y-5' : 'space-y-5'}>
             {messages.length >= MAX_MESSAGES && (
               <p className="rounded-lg border border-lineSoft bg-surface/70 px-3 py-2 text-2xs leading-relaxed text-ink-3">
                 这段对话只保留最近 {MAX_MESSAGES} 条，再往下问会挤掉最前面的 —— 想留档请另开一段新对话。
@@ -1017,9 +1036,12 @@ export default function AskPanel({
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
           <div className="mt-4 shrink-0 border-t border-lineSoft pt-3 pb-[env(safe-area-inset-bottom)]">
-            {/* 意图芯片：空态时用大卡片引导（有消息后才收成这排小胶囊） */}
+            {/* 意图芯片：空态时用大卡片引导（有消息后才收成这排小胶囊，单行横滑，手机上不折两排） */}
             {messages.length > 0 && (
-              <div className="mb-2.5 flex flex-wrap gap-1.5" aria-label="问点什么">
+              <div
+                className="mb-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                aria-label="问点什么"
+              >
                 {presets.map((p) => (
                   <button
                     key={p.question}
@@ -1033,29 +1055,17 @@ export default function AskPanel({
                       )
                     }
                     disabled={pending}
-                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                    className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {p.label}
                   </button>
                 ))}
+                {deepThinkChip}
               </div>
             )}
-            <div className="mb-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleDeepThink}
-                aria-pressed={deepThink}
-                title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
-                className={
-                  CHIP_CLASS +
-                  (deepThink
-                    ? ' border-zhu/50 text-ink'
-                    : ' border-line text-ink-2 opacity-70')
-                }
-              >
-                {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
-              </button>
-            </div>
+            {messages.length === 0 && (
+              <div className="mb-2 flex items-center gap-2">{deepThinkChip}</div>
+            )}
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}

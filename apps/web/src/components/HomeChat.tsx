@@ -106,7 +106,7 @@ export default function HomeChat({
       )}
 
       {/* 状态胶囊独占一行：说清「现在用谁」，点它开 AI 设置（设置入口只留这一处） */}
-      <div className="mb-2.5">
+      <div className="mb-2">
         <button
           type="button"
           onClick={() => setShowConfig((v) => !v)}
@@ -138,7 +138,7 @@ export default function HomeChat({
 
       {/* 档案行：档案芯片 + 新建/合盘 —— 都是「管档案」的动作，放一行横向滚动 */}
       <div
-        className="-mx-2 mb-3 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-2 mb-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="选择档案"
       >
@@ -174,7 +174,7 @@ export default function HomeChat({
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。
           面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部 */}
       {resolved?.ok && resolved.resolved ? (
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-line bg-surface-2/40 px-3 py-3 sm:px-4">
+        <div className="flex min-h-0 flex-1 flex-col px-0 py-2 sm:rounded-2xl sm:border sm:border-line sm:bg-surface-2/40 sm:px-4 sm:py-3">
           {/* 面板头：说清现在问的是哪张盘 */}
           <div className="mb-2.5 flex shrink-0 items-baseline justify-between gap-3 border-b border-line/70 pb-2.5">
             <p className="min-w-0 truncate text-sm text-ink">

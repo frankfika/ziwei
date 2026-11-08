@@ -530,7 +530,7 @@ This is not a prediction or advice, and is not medical, legal or investment advi
 | 15 | **镜腿键沿外圈巡宫** | `lib/chart-layout.js` 的 `RING_ORDER` / `stepRing`：巳 午 未 申 酉 戌 亥 子 丑 寅 卯 辰，十二宫全覆盖；+1 即地支 +1，与抬头低头切宫同向。自动化断言了走满一圈能回原点 |
 | 16 | **首启必出盘（出生参数三级兜底）** | `lib/birth-source.js`：对话流入参 → 本机存档 → 内置示例盘（1990-01-01 子时 男，冻结）。**示例盘不写入本机命盘库**，中宫标注「示例盘　返回键换成你的生辰」；用户说出自己生辰后立即替换。修复前模拟器与真机首启都可能停在输入浮层出不了盘 |
 | 17 | **盘面态可回到生辰录入** | 返回键由「直接退出应用」改为「回到生辰录入浮层」，再按一次才 `finish()`。修复前语音失败一次即被锁死在第一张盘上（盘面态原本没有任何重录入口） |
-| 18 | **端侧引擎在运行时真的加载成功** | 由「不知道」变为**已验证**：新增本地首启模拟器 `scripts/simulate-first-launch.mjs` —— 把 `pages/index/index.ink` 的 `<script setup>` 当 ESM 加载、配最小 Ink 运行时、调真实 `onLoad`、用真实 CSS 渲染 480×352 PNG。实测冷启动即出 12 宫、层=本命盘、选中=命宫，中宫显示**「端侧计算」**（非「服务端计算」），`运限层可用=true`（运限只有端侧引擎算得出来，服务端兜底路径给不出）。已由 `tests/rokid_first_launch.test.ts` 挂进 `npm test`（共 197 例全绿） |
+| 18 | **端侧引擎在运行时真的加载成功** | 由「不知道」变为**已验证**：新增本地首启模拟器 `scripts/simulate-first-launch.mjs` —— 把 `pages/index/index.ink` 的 `<script setup>` 当 ESM 加载、配最小 Ink 运行时、调真实 `onLoad`、用真实 CSS 渲染 480×352 PNG。实测冷启动即出 12 宫、层=本命盘、选中=命宫，中宫显示**「端侧计算」**（非「服务端计算」），`运限层可用=true`（运限只有端侧引擎算得出来，服务端兜底路径给不出）。已由 `tests/rokid_first_launch.test.ts` 挂进 `npm test`（共 201 例全绿） |
 | 19 | **AIUI Studio 工程已是最新代码** | 2026-11-08 用 `?import_from_github=` 整段 URL 重新导入（该入口在 Studio 前端 bundle 里，官方文档没写）。导入后工程树出现 **`lib/birth-source.js`**、`DEVICE-CHECKLIST.md`、`MAIL-TO-ROKID.send.txt` —— 这三个都是本分支新增文件，证明拉到的就是当前代码，不是旧工程 |
 | 20 | **Rokid 真实运行时出盘 + 解读 + 追问** | 2026-11-08 在 AIUI Studio「模拟调试」里用**直接运行智能体**（不带 query，正好压测首启兜底）跑通：① 盘面态 —— 12 宫齐全、中宫「本命盘 / 命主 巨门 身主 天机 / 阴男 水二局 / 农历1989年12月5日 / 己巳 丙子 丙寅 戊子」、命宫加粗描边、末行「示例盘　返回键换成你的生辰」；运行日志 `[ziwei-agent] 使用端侧引擎排盘`、`盘面来源=device 运限层可用=true 示例盘=true`；② 镜腿单击 → 解读浮层「命宫 丁丑 / 本命命宫 · 命格总览」+ **解读正文真的检索出来了** + 免责声明；③ 再按确认键 → 追问浮层「追问 / 今年这一层盘面有什么变化 / 焦点: 命宫 · 流年」。唯一一条 error 是 Studio 运行时自身 i18next 的 `Intl.PluralRules` 兼容警告，与本作品代码无关。盘面内容与本地首启模拟器**逐格一致**（双端交叉验证） |
 | 21 | **AIX 已按最新代码重新打包，且已把包下载下来核验过** | 2026-11-08「重新打包并保存」→ `bcdceff1163f4e6e8dea474d03b5f0c9-1794100520699.aix`，**2.07 MB**（旧包 1.89 MB），文件 MD5 `a88725d8862ee7a60dca2b74ec59a33b`。「查看当前 AIX 包信息」显示包页面 `pages/index/index`、包工具函数参数 `year/month/day/hour/gender`（required 全五项）、标题「紫微星盘」；横幅「调试版本已就绪 · 可进行真机调试」，侧栏「已同步」。**并且已把包从 Rokid 公开 CDN 拉下来逐项核验**（`npm run aix:fetch`）：CDN 地址可推导、免鉴权（`https://basecloud.rokidcdn.com/basecloud/prod/<AgentID+后缀>-<打包时间戳>.aix`）；本地算出的 MD5 与 Studio 报的**完全一致**；解包后 `lib/birth-source.js`（新增文件）、`pages/index/index.ink`（1120 行）、`assets/engine.js` 都在；**最硬的一条** —— 把**包内**的引擎与出生参数模块跟**仓库里**的跑同一批输入，排盘结果、运限三层、晚子时口径、兜底逻辑**逐字段一致**（9 组出生参数 + 8 组排盘全等）⇒ 「包里就是最新代码」不是推断，是可复现的核验 |
@@ -576,7 +576,7 @@ This is not a prediction or advice, and is not medical, legal or investment advi
 | P0 | **借到真机，跑通全链路并录屏（含四层时间层切换）** | 2026-12 上旬 |
 | P0 | **样机申请节奏**：策划案过审**当天**就申请（每赛道限 1 台，先到先得） | 随策划案过审即时（见 `SUBMIT-RUNBOOK.md` §5.1 的 S1–S5 五步节奏） |
 | P1 | ~~补 `tests/rokid_agent.test.ts`，用 9 份金标准盘钉死打包产物~~ | ✅ 2026-11-06 完成（64 例） |
-| P1 | ~~本地首启模拟器 + 端侧引擎加载验证~~ | ✅ 2026-11-07 完成（`npm run agent:first-launch`，197 例全绿） |
+| P1 | ~~本地首启模拟器 + 端侧引擎加载验证~~ | ✅ 2026-11-07 完成（`npm run agent:first-launch`，201 例全绿） |
 | P1 | **真机验证清单成文**（传感器轴向 / TTS / 切层 / 巡宫 / 格子可读性） | 2026-11 中旬（样机到货前必须写完） |
 | P1 | **软著材料包产出**（说明书 PDF + 源程序 60 页打印稿 + 提交指引） | 2026-11 中旬 |
 | P1 | 制作提审素材（1 图 + 1 视频 + 截图若干） | 2026-12 中旬 |

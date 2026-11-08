@@ -199,7 +199,7 @@ npm run agent:first-launch     # 跑真实页面逻辑，输出首屏 PNG
 
 > 这条链路的意义：**端侧引擎能不能在运行时动态 import `assets/engine.js`**
 > —— 这是「眼镜原生性」的支点，此前只有「不知道」。现在是**已验证**，
-> 且被 `tests/rokid_first_launch.test.ts` 挂进 `npm test`（197 例全绿）。
+> 且被 `tests/rokid_first_launch.test.ts` 挂进 `npm test`（201 例全绿）。
 
 #### 3.4 模拟器里出不了盘 —— **已定位、已修复、已在 Studio 复验通过**
 
@@ -274,6 +274,18 @@ const birth = this._resolveBirth(query);   // query.year/month/day/hour/gender
 > ```
 >
 > 真机调试走的是**云端包**，本来就不依赖本地文件；但本地要留档、要做对账，就用这个脚本。
+
+> ⚠️ **本仓库的工作区可能不在 Rokid 分支上。** `apps/rokid-agent/` 只存在于
+> `feat/rokid-spatial-joy-2026`；如果工作区停在 `main`，这个目录看起来就是「不见了」——
+> **代码没被删，是 checkout 把它移走了**。用 `git branch --show-current` 先确认，
+> 或者用独立 worktree 隔离两条线：
+>
+> ```bash
+> git worktree add /path/to/ziwei-rokid feat/rokid-spatial-joy-2026
+> ```
+>
+> 在独立 worktree 里跑测试时，`node_modules/@ziwei/*` 要指向**该 worktree 自己的 packages/**
+> —— 否则会顺着软链加载主仓库当前分支的包，出现「分支不对」的假失败。
 
 ### 步骤 4 · 真机调试（当前最大的质量缺口，也是权重最高、最容易补齐的一项）
 

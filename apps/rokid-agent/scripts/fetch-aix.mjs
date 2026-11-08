@@ -54,10 +54,17 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794128239691.aix`,
+    md5: 'be19541710a792b8d69a330280c555d8',
+    note: '2026-11-08 16:57 重打，含追问超时修复（TIMEOUTS.ask 40s→120s），8.61 MB；包内预览视频已是首帧修复版',
+    current: true,
+  },
+  {
+    key: 'prev-submitted',
     file: `${AGENT_ID}-1794105155119.aix`,
     md5: '5c548ed6260dcae43e4389024894b135',
-    note: '2026-11-08 10:33 重打，含追问超时修复（TIMEOUTS.ask 40s→120s），8.96 MB',
-    current: true,
+    note: '2026-11-08 10:33 重打，8.96 MB —— 提审时提交的就是这一版；包内预览视频是首帧修复前的旧版（7.09 MB）',
+    current: false,
   },
   {
     key: 'no-timeout-fix',

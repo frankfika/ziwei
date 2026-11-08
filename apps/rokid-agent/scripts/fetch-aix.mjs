@@ -54,10 +54,17 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794136722831.aix`,
+    md5: '676f6c4f6d1bcbed5fa756e6024b8cfc',
+    note: '2026-11-08 19:19 重打，8.63 MB；含追问超时修复（120s）+ 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版）+ **时辰入口改造**（提示改口语、缺时辰落午时并标估算、修掉「解析成功浮层不关」致命 bug）',
+    current: true,
+  },
+  {
+    key: 'prev-intl-shim',
     file: `${AGENT_ID}-1794133305274.aix`,
     md5: '3bf19fa781f34d822050e71a050ef009',
-    note: '2026-11-08 18:21 重打，8.62 MB；含追问超时修复（120s）+ 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版，眼镜运行时已实测不再打 i18next error、端侧引擎正常出盘）',
-    current: true,
+    note: '2026-11-08 18:21 重打，8.62 MB；含追问超时修复 + 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版），但**还没有时辰入口改造**',
+    current: false,
   },
   {
     key: 'broken-intl-shim',

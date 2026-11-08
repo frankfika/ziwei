@@ -43,10 +43,12 @@ const PREVIEW_ASSETS: Array<{ file: string; minWidth: number; minHeight: number 
   { file: 'sim-ask.png', minWidth: 480, minHeight: 600 },
 ];
 
-/** 2026-11-08 10:33 重新打包后的 AIX 包（含追问超时修复）—— **提审提交的就是这一版** */
+/** 2026-11-08 10:33 重新打包后的 AIX 包（含追问超时修复）—— 10:56 首次提审提交的就是这一版 */
 const SUBMITTED_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794105155119.aix';
-/** 2026-11-08 18:21 重打（含追问超时修复 + 端侧引擎 Intl.PluralRules 兜底） */
-const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794133305274.aix';
+/** 2026-11-08 18:52 提审重提时提交的那一版（Intl 兜底） */
+const RESUBMITTED_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794133305274.aix';
+/** 2026-11-08 19:19 重打（含追问超时修复 + Intl 兜底 + 时辰入口改造）—— 现行版 */
+const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794136722831.aix';
 /** 2026-11-08 16:57 重打（首帧修复版预览视频） */
 const HEADFIX_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794128239691.aix';
 /** 2026-11-08 18:12 那一版 —— 端侧引擎带了第一版坏补丁，眼镜上直接崩，已作废 */
@@ -58,6 +60,7 @@ const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794011125685.aix';
 /** 文档里允许出现的 AIX 包名白名单 —— 出了这个集合就是笔误 */
 const KNOWN_AIX = new Set([
   CURRENT_AIX,
+  RESUBMITTED_AIX,
   SUBMITTED_AIX,
   HEADFIX_AIX,
   BROKEN_SHIM_AIX,

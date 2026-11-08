@@ -124,6 +124,8 @@ export interface QuotaCopy {
   logout: string;
   /** 导航栏入口 */
   navAccount: string;
+  /** 未知错误兜底 */
+  unknownError: string;
 }
 
 const ZH: QuotaCopy = {
@@ -163,6 +165,7 @@ const ZH: QuotaCopy = {
   payFailed: (detail) => `下单失败：${detail}`,
   payNotConfigured: '支付服务还没配置好（缺支付宝商户凭据），暂时买不了。',
   langToggle: 'EN',
+  unknownError: '未知错误',
   loginRequired: '登录后可以购买流量包，额度记在你的账户里。',
   loginCta: '去登录',
   emailLabel: '邮箱',
@@ -230,6 +233,7 @@ const EN: QuotaCopy = {
   payFailed: (detail) => `Checkout failed: ${detail}`,
   payNotConfigured: 'Payment is not set up yet (missing Alipay merchant credentials).',
   langToggle: '中文',
+  unknownError: 'Unknown error',
   loginRequired: 'Sign in to buy a traffic pack — the credits go to your account.',
   loginCta: 'Sign in',
   emailLabel: 'Email',

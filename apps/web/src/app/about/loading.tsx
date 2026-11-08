@@ -1,4 +1,10 @@
+'use client';
+
+import { useLang } from '@/lib/lang';
+import { SITE_COPY } from '@/lib/siteCopy';
 export default function AboutLoading() {
+  const [lang] = useLang();
+  const copy = SITE_COPY[lang];
   return (
     <div
       className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16"
@@ -19,7 +25,7 @@ export default function AboutLoading() {
           </div>
         ))}
       </div>
-      <p className="mt-8 text-center text-2xs text-ink-3">正在加载口径说明…</p>
+      <p className="mt-6 text-center text-2xs text-ink-3">{copy.loadingAbout}</p>
     </div>
   );
 }

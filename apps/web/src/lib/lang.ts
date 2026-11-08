@@ -11,6 +11,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 import type { Lang } from './quotaCopy';
+import { useLangContext } from './LangProvider';
 
 const STORAGE_KEY = 'ziwei_lang';
 const EVENT = 'ziwei:lang';
@@ -48,6 +49,10 @@ export function setLang(lang: Lang): void {
   } catch {
     /* 存不下就算了，本次会话内仍然生效 */
   }
+  // 同时写 cookie：服务端（metadata、<html lang>）读得到，刷新不闪回中文
+  if (typeof document !== 'undefined') {
+    document.cookie = `${STORAGE_KEY}=${lang}; path=/; max-age=31536000; samesite=lax`;
+  }
   emit();
 }
 
@@ -61,9 +66,16 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-/** 订阅当前语言 */
+/**
+ * 订阅当前语言 —— 优先用 LangProvider（服务端按 cookie 注入，首屏就是对的），
+ * 没有 Provider 时退回 localStorage 订阅（老入口/独立组件仍能用）。
+ */
 export function useLang(): [Lang, (l: Lang) => void] {
-  const lang = useSyncExternalStore(subscribe, load, () => 'zh' as Lang);
+  const ctx = useLangContext();
+  const fallback = useSyncExternalStore(subscribe, load, () => 'zh' as Lang);
   const toggle = useCallback((l: Lang) => setLang(l), []);
-  return [lang, toggle];
+  if (ctx) return [ctx.lang, ctx.setLang];
+  return [fallback, toggle];
 }
+
+export { langFromCookie } from './langServer';

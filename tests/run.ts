@@ -31,6 +31,7 @@ const SUITE_FILES = [
   'tests/ask_quota.test.ts',
   'tests/account.test.ts',
   'tests/quota_copy.test.ts',
+  'tests/i18n_copy.test.ts',
 ];
 
 /** 一个文件跑完的结果 */

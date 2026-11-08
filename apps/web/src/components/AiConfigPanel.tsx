@@ -166,7 +166,7 @@ export default function AiConfigPanel({
             key={p.label}
             type="button"
             onClick={() => applyPreset(p)}
-            title={p.hint}
+            title={lang === 'en' && p.hintEn ? p.hintEn : p.hint}
             className={`rounded-full border px-2.5 py-1 text-2xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
               hasConfig && cfg.kind === p.kind && cfg.baseUrl === p.baseUrl
                 ? 'border-zhu bg-zhu-soft text-ink'

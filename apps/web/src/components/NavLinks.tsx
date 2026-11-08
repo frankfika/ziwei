@@ -27,7 +27,7 @@ export default function NavLinks() {
     }`;
 
   return (
-    <nav className="flex items-center gap-1" aria-label="主导航">
+    <nav className="flex items-center gap-1" aria-label={copy.navAria}>
       {NAV.map((item) => {
         const current = isCurrent(pathname, item.href);
         return (

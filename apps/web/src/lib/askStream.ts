@@ -77,11 +77,11 @@ export async function streamAsk(formData: FormData, handlers: AskStreamHandlers)
   const res = await fetch('/api/ask', { method: 'POST', body: formData });
 
   if (!res.ok) {
-    handlers.onError(`追问请求失败（HTTP ${res.status}），请稍后重试。`);
+    handlers.onError(`追问请求失败（HTTP ${res.status}），请稍后重试。 / Request failed (HTTP ${res.status}) — try again shortly.`);
     return;
   }
   if (!res.body) {
-    handlers.onError('当前浏览器不支持流式显示，请升级浏览器后重试。');
+    handlers.onError('当前浏览器不支持流式显示，请升级浏览器后重试。 / This browser does not support streaming — please upgrade and retry.');
     return;
   }
 
@@ -115,7 +115,7 @@ export async function streamAsk(formData: FormData, handlers: AskStreamHandlers)
     }
   } catch (err) {
     handlers.onError(
-      `追问连接中断：${err instanceof Error ? err.message : '网络异常'}。可以点重试。`,
+      `追问连接中断：${err instanceof Error ? err.message : '网络异常'}。可以点重试。 / Connection interrupted: ${err instanceof Error ? err.message : 'network error'}. You can retry.`,
     );
   }
 }
@@ -144,7 +144,7 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
       });
       return;
     case 'not-covered':
-      handlers.onNotCovered?.(evt.message ?? '样本库未覆盖该生辰。');
+      handlers.onNotCovered?.(evt.message ?? '样本库未覆盖该生辰。 / This birth data is not covered by the sample library.');
       return;
     case 'quota-exceeded':
       handlers.onQuotaExceeded?.({
@@ -156,6 +156,6 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
       });
       return;
     default:
-      handlers.onError(evt.message ?? '追问失败，请稍后重试。');
+      handlers.onError(evt.message ?? '追问失败，请稍后重试。 / The follow-up failed — try again shortly.');
   }
 }

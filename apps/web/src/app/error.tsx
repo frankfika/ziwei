@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useLang } from '@/lib/lang';
+import { SITE_COPY } from '@/lib/siteCopy';
 
 /**
  * App Router segment error boundary.
@@ -15,6 +17,8 @@ export default function Error({
   error: unknown;
   retry: () => void;
 }) {
+  const [lang] = useLang();
+  const copy = SITE_COPY[lang];
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,11 +38,9 @@ export default function Error({
         tabIndex={-1}
       >
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ERROR</p>
-        <h1 className="text-xl font-semibold tracking-[0.12em] text-ink">
-          出了点问题
-        </h1>
+        <h1 className="text-xl font-semibold tracking-[0.12em] text-ink">{copy.appErrorTitle}</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-2">
-          页面加载或渲染时遇到意外错误。可以重试，或先回到首页重新排盘。
+          {copy.appErrorBody}
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
@@ -46,19 +48,19 @@ export default function Error({
             onClick={() => retry()}
             className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-4 py-2.5 text-sm font-medium tracking-wide2 text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            重试
+            {copy.retry}
           </button>
           <Link
             href="/"
             className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-4 py-2.5 text-sm text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            回首页
+            {copy.backHome}
           </Link>
           <Link
             href="/about"
             className="text-sm text-zhu underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            关于与口径
+            {copy.notFoundAbout}
           </Link>
         </div>
       </div>

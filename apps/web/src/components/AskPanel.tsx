@@ -14,7 +14,7 @@
 import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useLang } from '@/lib/lang';
-import { CHAT_COPY } from '@/lib/chatCopy';
+import { CHAT_COPY, type ChatCopy } from '@/lib/chatCopy';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
@@ -126,6 +126,8 @@ function AnswerAvatar({
   model?: string;
   source?: 'user' | 'builtin';
 }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   return (
     <p className="mb-1 flex items-center gap-1.5">
       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zhu text-[10px] leading-none text-white">
@@ -135,8 +137,8 @@ function AnswerAvatar({
       {model && (
         <span className="text-2xs text-ink-2">
           · {model}
-          {source === 'user' && '（你的 Key）'}
-          {source === 'builtin' && '（内置免费）'}
+          {source === 'user' && copy.sourceUser}
+          {source === 'builtin' && copy.sourceBuiltin}
         </span>
       )}
       {cited && cited.length > 0 && (
@@ -182,20 +184,22 @@ type Transient =
       checkout: string;
     };
 
-function suspectsOf(v: AskStreamVerification): string[] {
+function suspectsOf(v: AskStreamVerification, copy: ChatCopy): string[] {
   return [
-    ...v.suspectStars.map((s) => `星曜「${s}」`),
-    ...v.suspectPalaces.map((s) => `宫位「${s}」`),
-    ...v.suspectPlacements.map((s) => `落宫「${s}」`),
+    ...v.suspectStars.map((s) => copy.suspectStar(s)),
+    ...v.suspectPalaces.map((s) => copy.suspectPalace(s)),
+    ...v.suspectPlacements.map((s) => copy.suspectPlacement(s)),
   ];
 }
 
 function MessageMeta({ message }: { message: AskMessage }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-2">
       <span className={ASK_MARK_CLASS}>答</span>
       <span>
-        {new Date(message.at).toLocaleString('zh-CN', {
+        {new Date(message.at).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', {
           month: 'numeric',
           day: 'numeric',
           hour: '2-digit',
@@ -205,7 +209,7 @@ function MessageMeta({ message }: { message: AskMessage }) {
       {message.cited && message.cited.length > 0 && (
         <>
           <span aria-hidden="true">·</span>
-          <span>依据：{message.cited.join('、')}</span>
+          <span>{copy.citedLabel}{message.cited.join('、')}</span>
         </>
       )}
       {message.model && (
@@ -213,8 +217,8 @@ function MessageMeta({ message }: { message: AskMessage }) {
           <span aria-hidden="true">·</span>
           <span>
             {message.model}
-            {message.source === 'user' && '（你的 Key）'}
-            {message.source === 'builtin' && '（内置免费）'}
+            {message.source === 'user' && copy.sourceUser}
+            {message.source === 'builtin' && copy.sourceBuiltin}
           </span>
         </>
       )}
@@ -223,6 +227,8 @@ function MessageMeta({ message }: { message: AskMessage }) {
 }
 
 function MessageVerification({ suspects, isLatest }: { suspects: string[]; isLatest: boolean }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   if (suspects.length > 0) {
     return (
       <div
@@ -231,7 +237,7 @@ function MessageVerification({ suspects, isLatest }: { suspects: string[]; isLat
         role="alert"
       >
         <p className="text-xs font-medium text-hua-ke">
-          这条回答里有些说法超出了你的盘面材料，请谨慎参考：
+          {copy.overreachNotice}
         </p>
         <ul className="mt-1.5 space-y-0.5 text-2xs text-ink-2">
           {suspects.map((s) => (
@@ -549,7 +555,7 @@ export default function AskPanel({
                 question: text,
                 answer: p.answer,
                 cited: p.cited,
-                suspects: suspectsOf(p.verification),
+                suspects: suspectsOf(p.verification, copy),
                 ...(p.model ? { model: p.model } : {}),
                 ...(p.source ? { source: p.source } : {}),
               },
@@ -581,7 +587,7 @@ export default function AskPanel({
       } catch {
         setTransient({
           kind: 'local-error',
-          message: '追问请求失败，可能是网络波动或服务暂时不可用。请稍后重试。',
+          message: copy.requestFailed,
           retryQuestion: text,
         });
       } finally {
@@ -639,19 +645,19 @@ export default function AskPanel({
           >
             <span>
               <span className="block text-sm tracking-[0.2em] text-ink">
-                命盘追问
+                {copy.askPanelTitle}
                 {messages.length > 0 && (
                   <span className="ml-2 text-2xs font-normal tracking-normal text-ink-2">
-                    已存 {messages.length} 条对话
+                    {copy.savedChats(messages.length)}
                   </span>
                 )}
               </span>
               <span className="mt-1 block text-2xs font-normal text-ink-2">
-                对话只存在本机
+                {copy.localOnly}
               </span>
             </span>
             <span className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-line px-3 py-1.5 text-2xs text-ink-2">
-              {expanded ? '收起' : '展开'}
+              {expanded ? copy.collapse : copy.expand}
             </span>
           </button>
         </h2>
@@ -680,10 +686,10 @@ export default function AskPanel({
                 setExpanded(true);
                 window.requestAnimationFrame(() => textareaRef.current?.focus());
               }}
-              aria-label="展开更多推荐追问"
+              aria-label={copy.moreAskAria}
               className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              更多推荐
+              {copy.moreRecommended}
             </button>
           </div>
         )}
@@ -702,7 +708,7 @@ export default function AskPanel({
             role="status"
           >
             <p className="text-xs leading-relaxed text-ink-2">
-              智能追问暂未开启。排盘与解读不受影响，可以照常查看。
+              {copy.askUnavailable}
             </p>
           </div>
         )}
@@ -734,8 +740,8 @@ export default function AskPanel({
               <button
                 type="button"
                 onClick={onOpenConfig}
-                aria-label="AI 设置"
-                title="点开 AI 设置"
+                aria-label={copy.aiSettings}
+                title={copy.openAiSettingsTitle}
                 className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-sm leading-none text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 ⚙
@@ -957,7 +963,7 @@ export default function AskPanel({
           {messages.length === 0 && !pending && !transient && !bare && (
             <div role="status">
               <p className="text-xs leading-relaxed text-ink-2">
-                围绕这张盘提问，回答只依据数据集原文。
+                {copy.askAround}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {presets.slice(0, 2).map((p) => (
@@ -1033,7 +1039,7 @@ export default function AskPanel({
                             onClick={() => setChartOpenFor(null)}
                             className="mt-1.5 text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                           >
-                            收起命盘
+                            {copy.collapseChart}
                           </button>
                         </div>
                       ) : (
@@ -1045,7 +1051,7 @@ export default function AskPanel({
                           }}
                           className="text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
-                          在对话里看这张盘
+                          {copy.viewChartInChat}
                         </button>
                       )
                     )}
@@ -1088,7 +1094,7 @@ export default function AskPanel({
                               onClick={() => setChartOpenFor(null)}
                               className="mt-2 inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                             >
-                              收起命盘
+                              {copy.collapseChart}
                             </button>
                           </>
                         ) : (
@@ -1100,7 +1106,7 @@ export default function AskPanel({
                             }}
                             className="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                           >
-                            在对话里看这张盘
+                            {copy.viewChartInChat}
                           </button>
                         )}
                       </div>
@@ -1179,7 +1185,7 @@ export default function AskPanel({
                       <p className="text-xs text-ink-2">星图检索中…</p>
                     </div>
                     <p className="mt-1.5 text-2xs text-ink-2">
-                      正在核对盘面并检索数据集原文，通常需要几秒。
+                      {copy.verifyingIntro}
                     </p>
                   </>
                 )}
@@ -1211,7 +1217,7 @@ export default function AskPanel({
                     disabled={pending}
                     className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
-                    重试
+                    {copy.retry}
                   </button>
                 )}
               </div>
@@ -1267,7 +1273,7 @@ export default function AskPanel({
         <>
         <div className="mt-6 border-t border-line pt-5">
           <label htmlFor="ask-question" className="field-label">
-            你的问题
+            {copy.yourQuestion}
           </label>
           <textarea
             ref={textareaRef}
@@ -1284,10 +1290,10 @@ export default function AskPanel({
             maxLength={2000}
             placeholder={
               pending
-                ? '正在回答中，可以先把下一句打好…'
+                ? copy.placeholderPending
                 : messages.length > 0
-                  ? '接着上面的对话继续问，例如：那财运方面呢？'
-                  : '例如：这份命盘在职业方向上有什么特点？'
+                  ? copy.placeholderContinue
+                  : copy.exampleCareer
             }
             className="field-input resize-y leading-relaxed"
             aria-describedby="ask-submit-hint"
@@ -1320,13 +1326,13 @@ export default function AskPanel({
               type="button"
               onClick={toggleDeepThink}
               aria-pressed={deepThink}
-              title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+              title={copy.deepThinkTitle}
               className={
                 CHIP_CLASS +
                 (deepThink ? ' border-zhu/50 text-ink' : ' border-line text-ink-2 opacity-70')
               }
             >
-              {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+              {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
             </button>
           </div>
 
@@ -1338,14 +1344,14 @@ export default function AskPanel({
             aria-describedby="ask-submit-hint"
             className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            {pending ? '正在查证…' : '追问'}
+            {pending ? copy.verifying : copy.followUp}
           </button>
           <p id="ask-submit-hint" className="mt-2 text-2xs text-ink-2">
             {pending
-              ? '查证进行中，请稍候。'
+              ? copy.hintVerifying
               : messages.length > 0
-                ? '会带上这张盘之前的对话作为语境。也可 ⌘/Ctrl + Enter。'
-                : '提交后将依据本盘与数据集原文作答。也可 ⌘/Ctrl + Enter。'}
+                ? copy.hintContinue
+                : copy.hintFirst}
           </p>
         </div>
 
@@ -1354,11 +1360,11 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
+                if (window.confirm(copy.clearConfirm)) clear();
               }}
               className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              清空对话
+              {copy.nonBareClear}
             </button>
           </div>
         )}
@@ -1368,7 +1374,7 @@ export default function AskPanel({
 
       {!bare && (
         <p className="mt-3 text-2xs leading-relaxed text-ink-2">
-          回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。
+          {copy.disclaimerShort}
         </p>
       )}
     </div>

@@ -8,14 +8,17 @@ import { chartUrl, MAX_ENTRIES, useHistory } from '@/lib/history';
 import {
   BirthFormState,
   EMPTY_FORM,
-  GENDER_LABEL,
   SHICHEN_NAMES,
+  SHICHEN_NAMES_EN,
   SHICHEN_RANGES,
   clockToShichen,
   formatClock,
+  formatDate,
   resolveForm,
   shichenToClock,
 } from '@/lib/birth';
+import { FORM_COPY } from '@/lib/formCopy';
+import { useLang } from '@/lib/lang';
 import { DURATION, motionDuration, motionStyle, preferredScrollBehavior } from '@/lib/motion';
 
 export type { BirthFormState };
@@ -51,7 +54,7 @@ function SubmitButton({
   pending,
   form,
   className,
-  disabledLabel = '请先填完整生辰',
+  disabledLabel,
 }: {
   canSubmit: boolean;
   pending: boolean;
@@ -61,6 +64,8 @@ function SubmitButton({
   /** Shown when submit is blocked (incomplete / invalid date). */
   disabledLabel?: string;
 }) {
+  const [lang] = useLang();
+  const copy = FORM_COPY[lang];
   return (
     <button
       type="submit"
@@ -75,12 +80,12 @@ function SubmitButton({
         // 按钮态：同一 keyframes，压到 DURATION.submit = 120ms
         // （reduced-motion 下 motionDuration 收到 80ms，globals.css 也有 80ms 兜底）
         <span className="chart-submit" style={motionStyle(motionDuration(DURATION.submit))}>
-          排盘中…
+          {copy.submitting}
         </span>
       ) : canSubmit ? (
-        '排 盘'
+        copy.submit
       ) : (
-        disabledLabel
+        (disabledLabel ?? copy.disabledDefault)
       )}
     </button>
   );
@@ -97,6 +102,8 @@ export default function BirthForm({
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   /** 移动端星册默认折叠；桌面端恒展开 */
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [lang] = useLang();
+  const copy = FORM_COPY[lang];
   const { history, save, remove, rename, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
@@ -163,18 +170,26 @@ export default function BirthForm({
   };
 
   const missingDateParts: string[] = [];
-  if (form.year === '') missingDateParts.push('年');
-  if (form.month === '') missingDateParts.push('月');
-  if (form.day === '') missingDateParts.push('日');
+  if (form.year === '') missingDateParts.push(copy.partYear);
+  if (form.month === '') missingDateParts.push(copy.partMonth);
+  if (form.day === '') missingDateParts.push(copy.partDay);
   const hasDateError = missingDateParts.length > 0;
   const dateValueInvalid = !resolved.ok && !hasDateError;
+  /** 错误文案按 errorCode 查本域文案（birth.ts 里的中文 error 串保持不动，给 CLI 用） */
+  const errorText = resolved.errorCode
+    ? copy.errors[resolved.errorCode](
+        resolved.errorCode === 'invalid-date'
+          ? formatDate(Number(form.year), Number(form.month), Number(form.day))
+          : undefined,
+      )
+    : '';
   const submitHint = resolved.ok
-    ? '提交后生成你的命盘与解读。'
+    ? copy.hintOk
     : hasDateError
-      ? `请先选择出生${missingDateParts.join('、')}，再排盘。`
-      : resolved.error
-        ? resolved.error
-        : '请先填写有效的出生日期。';
+      ? copy.hintMissingParts(copy.joinParts(missingDateParts))
+      : errorText
+        ? errorText
+        : copy.hintInvalidDate;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
@@ -189,7 +204,7 @@ export default function BirthForm({
         {/* 姓名 */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-name">
-            姓名（可选）
+            {copy.nameLabel}
           </label>
           <input
             id="zi-name"
@@ -199,7 +214,7 @@ export default function BirthForm({
             autoComplete="nickname"
             autoCapitalize="words"
             spellCheck={false}
-            placeholder="仅用于显示，不影响排盘"
+            placeholder={copy.namePlaceholder}
             className="field-input"
             value={form.name}
             onChange={(e) => patch({ name: e.target.value })}
@@ -209,7 +224,7 @@ export default function BirthForm({
         {/* 出生日期：年/月/日 三联下拉（DateSelects 共享组件） */}
         <div className="mb-7">
           <label className="field-label" htmlFor="zi-date">
-            出生日期（公历）
+            {copy.dateLabel}
           </label>
           <DateSelects
             id="zi-date"
@@ -229,8 +244,8 @@ export default function BirthForm({
               role="alert"
             >
               {hasDateError
-                ? '请选择完整的公历出生日期。'
-                : resolved.error}
+                ? copy.dateIncomplete
+                : errorText}
             </p>
           )}
           {yearNotCovered && (
@@ -239,7 +254,7 @@ export default function BirthForm({
               data-year-coverage="miss"
               role="status"
             >
-              这一年暂时没有解读 —— 仍可排盘看十二宫。
+              {copy.yearNotCovered}
             </p>
           )}
         </div>
@@ -247,7 +262,7 @@ export default function BirthForm({
         {/* 时辰 */}
         <div className="mb-7">
           <span className="field-label" id="birth-time-label">
-            出生时辰
+            {copy.timeLabel}
           </span>
 
           <div
@@ -257,8 +272,8 @@ export default function BirthForm({
           >
             {(
               [
-                { key: 'shichen', label: '按时辰' },
-                { key: 'clock', label: '按钟点' },
+                { key: 'shichen', label: copy.modeShichen },
+                { key: 'clock', label: copy.modeClock },
               ] as const
             ).map((tab) => {
               const active = form.timeMode === tab.key;
@@ -287,7 +302,7 @@ export default function BirthForm({
           {form.timeMode === 'shichen' ? (
             <div>
               <label className="sr-only" htmlFor="zi-shichen">
-                时辰
+                {copy.shichenAria}
               </label>
               <select
                 id="zi-shichen"
@@ -297,7 +312,7 @@ export default function BirthForm({
               >
                 {SHICHEN_NAMES.map((name, i) => (
                   <option key={name} value={i}>
-                    {name}时（{SHICHEN_RANGES[i]}）
+                    {copy.shichenOption(name, SHICHEN_NAMES_EN[i], SHICHEN_RANGES[i])}
                   </option>
                 ))}
               </select>
@@ -305,13 +320,13 @@ export default function BirthForm({
               {form.shichen === 0 && (
                 <div className="mt-3 rounded-lg border border-lineSoft bg-paper p-3">
                   <p className="mb-2 text-xs text-ink-2">
-                    子时跨零点，你出生在哪一段？
+                    {copy.ziQuestion}
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {(
                       [
-                        { key: 'same', label: '当日子时', hint: '00:00–00:59' },
-                        { key: 'next', label: '晚子时', hint: '23:00–23:59 · 按次日排盘' },
+                        { key: 'same', label: copy.ziSame, hint: copy.ziSameHint },
+                        { key: 'next', label: copy.ziNext, hint: copy.ziNextHint },
                       ] as const
                     ).map((opt) => {
                       const active = form.ziVariant === opt.key;
@@ -339,7 +354,7 @@ export default function BirthForm({
           ) : (
             <div>
               <label className="sr-only" htmlFor="zi-clock">
-                出生钟点
+                {copy.clockAria}
               </label>
               <input
                 id="zi-clock"
@@ -359,9 +374,16 @@ export default function BirthForm({
           {/* 排盘口径：一行人话，只在信息完整时显示 */}
           {resolved.ok && resolved.resolved && (
             <p className="mt-3 text-xs leading-relaxed text-ink-2" role="status">
-              将按 {resolved.resolved.year} 年 {resolved.resolved.month} 月{' '}
-              {resolved.resolved.day} 日 {SHICHEN_NAMES[resolved.resolved.hour]}时 排盘
-              {resolved.resolved.lateZi && '（晚子时，已顺延到次日）'}
+              {copy.chartDate(
+                resolved.resolved.year,
+                resolved.resolved.month,
+                resolved.resolved.day,
+                copy.shichen(
+                  SHICHEN_NAMES[resolved.resolved.hour],
+                  SHICHEN_NAMES_EN[resolved.resolved.hour],
+                ),
+              )}
+              {resolved.resolved.lateZi && copy.chartDateLate}
             </p>
           )}
         </div>
@@ -369,7 +391,7 @@ export default function BirthForm({
         {/* 性别 */}
         <div className="mb-8">
           <span className="field-label" id="gender-label">
-            性别
+            {copy.genderLabel}
           </span>
           <input type="hidden" name="gender" value={form.gender} />
           <div
@@ -391,7 +413,7 @@ export default function BirthForm({
                       : 'border-line bg-surface text-ink-2 hover:border-ink-3'
                   }`}
                 >
-                  {GENDER_LABEL[g]}
+                  {copy.gender[g]}
                 </button>
               );
             })}
@@ -405,8 +427,8 @@ export default function BirthForm({
             pending={formPending}
             disabledLabel={
               hasDateError
-                ? `请先选择${missingDateParts.join('、')}`
-                : '请修正出生日期'
+                ? copy.disabledDate(copy.joinParts(missingDateParts))
+                : copy.disabledDateFix
             }
           />
         </div>
@@ -436,30 +458,29 @@ export default function BirthForm({
         <div className="mb-4 flex items-start justify-between gap-2">
           <div>
             <h2 id="history-heading" className="text-xs font-medium tracking-wide2 text-ink-2">
-              星册
+              {copy.libraryTitle}
               {history.length > 0 && (
                 <span className="ml-2 hidden font-normal text-ink-3 tabular-nums md:inline">
-                  {history.length} 张
+                  {copy.libraryCount(history.length)}
                 </span>
               )}
             </h2>
             <p className="mt-1 text-2xs leading-relaxed text-ink-2">
-              只存在本机，不上传。
-              {history.length >= MAX_ENTRIES &&
-                ` 最多存 ${MAX_ENTRIES} 张，新存的会挤掉最早的一张。`}
+              {copy.libraryNote}
+              {history.length >= MAX_ENTRIES && copy.libraryFull(MAX_ENTRIES)}
             </p>
           </div>
           {history.length > 0 && (
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('清空全部已存命盘？')) {
+                if (window.confirm(copy.libraryClearConfirm)) {
                   clear();
                 }
               }}
               className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              清空
+              {copy.libraryClear}
             </button>
           )}
         </div>
@@ -467,7 +488,7 @@ export default function BirthForm({
         {history.length === 0 ? (
           <div className="flex items-center gap-3 py-1">
             <StarGlyph className="h-6 w-6 shrink-0 text-ink-3/40" />
-            <p className="text-2xs leading-relaxed text-ink-2">排过的盘会留在这</p>
+            <p className="text-2xs leading-relaxed text-ink-2">{copy.libraryEmpty}</p>
           </div>
         ) : (
           <>
@@ -479,9 +500,9 @@ export default function BirthForm({
               aria-controls="history-list"
               className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg border border-lineSoft bg-paper/40 px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:hidden"
             >
-              <span>已存 {history.length} 张</span>
+              <span>{copy.librarySaved(history.length)}</span>
               <span className="flex items-center gap-1">
-                {libraryOpen ? '收起' : '展开'}
+                {libraryOpen ? copy.collapse : copy.expand}
                 <span
                   aria-hidden="true"
                   className={`transition-transform ${libraryOpen ? 'rotate-180' : ''}`}
@@ -513,45 +534,52 @@ export default function BirthForm({
                       >
                         <span className="block truncate text-xs text-ink">{entry.label}</span>
                         <span className="mt-0.5 block truncate text-2xs text-ink-2">
-                          {entry.form.year}年{entry.form.month}月{entry.form.day}日
+                          {copy.entryDate(
+                            Number(entry.form.year),
+                            Number(entry.form.month),
+                            Number(entry.form.day),
+                          )}
                           {' · '}
                           {entry.form.timeMode === 'clock'
                             ? `${formatClock(Number(entry.form.clockHour), Number(entry.form.clockMinute))}`
-                            : `${SHICHEN_NAMES[entry.form.shichen]}时`}
+                            : copy.entryTimeShichen(
+                                SHICHEN_NAMES[entry.form.shichen],
+                                SHICHEN_NAMES_EN[entry.form.shichen],
+                              )}
                           {' · '}
-                          {GENDER_LABEL[entry.form.gender]}
+                          {copy.gender[entry.form.gender]}
                         </span>
                       </a>
                       <div className="flex shrink-0 items-center gap-0.5">
                         <button
                           type="button"
-                          aria-label={`回填「${entry.label}」到表单`}
-                          title="回填到表单修改"
+                          aria-label={copy.fillBack(entry.label)}
+                          title={copy.fillBackTitle}
                           onClick={() => onPickHistory(entry.form)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
-                          填
+                          {copy.fillBackGlyph}
                         </button>
                         <button
                           type="button"
-                          aria-label={`重命名「${entry.label}」`}
-                          title="重命名"
+                          aria-label={copy.rename(entry.label)}
+                          title={copy.renameTitle}
                           onClick={() => {
-                            const next = window.prompt('给这张盘起个名字（如「妈妈的盘」）', entry.label);
+                            const next = window.prompt(copy.renamePrompt, entry.label);
                             if (next !== null) rename(entry.id, next);
                           }}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
-                          名
+                          {copy.renameGlyph}
                         </button>
                         <button
                           type="button"
-                          aria-label={`删除「${entry.label}」`}
-                          title="删除"
+                          aria-label={copy.remove(entry.label)}
+                          title={copy.removeTitle}
                           onClick={() => remove(entry.id)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm text-ink-2 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
-                          ×
+                          {copy.removeGlyph}
                         </button>
                       </div>
                     </div>

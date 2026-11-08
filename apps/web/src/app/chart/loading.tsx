@@ -1,3 +1,7 @@
+'use client';
+
+import { useLang } from '@/lib/lang';
+import { SITE_COPY } from '@/lib/siteCopy';
 /** 骨架格位：4×4 十二宫，中央 2×2 是中宫（与真盘同几何） */
 const CELLS: ReadonlyArray<readonly [number, number]> = [
   [1, 1], [2, 1], [3, 1], [4, 1],
@@ -7,6 +11,8 @@ const CELLS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 export default function ChartLoading() {
+  const [lang] = useLang();
+  const copy = SITE_COPY[lang];
   return (
     <div
       className="chart-submit mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14"
@@ -55,7 +61,7 @@ export default function ChartLoading() {
         <div className="h-40 animate-pulse motion-reduce:animate-none rounded-xl bg-surface ring-1 ring-inset ring-lineSoft" />
       </div>
 
-      <p className="mt-6 text-center text-2xs text-ink-3">正在排布十二宫…</p>
+      <p className="mt-6 text-center text-2xs text-ink-3">{copy.loadingChart}</p>
     </div>
   );
 }

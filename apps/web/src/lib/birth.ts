@@ -16,6 +16,12 @@ export const SHICHEN_NAMES = [
   '午', '未', '申', '酉', '戌', '亥',
 ] as const;
 
+/** 时辰英文释义 —— 界面里与中文原词并列（子时 · Zi hour）；时辰是领域专名，不翻 */
+export const SHICHEN_NAMES_EN = [
+  'Zi hour', 'Chou hour', 'Yin hour', 'Mao hour', 'Chen hour', 'Si hour',
+  'Wu hour', 'Wei hour', 'Shen hour', 'You hour', 'Xu hour', 'Hai hour',
+] as const;
+
 /** 天干（与排盘引擎常量顺序一致） */
 export const STEM_NAMES = [
   '甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸',
@@ -37,6 +43,9 @@ export type TimeMode = 'shichen' | 'clock';
 export type ZiVariant = 'same' | 'next';
 
 export const GENDER_LABEL: Record<Gender, string> = { male: '男', female: '女' };
+
+/** 性别英文标签（界面骨架用；命盘数据里的性别不翻） */
+export const GENDER_LABEL_EN: Record<Gender, string> = { male: 'Male', female: 'Female' };
 
 /** 钟点 → 时辰序号 0–11（不做真太阳时校正）。 */
 export function shichenFromClock(clockHour: number, clockMinute = 0): number {
@@ -119,7 +128,10 @@ export interface ResolvedBirth {
 
 export interface ResolvedInput {
   ok: boolean;
+  /** 中文错误文案（CLI / 日志用，保持原样不动） */
   error?: string;
+  /** 稳定错误码：界面据此查双语文案（见 lib/formCopy.ts） */
+  errorCode?: BirthErrorCode;
   resolved?: ResolvedBirth;
 }
 
@@ -136,6 +148,21 @@ export function formatClock(h: number, m: number): string {
 }
 
 /**
+ * 表单校验失败的原因码。
+ *
+ * 与 Server Action 的 `?error=year|month|day|date|clock|shichen` 一一对应，
+ * 界面拿它查双语文案；`error` 字符串保持中文不动（CLI / 日志仍用）。
+ */
+export type BirthErrorCode =
+  | 'missing-date'
+  | 'year-range'
+  | 'month-range'
+  | 'day-range'
+  | 'invalid-date'
+  | 'invalid-clock'
+  | 'invalid-shichen';
+
+/**
  * 把表单状态解析成排盘口径。
  *
  * - 时辰模式：排盘日 = 用户填的日期；子时可选「当日子时 / 晚子时（次日）」。
@@ -146,16 +173,16 @@ export function resolveForm(form: BirthFormState): ResolvedInput {
   const month = Number(form.month);
   const day = Number(form.day);
   if (!form.year || !form.month || !form.day) {
-    return { ok: false, error: '请填写完整的出生日期' };
+    return { ok: false, error: '请填写完整的出生日期', errorCode: 'missing-date' };
   }
   if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-    return { ok: false, error: '出生年份需在 1900–2100 之间' };
+    return { ok: false, error: '出生年份需在 1900–2100 之间', errorCode: 'year-range' };
   }
   if (!Number.isInteger(month) || month < 1 || month > 12) {
-    return { ok: false, error: '出生月份需在 1–12 之间' };
+    return { ok: false, error: '出生月份需在 1–12 之间', errorCode: 'month-range' };
   }
   if (!Number.isInteger(day) || day < 1 || day > 31) {
-    return { ok: false, error: '出生日期需在 1–31 之间' };
+    return { ok: false, error: '出生日期需在 1–31 之间', errorCode: 'day-range' };
   }
   const probe = new Date(year, month - 1, day);
   if (
@@ -163,7 +190,11 @@ export function resolveForm(form: BirthFormState): ResolvedInput {
     probe.getMonth() !== month - 1 ||
     probe.getDate() !== day
   ) {
-    return { ok: false, error: `该日期不存在：${year}-${pad(month)}-${pad(day)}` };
+    return {
+      ok: false,
+      error: `该日期不存在：${year}-${pad(month)}-${pad(day)}`,
+      errorCode: 'invalid-date',
+    };
   }
 
   const birthDate = { year, month, day };
@@ -175,7 +206,7 @@ export function resolveForm(form: BirthFormState): ResolvedInput {
       !Number.isInteger(clockHour) || clockHour < 0 || clockHour > 23 ||
       !Number.isInteger(clockMinute) || clockMinute < 0 || clockMinute > 59
     ) {
-      return { ok: false, error: '钟点需在 00:00–23:59 之间' };
+      return { ok: false, error: '钟点需在 00:00–23:59 之间', errorCode: 'invalid-clock' };
     }
     const r = resolveChartDate(year, month, day, clockHour, clockMinute);
     const note = r.lateZi
@@ -197,6 +228,9 @@ export function resolveForm(form: BirthFormState): ResolvedInput {
 
   // 时辰模式
   const hour = form.shichen;
+  if (!Number.isInteger(hour) || hour < 0 || hour > 11) {
+    return { ok: false, error: '时辰需在 0–11 之间', errorCode: 'invalid-shichen' };
+  }
   if (hour === 0 && form.ziVariant === 'next') {
     const r = resolveChartDate(year, month, day, 23, 0);
     return {

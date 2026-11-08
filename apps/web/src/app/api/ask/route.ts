@@ -71,9 +71,9 @@ export async function POST(request: Request) {
   const hour = Number(str(formData, 'hour'));
   const gender = str(formData, 'gender') === 'female' ? 'female' : 'male';
 
-  if (!question) return sseError('请先写下你的问题。');
+  if (!question) return sseError('请先写下你的问题。 / Please write your question first.');
   if (question.length > MAX_QUESTION_CHARS) {
-    return sseError(`问题太长了，请控制在 ${MAX_QUESTION_CHARS} 字以内。`);
+    return sseError(`问题太长了，请控制在 ${MAX_QUESTION_CHARS} 字以内。 / Too long — keep it under ${MAX_QUESTION_CHARS} characters.`);
   }
   if (
     !Number.isInteger(year) ||
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     hour < 0 ||
     hour > 11
   ) {
-    return sseError('生辰参数不完整，请回到输入页重新排盘。');
+    return sseError('生辰参数不完整，请回到输入页重新排盘。 / Birth data is incomplete — go back and cast the chart again.');
   }
 
   // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
             // 让按钮打点：告诉用户正在自动补救，而不是卡死
             send({
               type: 'thinking',
-              text: '（思考占满了输出预算，正在自动加大预算重试一次…）',
+              text: '（思考占满了输出预算，正在自动加大预算重试一次…） / (Thinking used up the output budget — retrying once with a larger budget…)',
             });
           } else {
             finalEmptyError = true;

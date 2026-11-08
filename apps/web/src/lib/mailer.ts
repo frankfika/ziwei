@@ -44,7 +44,7 @@ export async function sendOtpEmail(email: string, code: string): Promise<SendRes
       console.log(`[otp] 调试模式：${email} 的验证码是 ${code}（未配置发信通道，未实际发送）`);
       return { ok: true, debugCode: code };
     }
-    return { ok: false, error: '邮件服务未配置' };
+    return { ok: false, error: '邮件服务未配置 / Email service is not configured' };
   }
 
   try {
@@ -57,18 +57,18 @@ export async function sendOtpEmail(email: string, code: string): Promise<SendRes
       body: JSON.stringify({
         from,
         to: [email],
-        subject: '紫微助手登录验证码',
-        text: `你的验证码是 ${code}，10 分钟内有效。如果不是你自己操作，忽略这封信。`,
+        subject: '紫微助手登录验证码 / Ziwei Assistant login code',
+        text: `你的验证码是 ${code}，10 分钟内有效。如果不是你自己操作，忽略这封信。\n\nYour code is ${code}, valid for 10 minutes. If you did not request it, ignore this email.`,
       }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       console.error(`[otp] 发信失败 HTTP ${res.status}：${detail.slice(0, 300)}`);
-      return { ok: false, error: '验证码邮件发送失败，请稍后重试' };
+      return { ok: false, error: '验证码邮件发送失败，请稍后重试 / Failed to send the code — try again shortly' };
     }
     return { ok: true };
   } catch (err) {
     console.error('[otp] 发信异常：', err);
-    return { ok: false, error: '验证码邮件发送失败，请稍后重试' };
+    return { ok: false, error: '验证码邮件发送失败，请稍后重试 / Failed to send the code — try again shortly' };
   }
 }

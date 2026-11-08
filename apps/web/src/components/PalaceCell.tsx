@@ -1,4 +1,8 @@
+'use client';
+
 import type { ChartFortuneLayer, ChartPalace, ChartStar } from '@ziwei/chart-engine';
+import { useLang } from '@/lib/lang';
+import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
 
 /** 某星在该运限层的四化标记（禄/权/科/忌，无则 null） */
 export function fortuneSiHuaOf(
@@ -63,10 +67,12 @@ const TIER_CLASS: Record<StarTier, string> = {
 };
 
 function SiHuaBadge({ siHua }: { siHua: string }) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   return (
     <span
       className={`chip-sihua ${SIHUA_CLASS[siHua] ?? 'border-line bg-paper text-ink-2'}`}
-      title={`四化：${siHua}`}
+      title={copy.siHuaTooltip(siHua)}
     >
       {siHua}
     </span>
@@ -82,6 +88,8 @@ function StarName({
   tier?: StarTier;
   selfSihua?: string;
 }) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const isMajor = tier === 'major';
   return (
     <span className="inline-flex items-baseline gap-1">
@@ -94,8 +102,8 @@ function StarName({
       )}
       {star.siHua && <SiHuaBadge siHua={star.siHua} />}
       {selfSihua && (
-        <span className="text-2xs text-ink-3" title={`宫干自化${selfSihua}`}>
-          自化{selfSihua}
+        <span className="text-2xs text-ink-3" title={copy.selfSiHuaTitle(selfSihua)}>
+          {copy.selfSiHua(selfSihua)}
         </span>
       )}
     </span>
@@ -123,6 +131,8 @@ export default function PalaceCell({
   fortune = null,
   layerMark = '',
 }: PalaceCellProps) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const selfSihuaMap = new Map<string, string>();
   for (const s of palace.selfSihua ?? []) {
     selfSihuaMap.set(s.starName, s.siHua);
@@ -145,17 +155,17 @@ export default function PalaceCell({
   // 运限层的宫名（流年/大限落在本宫的那个宫）
   const fortuneName = fortune?.palaces.find((p) => p.branch === palace.branch)?.name ?? null;
 
-  const majorSummary = major.map((s) => s.name).join('、') || '空宫';
+  const majorSummary = major.map((s) => s.name).join('、') || copy.emptyPalace;
   const ariaLabel = [
-    palace.name,
-    `主星${majorSummary}`,
-    palace.isMingGong ? '命宫' : null,
-    palace.isShenGong ? '身宫' : null,
-    selected ? '已选中' : null,
-    inSanFang ? '三方四正关联' : null,
+    palaceLabel(palace.name, lang),
+    copy.majorStars(majorSummary),
+    palace.isMingGong ? copy.mingGong : null,
+    palace.isShenGong ? copy.shenGong : null,
+    selected ? copy.selected : null,
+    inSanFang ? copy.sanFangLink : null,
   ]
     .filter(Boolean)
-    .join('，');
+    .join(copy.listSeparator);
 
   return (
     <button
@@ -177,13 +187,16 @@ export default function PalaceCell({
                   : 'text-ink-2'
             }`}
           >
-            {palace.name}
+            {palaceLabel(palace.name, lang)}
           </span>
           {/* 运限层宫名：本命宫在流年/大限里叫什么，直接标出来 */}
           {fortuneName && fortuneName !== palace.name && (
             <span
               className="rounded-sm border border-hua-ke/40 bg-hua-ke/10 px-1 text-2xs leading-none text-hua-ke"
-              title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}${fortuneName}`}
+              title={copy.layerPalaceTitle(
+                fortune?.kind === 'liunian' ? copy.liuNian : copy.daXian,
+                palaceLabel(fortuneName, lang),
+              )}
             >
               {fortuneName.replace('宫', '')}
             </span>
@@ -198,7 +211,7 @@ export default function PalaceCell({
             className={`font-mono text-2xs tabular-nums ${
               palace.isCurrentDaXian ? 'text-zhu' : 'text-ink-3'
             }`}
-            title={palace.isCurrentDaXian ? '当前大限' : '大限'}
+            title={palace.isCurrentDaXian ? copy.currentDaXian : copy.daXian}
           >
             {palace.daXianAge[0]}–{palace.daXianAge[1]}
           </span>
@@ -208,7 +221,7 @@ export default function PalaceCell({
       {/* 主星 */}
       <div className="flex w-full flex-col gap-0.5">
         {major.length === 0 ? (
-          <span className="text-star-major text-ink-2">空宫</span>
+          <span className="text-star-major text-ink-2">{copy.emptyPalace}</span>
         ) : (
           major.map((star) => {
             const lnMark = fortuneSiHuaOf(star.name, fortune);
@@ -218,7 +231,10 @@ export default function PalaceCell({
               {lnMark && (
                 <span
                   className={`chip-sihua px-1 ${SIHUA_CLASS[lnMark] ?? 'border-line text-ink-3'}`}
-                  title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}四化：${lnMark}`}
+                  title={copy.siHuaOfTitle(
+                    fortune?.kind === 'liunian' ? copy.liuNian : copy.daXian,
+                    lnMark,
+                  )}
                 >
                   {fortune?.kind === 'liunian' ? '流' : '限'}
                   {lnMark}
@@ -257,22 +273,22 @@ export default function PalaceCell({
       {/* 标记：命宫 / 身宫 / 空宫借宫 */}
       <div className="mt-auto flex w-full flex-wrap items-center gap-1 pt-1">
         {variant === 'board' && palace.isMingGong && (
-          <span className="chip border-zhu/30 bg-zhu-soft/40 text-zhu">命宫</span>
+          <span className="chip border-zhu/30 bg-zhu-soft/40 text-zhu">{copy.mingGong}</span>
         )}
         {variant === 'board' && palace.isShenGong && (
-          <span className="chip border-hua-quan/40 bg-hua-quan/10 text-hua-quan">身宫</span>
+          <span className="chip border-hua-quan/40 bg-hua-quan/10 text-hua-quan">{copy.shenGong}</span>
         )}
         {palace.isEmpty && (
           <span
             className="chip border-line bg-paper text-ink-3"
             title={
               palace.borrowedStars?.length
-                ? `借${palace.borrowedFromName}：${palace.borrowedStars.join('、')}`
+                ? copy.borrowedStarsTitle(palace.borrowedFromName ?? '', palace.borrowedStars.join('、'))
                 : undefined
             }
           >
-            空宫
-            {palace.borrowedFromName ? ` · 借${palace.borrowedFromName}` : ''}
+            {copy.emptyPalace}
+            {palace.borrowedFromName ? ` · ${copy.borrowedFrom(palace.borrowedFromName)}` : ''}
           </span>
         )}
         {palace.borrowedStars && palace.borrowedStars.length > 0 && (

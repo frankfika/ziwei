@@ -1,17 +1,11 @@
+import { cookies } from 'next/headers';
 import ErrorAlert from '@/components/ErrorAlert';
 import HomeChat from '@/components/HomeChat';
 import { describeProviderEnv, readProviderEnv } from '@ziwei/ask';
+import { langFromCookie } from '@/lib/langServer';
+import { CHAT_COPY } from '@/lib/chatCopy';
 
 export const dynamic = 'force-dynamic';
-
-const ERROR_TEXT: Record<string, string> = {
-  year: '出生年份需在 1900–2100 之间。',
-  month: '出生月份需在 1–12 之间。',
-  day: '出生日期需在 1–31 之间。',
-  date: '这个日期不存在，请检查年月日。',
-  clock: '钟点需在 00:00–23:59 之间。',
-  shichen: '时辰序号需在 0–11 之间。',
-};
 
 export default async function HomePage({
   searchParams,
@@ -20,7 +14,23 @@ export default async function HomePage({
 }) {
   const sp = await searchParams;
   const errorKey = typeof sp.error === 'string' ? sp.error : '';
-  const errorText = ERROR_TEXT[errorKey];
+  // 语言来自 cookie（切语言时写入）：首页标题与错误提示跟着语言走
+  const jar = await cookies();
+  const copy = CHAT_COPY[langFromCookie(jar.get('ziwei_lang')?.value)];
+  const errorText =
+    errorKey === 'year'
+      ? copy.errorYear
+      : errorKey === 'month'
+        ? copy.errorMonth
+        : errorKey === 'day'
+          ? copy.errorDay
+          : errorKey === 'date'
+            ? copy.errorDate
+            : errorKey === 'clock'
+              ? copy.errorClock
+              : errorKey === 'shichen'
+                ? copy.errorShichen
+                : '';
 
   const provider = describeProviderEnv();
   const serverModel = provider.ok ? readProviderEnv().model : undefined;
@@ -31,7 +41,7 @@ export default async function HomePage({
     <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col px-5 pb-3 pt-3 sm:px-8 sm:pb-5 sm:pt-7">
       {/* 极简：一行标题，剩下的全是对话。手机端标题收进读屏 —— 对话本身就是这个页面 */}
       <h1 className="sr-only mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:not-sr-only sm:block sm:text-[1.6rem]">
-        和你的命盘聊聊
+        {copy.homeTitle}
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </h1>
 

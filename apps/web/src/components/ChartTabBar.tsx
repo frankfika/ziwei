@@ -13,6 +13,8 @@ import ChartShareButton, {
 } from './ChartShareButton';
 import type { ChartCenterInfo, CurrentDaXianInfo } from './CenterPanel';
 import type { CitationMode } from '@/lib/citations';
+import { useLang } from '@/lib/lang';
+import { CHART_COPY } from '@/lib/chartCopy';
 
 /** 三个视图：命盘 / 解读 / 追问 */
 export type ChartTabKey = 'chart' | 'reading';
@@ -114,6 +116,8 @@ export default function ChartTabs({
   details,
   share,
 }: ChartTabsProps) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const [tab, setTab] = useState<ChartTabKey>('chart');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -128,7 +132,7 @@ export default function ChartTabs({
 
   const seedFromDimension = (dim: { key: string; label: string }) => {
     dispatchZiweiAsk({
-      question: `帮我看看${dim.label}方面，原文是怎么说的？`,
+      question: copy.askDimensionSeed(dim.label),
       dimension: dim.key,
       birth: askEventBirth,
     });
@@ -136,7 +140,7 @@ export default function ChartTabs({
 
   const seedFromPalace = (palaceName: string) => {
     dispatchZiweiAsk({
-      question: `帮我看看我的${palaceName}。`,
+      question: copy.askPalaceSeed(palaceName),
       palace: palaceName.replace(/宫$/, ''),
       birth: askEventBirth,
     });
@@ -145,10 +149,7 @@ export default function ChartTabs({
   /** 中宫「就这步运追问」：时间层种子 */
   const seedFromTime = (time: 'liunian' | 'daxian') => {
     dispatchZiweiAsk({
-      question:
-        time === 'liunian'
-          ? '今年流年整体如何？流年命宫和流年四化带来了什么？'
-          : '当前这步大限整体如何？大限命宫和大限四化怎么看？',
+      question: time === 'liunian' ? copy.askYearSeed : copy.askLimitSeed,
       time,
       birth: askEventBirth,
     });
@@ -156,10 +157,10 @@ export default function ChartTabs({
 
   const tabs = useMemo(() => {
     return [
-      { key: 'chart' as const, label: '命盘' },
-      { key: 'reading' as const, label: '解读' },
+      { key: 'chart' as const, label: copy.tabChart },
+      { key: 'reading' as const, label: copy.tabReading },
     ];
-  }, []);
+  }, [copy]);
 
   // 初始 tab 由 hash 决定（SSR 先渲染命盘，挂载后再修正，避免 hydration 不一致）
   useEffect(() => {
@@ -217,7 +218,7 @@ export default function ChartTabs({
         <div className="min-w-0 flex-1 truncate text-xs text-ink">{summary}</div>
 
         <details className="relative shrink-0">
-          <summary className={SUMMARY_CHIP_CLASS}>详情</summary>
+          <summary className={SUMMARY_CHIP_CLASS}>{copy.detailsChip}</summary>
           <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-line bg-surface-2 p-3 shadow-[0_12px_40px_rgba(46,42,35,0.14)]">
             {details}
           </div>
@@ -267,7 +268,7 @@ export default function ChartTabs({
       <div
         className="tab-bar print:hidden"
         role="tablist"
-        aria-label="盘面视图"
+        aria-label={copy.tabListAria}
         onKeyDown={onTabKeyDown}
       >
         <div className="mx-auto flex w-full max-w-7xl">

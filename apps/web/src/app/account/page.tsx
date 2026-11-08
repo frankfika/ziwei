@@ -129,7 +129,7 @@ export default function AccountPage() {
                     <span>
                       {copy.accountOrderItem(
                         o.asks,
-                        new Date(o.createdAt).toLocaleString('zh-CN', {
+                        new Date(o.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', {
                           month: 'numeric',
                           day: 'numeric',
                           hour: '2-digit',

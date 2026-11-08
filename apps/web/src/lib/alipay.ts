@@ -85,12 +85,12 @@ async function callApi(
     body: new URLSearchParams(params).toString(),
   });
   if (!res.ok) {
-    throw new Error(`支付宝网关 HTTP ${res.status}`);
+    throw new Error(`支付宝网关 HTTP ${res.status} / Alipay gateway HTTP ${res.status}`);
   }
   const data = (await res.json()) as Record<string, Record<string, unknown> | string>;
   const payload = data[method.replace(/\./g, '_') + '_response'];
   if (!payload || typeof payload === 'string') {
-    throw new Error('支付宝响应缺少业务数据');
+    throw new Error('支付宝响应缺少业务数据 / Alipay response is missing business data');
   }
 
   // 验签：业务响应对象原样 stringify（保持 JSON 键序）后用支付宝公钥校验
@@ -100,7 +100,7 @@ async function callApi(
     .update(JSON.stringify(payload))
     .verify(cfg.alipayPublicKey, sign, 'base64');
   if (!ok) {
-    throw new Error('支付宝响应验签失败 —— 请检查 ZIWEI_ALIPAY_PUBLIC_KEY 是否为「支付宝公钥」');
+    throw new Error('支付宝响应验签失败 —— 请检查 ZIWEI_ALIPAY_PUBLIC_KEY 是否为「支付宝公钥」 / Alipay signature verification failed — check that ZIWEI_ALIPAY_PUBLIC_KEY is the Alipay public key');
   }
   return payload;
 }
@@ -125,13 +125,13 @@ export async function alipayPrecreate(input: {
     if (payload.code !== '10000') {
       return {
         ok: false,
-        error: `支付宝预下单失败 ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''}`.trim(),
+        error: `支付宝预下单失败 ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''} / Alipay pre-order failed ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''}`.trim(),
       };
     }
     const qr = payload.qr_code;
     return typeof qr === 'string' && qr
       ? { ok: true, qrCode: qr }
-      : { ok: false, error: '支付宝未返回二维码' };
+      : { ok: false, error: '支付宝未返回二维码 / Alipay returned no QR code' };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -150,7 +150,7 @@ export async function alipayQuery(outTradeNo: string): Promise<QueryResult> {
     // 40004 = 交易不存在 —— 用户还没扫码，属正常等待
     if (payload.code === '40004') return { status: 'waiting' };
     if (payload.code !== '10000') {
-      return { status: 'error', error: `查单失败 ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''}`.trim() };
+      return { status: 'error', error: `查单失败 ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''} / Order query failed ${payload.code ?? ''} ${payload.sub_msg ?? payload.msg ?? ''}`.trim() };
     }
     if (payload.trade_status === 'TRADE_SUCCESS' || payload.trade_status === 'TRADE_FINISHED') {
       return { status: 'paid', tradeNo: String(payload.trade_no ?? '') };

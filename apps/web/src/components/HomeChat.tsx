@@ -92,7 +92,7 @@ export default function HomeChat({
     <div
       className="mb-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       role="tablist"
-      aria-label="选择档案"
+      aria-label={copy.profilesAria}
     >
       {history.map((entry) => {
         const active = entry.id === selected?.id;

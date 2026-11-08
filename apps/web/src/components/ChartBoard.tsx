@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import PalaceCell, { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS, fortuneSiHuaOf } from './PalaceCell';
 import CenterPanel, { type BoardLayer, type ChartCenterInfo, type CurrentDaXianInfo } from './CenterPanel';
+import { useLang } from '@/lib/lang';
+import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
 
 interface ChartBoardProps {
   palaces: ChartPalace[];
@@ -28,15 +30,17 @@ interface ChartBoardProps {
   onAskTime?: (time: 'liunian' | 'daxian') => void;
 }
 
-/** 四化图例（桌面一行 / 移动端 sheet 顶部共用） */
-const SIHUA_LEGEND = (
-  <>
-    <span className="chip-sihua border-hua-lu/40 bg-hua-lu/10 text-hua-lu">禄</span>
-    <span className="chip-sihua border-hua-quan/40 bg-hua-quan/10 text-hua-quan">权</span>
-    <span className="chip-sihua border-hua-ke/40 bg-hua-ke/10 text-hua-ke">科</span>
-    <span className="chip-sihua border-hua-ji/40 bg-hua-ji/10 text-hua-ji">忌</span>
-  </>
-);
+/** 四化图例（桌面一行 / 移动端 sheet 顶部共用）：字是数据集术语，tooltip 给英文 */
+function sihuaLegend(copy: typeof CHART_COPY.zh) {
+  return (
+    <>
+      <span className="chip-sihua border-hua-lu/40 bg-hua-lu/10 text-hua-lu" title={copy.siHuaTooltip('禄')}>禄</span>
+      <span className="chip-sihua border-hua-quan/40 bg-hua-quan/10 text-hua-quan" title={copy.siHuaTooltip('权')}>权</span>
+      <span className="chip-sihua border-hua-ke/40 bg-hua-ke/10 text-hua-ke" title={copy.siHuaTooltip('科')}>科</span>
+      <span className="chip-sihua border-hua-ji/40 bg-hua-ji/10 text-hua-ji" title={copy.siHuaTooltip('忌')}>忌</span>
+    </>
+  );
+}
 
 export default function ChartBoard({
   palaces,
@@ -51,6 +55,8 @@ export default function ChartBoard({
   daXianInfo = null,
   onAskTime,
 }: ChartBoardProps) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const [selected, setSelected] = useState<number | null>(null);
   /** 时间轴叠加层：本命 / 大限 / 流年 */
   const [layer, setLayer] = useState<BoardLayer>('natal');
@@ -95,9 +101,9 @@ export default function ChartBoard({
   };
 
   const jumpChips: Array<{ key: string; label: string; branch: number; active: boolean }> = [
-    { key: 'ming', label: '命宫', branch: mingPalace?.branch ?? -1, active: selected === mingPalace?.branch },
-    { key: 'shen', label: '身宫', branch: shenPalace?.branch ?? -1, active: selected === shenPalace?.branch },
-    { key: 'daxian', label: '当前大限', branch: currentDaXian?.branch ?? -1, active: selected === currentDaXian?.branch },
+    { key: 'ming', label: palaceLabel('命宫', lang), branch: mingPalace?.branch ?? -1, active: selected === mingPalace?.branch },
+    { key: 'shen', label: palaceLabel('身宫', lang), branch: shenPalace?.branch ?? -1, active: selected === shenPalace?.branch },
+    { key: 'daxian', label: copy.currentDaXian, branch: currentDaXian?.branch ?? -1, active: selected === currentDaXian?.branch },
   ].filter((chip) => chip.branch >= 0);
 
   const centerPanel = (
@@ -158,7 +164,7 @@ export default function ChartBoard({
             gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
           }}
           role="group"
-          aria-label="十二宫命盘"
+          aria-label={copy.boardAria}
         >
           {palaces.map((palace) => {
             const [row, col] = GRID_POS[palace.branch];
@@ -200,20 +206,20 @@ export default function ChartBoard({
                 onClick={() => toggleSelected(palace.branch)}                aria-pressed={active}
                 aria-label={[
                   palace.name,
-                  `主星${major.map((s) => s.name).join('、') || '空宫'}`,
-                  palace.isMingGong ? '命宫' : null,
-                  palace.isShenGong ? '身宫' : null,
-                  active ? '已选中' : null,
-                  inSan ? '三方四正关联' : null,
+                  copy.majorStars(major.map((s) => s.name).join('、') || copy.emptyPalace),
+                  palace.isMingGong ? copy.mingGong : null,
+                  palace.isShenGong ? copy.shenGong : null,
+                  active ? copy.selected : null,
+                  inSan ? copy.sanFangLink : null,
                 ]
                   .filter(Boolean)
-                  .join('，')}
+                  .join(copy.listSeparator)}
                 className={`palace-cell ${stateClass} ${layerMark} flex min-h-0 flex-col items-start gap-0.5 overflow-hidden p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu`}
               >
                 <span className="flex w-full shrink-0 items-baseline justify-between gap-1">
                   <span className="flex min-w-0 items-baseline gap-1">
                     <span
-                      className={`shrink-0 whitespace-nowrap text-[10px] font-medium leading-tight ${
+                      className={`min-w-0 text-[10px] font-medium leading-tight ${
                         palace.isMingGong
                           ? 'text-zhu'
                           : palace.isShenGong
@@ -221,13 +227,16 @@ export default function ChartBoard({
                             : 'text-ink-2'
                       }`}
                     >
-                      {palace.name}
+                      {palaceLabel(palace.name, lang)}
                     </span>
                     {/* 运限层宫名：本命宫在流年/大限里叫什么 */}
                     {fortuneName && fortuneName !== palace.name && (
                       <span
                         className="shrink-0 rounded-sm border border-hua-ke/40 bg-hua-ke/10 px-0.5 text-[8px] leading-none text-hua-ke"
-                        title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}${fortuneName}`}
+                        title={copy.layerPalaceTitle(
+                          fortune?.kind === 'liunian' ? copy.liuNian : copy.daXian,
+                          palaceLabel(fortuneName, lang),
+                        )}
                       >
                         {fortuneName.replace('宫', '')}
                       </span>
@@ -242,7 +251,7 @@ export default function ChartBoard({
                 {/* 主星区：宫内主星多时格内滚动，不撑破盘 */}
                 <span className="flex w-full min-h-0 flex-1 flex-col gap-px overflow-y-auto">
                   {major.length === 0 ? (
-                    <span className="text-[10px] text-ink-3">空宫</span>
+                    <span className="text-[10px] text-ink-3">{copy.emptyPalace}</span>
                   ) : (
                     major.map((star) => {
                       const lnMark =
@@ -267,7 +276,10 @@ export default function ChartBoard({
                           {lnMark && (
                             <span
                               className={`chip-sihua px-1 text-[9px] leading-none ${SIHUA_CLASS[lnMark] ?? 'border-line text-ink-3'}`}
-                              title={`${fortune?.kind === 'liunian' ? '流年' : '大限'}四化：${lnMark}`}
+                              title={copy.siHuaOfTitle(
+                                fortune?.kind === 'liunian' ? copy.liuNian : copy.daXian,
+                                lnMark,
+                              )}
                             >
                               {fortune?.kind === 'liunian' ? '流' : '限'}
                               {lnMark}
@@ -310,8 +322,8 @@ export default function ChartBoard({
                   )}
                   {(palace.isMingGong || palace.isShenGong) && (
                     <span className="text-[9px] font-medium text-zhu">
-                      {palace.isMingGong ? '命' : ''}
-                      {palace.isShenGong ? '身' : ''}
+                      {palace.isMingGong ? copy.mingMark : ''}
+                      {palace.isShenGong ? copy.shenMark : ''}
                     </span>
                   )}
                 </span>
@@ -336,7 +348,7 @@ export default function ChartBoard({
           {selectedPalace ? (
             <>
               <span className="shrink-0 text-2xs font-medium text-ink">
-                {selectedPalace.name}
+                {palaceLabel(selectedPalace.name, lang)}
               </span>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
                 {sanFangBranches(selectedPalace.branch).map((branch) => {
@@ -355,7 +367,7 @@ export default function ChartBoard({
                           : 'border-line bg-surface text-ink-2'
                       }`}
                     >
-                      {p.name}
+                      {palaceLabel(p.name, lang, true)}
                     </button>
                   );
                 })}
@@ -366,13 +378,13 @@ export default function ChartBoard({
                   onClick={() => onAskPalace(selectedPalace.name)}
                   className="shrink-0 rounded-full border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
-                  就此追问
+                  {copy.askHere}
                 </button>
               )}
             </>
           ) : (
             <p className="text-2xs text-ink-3">
-              点宫位看三方四正 · 中宫可切本命 / 大限 / 流年
+              {copy.tapPalaceHint}
             </p>
           )}
         </div>
@@ -389,7 +401,7 @@ export default function ChartBoard({
               gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
             }}
             role="group"
-            aria-label="十二宫命盘"
+            aria-label={copy.boardAria}
           >
             {palaces.map((palace) => {
               const [row, col] = GRID_POS[palace.branch];
@@ -422,7 +434,7 @@ export default function ChartBoard({
                   />
                   {active && (
                     <p className="sr-only" role="status">
-                      已选择{palace.name}，并高亮其三方四正
+                      {copy.selectedSr(palaceLabel(palace.name, lang))}
                     </p>
                   )}
                 </div>
@@ -443,14 +455,14 @@ export default function ChartBoard({
           className="mt-1.5 flex min-h-[44px] flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-2xs text-ink-3"
           aria-live="polite"
         >
-          {SIHUA_LEGEND}
-          <span>四化</span>
+          {sihuaLegend(copy)}
+          <span>{copy.siHuaLegendLabel}</span>
           <span className="h-3 w-px bg-line" />
-          <span>庙旺为星金，陷落为浅灰</span>
+          <span>{copy.brightnessHint}</span>
           {selectedPalace ? (
             <>
               <span className="h-3 w-px bg-line" />
-              <span className="font-medium text-ink">{selectedPalace.name}</span>
+              <span className="font-medium text-ink">{palaceLabel(selectedPalace.name, lang)}</span>
               {sanFangBranches(selectedPalace.branch).map((branch) => {
                 const p = palaces.find((x) => x.branch === branch);
                 if (!p) return null;
@@ -467,7 +479,7 @@ export default function ChartBoard({
                         : 'border-line bg-surface text-ink-2'
                     }`}
                   >
-                    {p.name}
+                    {palaceLabel(p.name, lang, true)}
                   </button>
                 );
               })}
@@ -477,14 +489,14 @@ export default function ChartBoard({
                   onClick={() => onAskPalace(selectedPalace.name)}
                   className="rounded-full border border-zhu/30 bg-surface px-2.5 py-1 leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
-                  就此追问
+                  {copy.askHere}
                 </button>
               )}
             </>
           ) : (
             <>
               <span className="h-3 w-px bg-line" />
-              <span>点宫位看三方四正</span>
+              <span>{copy.tapPalaceHintShort}</span>
             </>
           )}
         </div>

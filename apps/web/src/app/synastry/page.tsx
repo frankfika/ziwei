@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { langFromCookie } from '@/lib/langServer';
+import { SITE_COPY } from '@/lib/siteCopy';
 import { getService } from '@/lib/service';
 import { SI_HUA_TABLE } from '@ziwei/chart-engine';
 import type { ChartJSON } from '@ziwei/chart-engine';
@@ -6,7 +9,7 @@ import { SHICHEN_NAMES } from '@/lib/birth';
 import SynastryForm from '@/components/SynastryForm';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: '双人合盘' };
+export const metadata = { title: '双人合盘 · Synastry' };
 
 function one(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return v[0] ?? '';
@@ -45,6 +48,9 @@ export default async function SynastryPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
+  const jar = await cookies();
+  const lang = langFromCookie(jar.get('ziwei_lang')?.value);
+  const copy = SITE_COPY[lang];
   const a = readPerson(sp, 'a');
   const b = readPerson(sp, 'b');
   // edit=1 时显示表单（带回填），结果页「修改参数」用
@@ -56,10 +62,8 @@ export default async function SynastryPage({
       p ? { year: String(p.year), month: String(p.month), day: String(p.day) } : {};
     return (
       <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
-        <h1 className="mb-2 font-serif text-title font-semibold text-ink">双人合盘</h1>
-        <p className="mb-6 text-2xs leading-relaxed text-ink-3">
-          输入两个人的生辰（或从档案直接选），看双方四化互飞与夫妻宫对照。互飞只列确定性的盘面事实，不做吉凶断语。
-        </p>
+        <h1 className="mb-2 font-serif text-title font-semibold text-ink">{copy.synTitle}</h1>
+        <p className="mb-6 text-2xs leading-relaxed text-ink-3">{copy.synIntro}</p>
         <SynastryForm
           initialA={a ? { name: a.name, gender: a.gender, ...toParts(a), hour: String(a.hour) } : undefined}
           initialB={b ? { name: b.name, gender: b.gender, ...toParts(b), hour: String(b.hour) } : undefined}
@@ -77,7 +81,7 @@ export default async function SynastryPage({
   } catch (err) {
     return (
       <div className="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
-        <p className="text-sm text-ink-2">{err instanceof Error ? err.message : '排盘失败。'}</p>
+        <p className="text-sm text-ink-2">{err instanceof Error ? err.message : copy.synCastFailed('')}</p>
       </div>
     );
   }
@@ -100,23 +104,23 @@ export default async function SynastryPage({
   const spouseA = chartA.palaces.find((p) => p.name === '夫妻宫');
   const spouseB = chartB.palaces.find((p) => p.name === '夫妻宫');
 
-  const labelOf = (p: { name: string; gender: 'male' | 'female' }) => p.name || (p.gender === 'male' ? '甲方' : '乙方');
+  const labelOf = (p: { name: string; gender: 'male' | 'female' }) => p.name || (p.gender === 'male' ? copy.synPersonA : copy.synPersonB);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
       <header className="mb-8 text-center">
-        <p className="text-2xs tracking-[0.35em] text-ink-2">双人合盘</p>
+        <p className="text-2xs tracking-[0.35em] text-ink-2">{copy.synEyebrow}</p>
         <h1 className="mt-2 font-serif text-title font-semibold text-ink">
           {labelOf(a)} × {labelOf(b)}
         </h1>
         <p className="mt-1.5 text-xs text-ink-2">
-          {a.year}年{a.month}月{a.day}日 {SHICHEN_NAMES[a.hour]}时 × {b.year}年{b.month}月{b.day}日{' '}
-          {SHICHEN_NAMES[b.hour]}时 ·{' '}
+          {copy.birthLine(a.year, a.month, a.day, copy.shichenLabel(SHICHEN_NAMES[a.hour]))} ×{' '}
+          {copy.birthLine(b.year, b.month, b.day, copy.shichenLabel(SHICHEN_NAMES[b.hour]))} ·{' '}
           <Link
             href={`/synastry?an=${encodeURIComponent(a.name)}&ag=${a.gender}&ad=${a.year}-${String(a.month).padStart(2, '0')}-${String(a.day).padStart(2, '0')}&ah=${a.hour}&edit=1&bn=${encodeURIComponent(b.name)}&bg=${b.gender}&bd=${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}&bh=${b.hour}`}
             className="underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            修改参数
+            {copy.synEdit}
           </Link>
         </p>
       </header>
@@ -130,10 +134,10 @@ export default async function SynastryPage({
           <div key={who} className="rounded-xl border border-line bg-surface p-4">
             <p className="text-2xs text-ink-3">{who}</p>
             <p className="mt-1 text-sm text-ink">
-              命宫：{ming?.majorStars.join('、') || '空宫'}（{ming?.branchName ?? ''}）
+              {copy.synMingPalace(ming?.majorStars.join('、') || copy.synEmptyPalace, ming?.branchName ?? '')}
             </p>
             <p className="mt-1 text-sm text-ink">
-              夫妻宫：{spouse?.majorStars.join('、') || '空宫'}（{spouse?.branchName ?? ''}）
+              {copy.synSpousePalace(spouse?.majorStars.join('、') || copy.synEmptyPalace, spouse?.branchName ?? '')}
             </p>
           </div>
         ))}
@@ -142,7 +146,7 @@ export default async function SynastryPage({
       {/* 四化互飞 */}
       <section className="mb-6" data-synastry-cross>
         <h2 className="mb-3 text-xs font-medium tracking-wide2 text-ink-2">
-          四化互飞 · 一方的生年四化星落在对方盘的哪一宫
+          {copy.synCrossTitle}
         </h2>
         {[
           { title: `${labelOf(a)} → ${labelOf(b)}`, rows: crossAB },
@@ -155,10 +159,10 @@ export default async function SynastryPage({
                 {rows.map(({ label, starName, palace }) => (
                   <tr key={label} className="border-t border-lineSoft first:border-0">
                     <th scope="row" className="w-28 px-3 py-2 font-medium text-ink">
-                      化{label} · {starName}
+                      {copy.synSihuaRow(copy.sihuaLabel(label), starName ?? '')}
                     </th>
                     <td className="px-3 py-2 text-ink-2">
-                      落对方{palace ? `${palace.name}（${palace.branchName}）` : '盘（星不在对方盘）'}
+                      {palace ? copy.synLandsIn(`${copy.palaceLabel(palace.name)}（${palace.branchName}）`) : copy.synNoStar}
                     </td>
                   </tr>
                 ))}
@@ -169,8 +173,8 @@ export default async function SynastryPage({
       </section>
 
       <p className="border-t border-lineSoft pt-4 text-2xs leading-relaxed text-ink-3">
-        互飞四化是确定性的盘面事实（一方的生年四化星确实落在对方某宫）。合盘的吉凶解读不在数据集覆盖范围内，这里不做断语。各人本命的详细解读请看各自的{' '}
-        <Link href="/" className="underline underline-offset-2 hover:text-zhu">命盘对话</Link>。仅供文化兴趣与学习参考。
+        {copy.synFooterLead}{' '}
+        <Link href="/" className="underline underline-offset-2 hover:text-zhu">{copy.synChartLink}</Link>{copy.synFooterTail}
       </p>
     </div>
   );

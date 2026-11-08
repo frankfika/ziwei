@@ -51,6 +51,12 @@ const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794011125685.aix';
 const KNOWN_AIX = new Set([CURRENT_AIX, STALE_AIX]);
 /** 取包脚本 */
 const FETCH_SCRIPT = path.join(AGENT_DIR, 'scripts/fetch-aix.mjs');
+/** 提审预览视频（提审页要求 3–5 个素材、至少 1 图 1 视频） */
+const VIDEO_FILE = 'ziwei-preview.mp4';
+const VIDEO_SCRIPT = path.join(AGENT_DIR, 'scripts/render-preview-video.mjs');
+/** 视频尺寸 = 眼镜画布 480×352 的 2 倍 */
+const VIDEO_WIDTH = 960;
+const VIDEO_HEIGHT = 704;
 /** 要扫描包名的文档 */
 const DOC_FILES = [
   'SUBMIT-RUNBOOK.md',
@@ -173,6 +179,90 @@ export const suite: SuiteFn = async (t) => {
       execFileSync('node', ['--check', FETCH_SCRIPT], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       throw new Error(`fetch-aix.mjs 语法错误：${describeError(e)}`);
+    }
+  });
+
+  // ── ⑨ 提审预览视频：提审页要求「共 3–5 个素材，至少 1 图 1 视频」──
+  // 视频由 render-preview-video.mjs 用真实页面逻辑 + 真实端侧引擎 + 真实后端解读渲染出来。
+  await t.test('提审预览视频存在且是合法 MP4', () => {
+    const p = path.join(PREVIEW_DIR, VIDEO_FILE);
+    if (!existsSync(p)) throw new Error(`缺少提审预览视频 ${VIDEO_FILE}（提审页要求至少 1 个视频）`);
+    const size = statSync(p).size;
+    // 提审页实测规格（2026-11-08 从 Studio bundle 抄出）：单个视频 ≥ 1 KB 且 ≤ 50 MB
+    if (size < 1024) throw new Error(`${VIDEO_FILE} 只有 ${size} 字节`);
+    if (size > 50 * 1024 * 1024) {
+      throw new Error(`${VIDEO_FILE} 有 ${(size / 1024 / 1024).toFixed(1)} MB，超过提审页 50 MB 上限`);
+    }
+    const buf = readFileSync(p);
+    if (buf.subarray(4, 8).toString('ascii') !== 'ftyp') {
+      throw new Error(`${VIDEO_FILE} 不是合法 MP4（第 5–8 字节应为 ftyp）`);
+    }
+    if (!buf.includes(Buffer.from('avc1', 'ascii'))) {
+      throw new Error(`${VIDEO_FILE} 里找不到 h264 编码标记 avc1，提审页只吃 MP4`);
+    }
+    if (!buf.includes(Buffer.from('moov', 'ascii'))) {
+      throw new Error(`${VIDEO_FILE} 缺少 moov atom，文件不完整`);
+    }
+  });
+
+  await t.test('预览视频的编码/尺寸/时长符合提审要求', () => {
+    const p = path.join(PREVIEW_DIR, VIDEO_FILE);
+    if (!existsSync(p)) throw new Error(`缺少 ${VIDEO_FILE}`);
+    let out: string;
+    try {
+      out = execFileSync(
+        'ffprobe',
+        ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', p],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+    } catch (e) {
+      // 没装 ffprobe 就跳过这一条，不让整个套件挂在环境上
+      console.warn(`    （跳过：ffprobe 不可用 —— ${describeError(e)}）`);
+      return;
+    }
+    const probe = JSON.parse(out) as {
+      streams: Array<{ codec_type: string; codec_name?: string; width?: number; height?: number }>;
+      format: { duration?: string };
+    };
+    const v = probe.streams.find((s) => s.codec_type === 'video');
+    if (!v) throw new Error('预览视频里没有视频流');
+    if (v.codec_name !== 'h264') throw new Error(`视频编码是 ${v.codec_name}，提审页要 MP4/H.264`);
+    if (v.width !== VIDEO_WIDTH || v.height !== VIDEO_HEIGHT) {
+      throw new Error(`视频尺寸是 ${v.width}×${v.height}，应为 ${VIDEO_WIDTH}×${VIDEO_HEIGHT}`);
+    }
+    const dur = Number(probe.format.duration ?? 0);
+    if (!(dur > 3 && dur < 120)) throw new Error(`视频时长 ${dur}s，不在合理区间（3–120s）`);
+  });
+
+  // ── ⑩ 生成脚本要在、语法要过、npm script 要挂上 ──
+  await t.test('render-preview-video.mjs 存在且语法正确', () => {
+    if (!existsSync(VIDEO_SCRIPT)) throw new Error('缺少 apps/rokid-agent/scripts/render-preview-video.mjs');
+    try {
+      execFileSync('node', ['--check', VIDEO_SCRIPT], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      throw new Error(`render-preview-video.mjs 语法错误：${describeError(e)}`);
+    }
+    const pkg = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    if (!pkg.scripts || !pkg.scripts['video:preview']) {
+      throw new Error('package.json 缺 video:preview 脚本（下次没人知道怎么重生成视频）');
+    }
+  });
+
+  // ── ⑪ 视频必须带「模拟器渲染」标注：不能冒充真机 ──
+  // 仓库规矩（render-board-preview.mjs 抬头）：模拟器渲染的产物对外必须标注。
+  // 提审预览素材是要给审核方看的东西，冒充真机 = 失实。
+  await t.test('预览视频带「模拟器渲染」标注，且文档写明它替代不了真机视频', () => {
+    const script = readFileSync(VIDEO_SCRIPT, 'utf8');
+    if (!script.includes('AIUI Studio 模拟器渲染')) {
+      throw new Error('render-preview-video.mjs 里没有「AIUI Studio 模拟器渲染」角标 —— 模拟器产物对外必须标注');
+    }
+    if (!runbook.includes('模拟器渲染')) {
+      throw new Error('SUBMIT-RUNBOOK.md 没写明预览视频是模拟器渲染');
+    }
+    if (!runbook.includes('真机视频')) {
+      throw new Error('SUBMIT-RUNBOOK.md 没写明初赛仍需真机视频（别让人以为这份就够了）');
     }
   });
 };

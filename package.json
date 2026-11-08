@@ -31,7 +31,8 @@
     "board:preview": "node apps/rokid-agent/scripts/render-board-preview.mjs",
     "agent:first-launch": "node apps/rokid-agent/scripts/simulate-first-launch.mjs",
     "submit:ppt": "node apps/rokid-agent/scripts/build-submit-ppt.mjs",
-    "copyright:materials": "node apps/rokid-agent/scripts/build-copyright-materials.mjs"
+    "copyright:materials": "node apps/rokid-agent/scripts/build-copyright-materials.mjs",
+    "aix:fetch": "node apps/rokid-agent/scripts/fetch-aix.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

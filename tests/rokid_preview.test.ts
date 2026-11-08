@@ -14,10 +14,11 @@
  *     · 文档里记录的 AIX 包名 / 大小与实际复验记录一致（防文档漂移）
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SuiteFn } from './harness';
+import { describeError, type SuiteFn } from './harness';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGENT_DIR = path.join(REPO_ROOT, 'apps/rokid-agent');
@@ -45,7 +46,19 @@ const PREVIEW_ASSETS: Array<{ file: string; minWidth: number; minHeight: number 
 /** 2026-11-08 重新打包后的现行 AIX 包 */
 const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794100520699.aix';
 /** 更早的那一版（修「模拟器出不了盘」之前的代码） */
-const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b50c9-1794011125685.aix';
+const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794011125685.aix';
+/** 文档里允许出现的 AIX 包名白名单 —— 出了这个集合就是笔误 */
+const KNOWN_AIX = new Set([CURRENT_AIX, STALE_AIX]);
+/** 取包脚本 */
+const FETCH_SCRIPT = path.join(AGENT_DIR, 'scripts/fetch-aix.mjs');
+/** 要扫描包名的文档 */
+const DOC_FILES = [
+  'SUBMIT-RUNBOOK.md',
+  'PROPOSAL.md',
+  'DEVICE-CHECKLIST.md',
+  'README.md',
+  'HANDOVER.md',
+];
 
 export const suite: SuiteFn = async (t) => {
   // ── ① 提审预览素材必须齐 ──
@@ -118,5 +131,48 @@ export const suite: SuiteFn = async (t) => {
   await t.test('文档写明模拟器无方向键与返回键', () => {
     if (!runbook.includes('方向键')) throw new Error('SUBMIT-RUNBOOK.md 没写明模拟器缺方向键/返回键');
     if (!runbook.includes('返回键')) throw new Error('SUBMIT-RUNBOOK.md 没写明模拟器缺方向键/返回键');
+  });
+
+  // ── ⑥ 文档里出现的每一个 AIX 包名都必须在白名单里 ──
+  // 起因：2026-11-08 发现文档里把旧包名写成了 `...03b50c9-...`（少一个 f），
+  // 那个地址在 CDN 上是 404 —— 照着文档去取包的人会拿到「文件不存在」。
+  // 包名是平台生成的长串，人眼核不出来，只能机器核。
+  await t.test('文档里出现的 AIX 包名都在白名单内（防笔误拼错）', () => {
+    const pattern = /bcdceff[0-9a-z]*-[0-9]+\.aix/g;
+    const bad: string[] = [];
+    for (const name of DOC_FILES) {
+      const p = path.join(AGENT_DIR, name);
+      if (!existsSync(p)) continue;
+      const text = readFileSync(p, 'utf8');
+      for (const m of text.match(pattern) ?? []) {
+        if (!KNOWN_AIX.has(m)) bad.push(`${name}: ${m}`);
+      }
+    }
+    if (bad.length) {
+      throw new Error(
+        `以下 AIX 包名不在白名单里（多半是手抄错字）：\n    ${bad.join('\n    ')}\n` +
+          `  白名单只有：${[...KNOWN_AIX].join(' / ')}`,
+      );
+    }
+  });
+
+  // ── ⑦ 取包路径必须留在文档里：没有浏览器也能把包拿到手 ──
+  await t.test('文档写明 AIX 的 CDN 取包地址与取包脚本', () => {
+    if (!runbook.includes('basecloud.rokidcdn.com')) {
+      throw new Error('SUBMIT-RUNBOOK.md 没写 AIX 的 CDN 地址（下次就不知道去哪儿取包）');
+    }
+    if (!runbook.includes('aix:fetch')) {
+      throw new Error('SUBMIT-RUNBOOK.md 没写 npm run aix:fetch');
+    }
+  });
+
+  // ── ⑧ 取包脚本本身要在（且语法能过）──
+  await t.test('fetch-aix.mjs 存在且语法正确', () => {
+    if (!existsSync(FETCH_SCRIPT)) throw new Error('缺少 apps/rokid-agent/scripts/fetch-aix.mjs');
+    try {
+      execFileSync('node', ['--check', FETCH_SCRIPT], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      throw new Error(`fetch-aix.mjs 语法错误：${describeError(e)}`);
+    }
   });
 };

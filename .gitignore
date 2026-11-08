@@ -48,3 +48,9 @@ apps/rokid-agent/submit-kit/copyright/*.pdf
 
 # 运行状态（账户 / 会话 / 订单 / 额度计数）
 /.data/
+
+# AIX 包（AIUI Studio 打包产物，2 MB 的二进制）：由 `npm run aix:fetch` 从 Rokid
+# 公开 CDN 拉取并核验后落在 submit-kit/aix/。
+# 与上面的 PDF 同理 —— 是**生成物**，而且 CDN 上永远有一份一模一样的，不入库。
+# 真要留档的是「哪个包、什么 MD5」，这两条写在 SUBMIT-RUNBOOK.md 与 fetch-aix.mjs 里。
+apps/rokid-agent/submit-kit/aix/

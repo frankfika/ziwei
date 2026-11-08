@@ -205,7 +205,7 @@ export default function ChartBoard({
                 style={{ gridRow: row, gridColumn: col }}
                 onClick={() => toggleSelected(palace.branch)}                aria-pressed={active}
                 aria-label={[
-                  palace.name,
+                  palaceLabel(palace.name, lang),
                   copy.majorStars(major.map((s) => s.name).join('、') || copy.emptyPalace),
                   palace.isMingGong ? copy.mingGong : null,
                   palace.isShenGong ? copy.shenGong : null,

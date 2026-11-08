@@ -12,6 +12,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { Lang } from './quotaCopy';
 import { useLangContext } from './LangProvider';
+import { syncDocumentTitle } from './langServer';
 
 const STORAGE_KEY = 'ziwei_lang';
 const EVENT = 'ziwei:lang';
@@ -40,6 +41,8 @@ export function getLang(): Lang {
   return load();
 }
 
+/** 切语言时同步 document.title（实现与词表在 langServer.ts，与 layout.tsx META 同步改） */
+
 /** 设置语言并广播（同一标签页内所有订阅者一起更新） */
 export function setLang(lang: Lang): void {
   current = lang;
@@ -52,6 +55,7 @@ export function setLang(lang: Lang): void {
   // 同时写 cookie：服务端（metadata、<html lang>）读得到，刷新不闪回中文
   if (typeof document !== 'undefined') {
     document.cookie = `${STORAGE_KEY}=${lang}; path=/; max-age=31536000; samesite=lax`;
+    syncDocumentTitle(lang);
   }
   emit();
 }

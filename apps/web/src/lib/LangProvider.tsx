@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Lang } from './quotaCopy';
+import { syncDocumentTitle } from './langServer';
 
 const STORAGE_KEY = 'ziwei_lang';
 
@@ -55,6 +56,7 @@ export function LangProvider({
       /* 存不下就算了，本次会话内仍然生效 */
     }
     document.cookie = `${STORAGE_KEY}=${l}; path=/; max-age=31536000; samesite=lax`;
+    syncDocumentTitle(l);
   }, []);
 
   const value = useMemo(() => ({ lang, setLang }), [lang, setLang]);

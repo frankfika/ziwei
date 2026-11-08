@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
+import ErrorAlert from './ErrorAlert';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useLang } from '@/lib/lang';
 import { CHAT_COPY } from '@/lib/chatCopy';
@@ -37,10 +38,13 @@ const TOOL_LINK_CLASS =
 export default function HomeChat({
   providerConfigured = true,
   serverModel,
+  errorText = '',
 }: {
   providerConfigured?: boolean;
   /** 服务端内置 AI 的模型名（展示用，不含密钥） */
   serverModel?: string;
+  /** 排盘回跳的错误提示（query string 带来，随语言即时切换） */
+  errorText?: string;
 }) {
   const [lang] = useLang();
   const copy = CHAT_COPY[lang];
@@ -66,6 +70,10 @@ export default function HomeChat({
   if (history.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+        <h1 className="sr-only font-serif text-[1.45rem] leading-snug text-ink sm:not-sr-only sm:mb-2 sm:block sm:text-[1.6rem]">
+          {copy.homeTitle}
+          {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
+        </h1>
         <p className="text-title text-ink">{copy.noProfilesTitle}</p>
         <p className="max-w-xs text-xs leading-relaxed text-ink-2">
           {copy.noProfilesBody}
@@ -147,6 +155,13 @@ export default function HomeChat({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* 极简：一行标题，剩下的全是对话。手机端标题收进读屏 —— 对话本身就是这个页面。
+          标题在这里渲染：客户端随语言即时切换，不用等刷新 */}
+      <h1 className="sr-only mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:not-sr-only sm:block sm:text-[1.6rem]">
+        {copy.homeTitle}
+        {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
+      </h1>
+
       {showConfig && (
         <div className="mb-3">
           <AiConfigPanel

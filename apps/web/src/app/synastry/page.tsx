@@ -130,8 +130,9 @@ export default async function SynastryPage({
         {[
           { who: labelOf(a), chart: chartA, ming: mingA, spouse: spouseA },
           { who: labelOf(b), chart: chartB, ming: mingB, spouse: spouseB },
-        ].map(({ who, ming, spouse }) => (
-          <div key={who} className="rounded-xl border border-line bg-surface p-4">
+        ].map(({ who, ming, spouse }, i) => (
+          // 两人可能同名（或都没填名）：不能用名字当 key
+          <div key={`who-${i}`} className="rounded-xl border border-line bg-surface p-4">
             <p className="text-2xs text-ink-3">{who}</p>
             <p className="mt-1 text-sm text-ink">
               {copy.synMingPalace(ming?.majorStars.join('、') || copy.synEmptyPalace, ming?.branchName ?? '')}
@@ -151,8 +152,9 @@ export default async function SynastryPage({
         {[
           { title: `${labelOf(a)} → ${labelOf(b)}`, rows: crossAB },
           { title: `${labelOf(b)} → ${labelOf(a)}`, rows: crossBA },
-        ].map(({ title, rows }) => (
-          <div key={title} className="mb-3 overflow-hidden rounded-xl border border-line">
+        ].map(({ title, rows }, i) => (
+          // 方向标题由两人名字拼成，同名会撞 —— 加序号
+          <div key={`cross-${i}`} className="mb-3 overflow-hidden rounded-xl border border-line">
             <p className="border-b border-lineSoft bg-surface-2 px-3 py-2 text-2xs text-ink-2">{title}</p>
             <table className="w-full text-left text-xs">
               <tbody>

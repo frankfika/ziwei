@@ -1,5 +1,4 @@
 import { cookies } from 'next/headers';
-import ErrorAlert from '@/components/ErrorAlert';
 import HomeChat from '@/components/HomeChat';
 import { describeProviderEnv, readProviderEnv } from '@ziwei/ask';
 import { langFromCookie } from '@/lib/langServer';
@@ -39,14 +38,8 @@ export default async function HomePage({
     // 聊天壳占满剩余高度：用 flex 链算高度，不做 100dvh 减法 ——
     // 减法一旦算不出来（老浏览器不认 env()），整条 flex 链会塌成一条缝。
     <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col px-5 pb-3 pt-3 sm:px-8 sm:pb-5 sm:pt-7">
-      {/* 极简：一行标题，剩下的全是对话。手机端标题收进读屏 —— 对话本身就是这个页面 */}
-      <h1 className="sr-only mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:not-sr-only sm:block sm:text-[1.6rem]">
-        {copy.homeTitle}
-        {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
-      </h1>
-
-      {/* 对话主壳：选人 → 对话线程 + 意图芯片 */}
-      <HomeChat providerConfigured={provider.ok} serverModel={serverModel} />
+      {/* 对话主壳：选人 → 对话线程 + 意图芯片（标题在 HomeChat 里，随语言即时切换） */}
+      <HomeChat providerConfigured={provider.ok} serverModel={serverModel} errorText={errorText} />
     </div>
   );
 }

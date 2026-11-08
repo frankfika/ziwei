@@ -29,6 +29,9 @@ export const dynamic = 'force-dynamic';
 
 /** 单条问题长度上限（字符）——与前端输入框 maxLength 一致 */
 const MAX_QUESTION_CHARS = 2000;
+/** provider 报错给用户的统一话术：上游原始报错（JSON 原文）只进日志，不给用户看 */
+const PROVIDER_ERROR_USER_MESSAGE =
+  'AI 服务暂时不可用（上游限流或故障），请稍后重试；如果你用的是自己的 Key，也请检查它的额度。 / The AI service is temporarily unavailable (upstream rate limit or outage). Please retry in a moment; if you use your own API key, check its quota.';
 /** 带入提示词的对话上文轮数 / 单条截断 */
 const MAX_TURNS = 6;
 const TURN_QUESTION_CAP = 200;
@@ -189,8 +192,9 @@ export async function POST(request: Request) {
               send({ type: 'not-covered', message: ev.message });
               return;
             } else {
-              // provider 级错误：重试解决不了，直接报
-              send({ type: 'error', message: ev.message });
+              // provider 级错误：重试解决不了，直接报（原始报错只进日志）
+              console.error('[ask] provider error:', ev.message);
+              send({ type: 'error', message: PROVIDER_ERROR_USER_MESSAGE });
               return;
             }
           }
@@ -216,12 +220,16 @@ export async function POST(request: Request) {
           });
         }
       } catch (err) {
-        const message =
-          err instanceof AskProviderNotConfiguredError || err instanceof AskProviderError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : '追问失败，请稍后重试。';
+        let message: string;
+        if (err instanceof AskProviderNotConfiguredError) {
+          message = err.message;
+        } else if (err instanceof AskProviderError) {
+          // 上游原始报错（JSON 原文）只进日志，不给用户看
+          console.error('[ask] provider error:', err.message);
+          message = PROVIDER_ERROR_USER_MESSAGE;
+        } else {
+          message = err instanceof Error ? err.message : '追问失败，请稍后重试。';
+        }
         send({ type: 'error', message });
       } finally {
         // 失败不扣次：没走到 done 的一切结局（报错 / 未覆盖 / 提前断流）都退还这一次

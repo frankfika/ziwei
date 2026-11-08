@@ -39,8 +39,9 @@ interface ThreadsFile {
   activeId: string | null;
 }
 
-/** 每条对话最多保留的问答条数（超出的最旧条丢弃，避免无限膨胀；界面会提示已截断） */
-export const MAX_MESSAGES = 20;
+/** 每条对话最多保留的问答条数（超出的最旧条丢弃，避免 localStorage 无限膨胀；界面会提示已截断）。
+ *  上文真正发给模型的只有最近几轮（服务端 buildHistoryBlock 再截），留 50 条主要是留档 */
+export const MAX_MESSAGES = 50;
 
 const EMPTY: ThreadsFile = { threads: [], activeId: null };
 
@@ -142,7 +143,7 @@ export function useAskThread(identity: string) {
     .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
 
   const append = useCallback(
-    (msg: Omit<AskMessage, 'id' | 'at'>) => {
+    (msg: Omit<AskMessage, 'id' | 'at'>, title?: string) => {
       setFile((prev) => {
         const entry: AskMessage = { ...msg, id: newId('m'), at: Date.now() };
         const cur = prev.threads.find((t) => t.id === prev.activeId) ?? null;
@@ -157,10 +158,10 @@ export function useAskThread(identity: string) {
               : t,
           );
         } else {
-          // 还没有对话（或刚点了「新对话」）：落一条新的
+          // 还没有对话（或刚点了「新对话」）：落一条新的 —— 话题对话直接以话题名为题
           const t: AskThread = {
             id: newId('t'),
-            title: msg.question.slice(0, 14) || '新对话',
+            title: title || msg.question.slice(0, 14) || '新对话',
             createdAt: entry.at,
             updatedAt: entry.at,
             messages: [entry],

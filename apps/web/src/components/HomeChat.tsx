@@ -93,10 +93,9 @@ export default function HomeChat({
   const chart = chartUrl(selected!.form);
   const userCfg = userAi ? readUserConfig() : null;
 
-  // 沉浸式页头：AI 状态 / 档案行 / 面板头通过 headerInside 插进 AskPanel 滚动区顶部 ——
-  // 对话变长后随内容滚出屏幕，聊天满屏；往下翻回顶部即可再操作档案与设置。
+  // 抽屉里的宿主页内容：盘信息 / 档案切换 / AI 状态 —— 平时全部收起，点会话头标题才出现
   const aiPillRow = (
-    <div className="mb-1.5 flex shrink-0 items-center gap-2">
+    <div className="mb-1.5 flex items-center gap-2">
       <button
         type="button"
         onClick={() => setShowConfig((v) => !v)}
@@ -131,7 +130,7 @@ export default function HomeChat({
 
   const profileRow = (
     <div
-      className="mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="mb-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       role="tablist"
       aria-label="选择档案"
     >
@@ -165,22 +164,16 @@ export default function HomeChat({
     </div>
   );
 
-  const panelHeader = (
-    <div className="mb-2 flex shrink-0 items-baseline justify-between gap-3 border-b border-line/70 pb-2">
-      <p className="min-w-0 truncate text-sm text-ink">
-        {name && <span className="font-medium">{name}</span>}
-        {name && <span className="text-ink-3"> · </span>}
-        <span className="text-xs text-ink-2">{detailLabel(selected!.form)}</span>
+  const sheetExtra = (
+    <>
+      <p className="mb-2 px-1 text-2xs text-ink-2">
+        {name && <span className="font-medium text-ink">{name}</span>}
+        {name && ' · '}
+        {detailLabel(selected!.form)}
       </p>
-      {chart && (
-        <Link
-          href={chart}
-          className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          查看命盘 →
-        </Link>
-      )}
-    </div>
+      {profileRow}
+      {aiPillRow}
+    </>
   );
 
   return (
@@ -197,9 +190,9 @@ export default function HomeChat({
 
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。
           面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部。
-          页头三行（AI 状态/档案/面板头）插在滚动区顶部，对话长了滚出屏幕 */}
+          整页只有 AskPanel 的会话头一行钉住，其余（档案/AI/话题切换）全在抽屉里 */}
       {resolved?.ok && resolved.resolved ? (
-        <div className="flex min-h-0 flex-1 flex-col px-0 py-2 sm:rounded-2xl sm:border sm:border-line sm:bg-surface-2/40 sm:px-4 sm:py-3">
+        <div className="flex min-h-0 flex-1 flex-col px-0 py-1 sm:rounded-2xl sm:border sm:border-line sm:bg-surface-2/40 sm:px-4 sm:py-3">
           <AskPanel
             key={identity}
             year={resolved.resolved.year}
@@ -212,19 +205,16 @@ export default function HomeChat({
             quickPrompts={INTENT_CHIPS}
             subjectName={name || undefined}
             bare
-            headerInside={
-              <>
-                {aiPillRow}
-                {profileRow}
-                {panelHeader}
-              </>
-            }
+            chartHref={chart ?? undefined}
+            aiReady={aiReady}
+            onOpenConfig={() => setShowConfig(true)}
+            sheetExtra={sheetExtra}
           />
         </div>
       ) : (
         <>
-          {aiPillRow}
           {profileRow}
+          {aiPillRow}
           <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
             <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
           </div>

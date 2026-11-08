@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
+import Link from 'next/link';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
@@ -46,10 +47,16 @@ export interface AskPanelProps {
   /** 对话内嵌命盘：回答后就地渲染迷你盘，不跳走 */
   embedChart?: boolean;
   /**
-   * bare 模式下插入滚动区顶部的页头（AI 状态/档案行/面板头等）。
-   * 放进滚动区而不是钉在外面：对话变长后随内容滚出屏幕，聊天满屏 —— 沉浸式。
+   * bare 会话头右侧的「命盘」链接（首页传入）；不传则不显示。
+   * 会话头是整页唯一钉住的行：话题标题（点开对话抽屉）· 命盘 · AI 设置。
    */
-  headerInside?: ReactNode;
+  chartHref?: string;
+  /** AI 是否就绪：会话头 ⚙ 上的红点提示 */
+  aiReady?: boolean;
+  /** 点 ⚙ 打开 AI 设置（面板由宿主页渲染） */
+  onOpenConfig?: () => void;
+  /** 对话抽屉里宿主页的部分：档案切换 / 新建档案 / 合盘 / AI 状态 / 语言 */
+  sheetExtra?: ReactNode;
 }
 
 export interface AskSeed {
@@ -86,6 +93,18 @@ const CONTEXT_TURNS = 6;
 /** 推荐追问 chip：低反光冷玉，不用高彩紫底 */
 const CHIP_CLASS =
   'max-w-full min-h-9 whitespace-normal rounded-full border border-line bg-surface-2 px-3 py-2 text-left text-2xs leading-snug text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
+
+/** 话题行右侧的相对日期：今天 / 昨天 / M/D */
+function relDay(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  if (same(d, now)) return '今天';
+  if (same(d, yest)) return '昨天';
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 /** 「问」标记：冷玉小方（深底 + 紫字，无高饱和紫底） */
 const ASK_MARK_CLASS =
@@ -233,12 +252,14 @@ export default function AskPanel({
   bare = false,
   subjectName,
   embedChart = false,
-  headerInside,
+  chartHref,
+  aiReady = true,
+  onOpenConfig,
+  sheetExtra,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const {
     messages,
-    loaded,
     append,
     clear,
     threads,
@@ -254,43 +275,16 @@ export default function AskPanel({
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
   const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
-  /** 挂载时已存在的消息 id（=「上次留下的」，默认折叠）；按 id 记，对话满额截断后新问答也不会被误藏 */
-  const [seenIds, setSeenIds] = useState<string[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const messagesRef = useRef<AskMessage[]>([]);
-  messagesRef.current = messages;
-  const activeIdRef = useRef<string | null>(null);
-  // 初次加载 & 身份变化：把现有消息记作「历史」并折叠
-  useEffect(() => {
-    if (!loaded) return;
-    const cur = activeId ?? null;
-    if (activeIdRef.current !== cur) {
-      activeIdRef.current = cur;
-      setSeenIds(messagesRef.current.map((m) => m.id));
-      setShowHistory(false);
-    }
-  }, [loaded, activeId]);
-  /** 没展开历史时，只渲染本次新增的消息 */
-  const visibleMessages = showHistory
-    ? messages
-    : messages.filter((m) => !seenIds.includes(m.id));
-  /** 折叠条上「上次这段对话有 N 条」：仍留存的旧消息数（满额截断后会随之减少） */
-  const historyCount = messages.filter((m) => seenIds.includes(m.id)).length;
+  /** 全量显示：聊天即主屏，回来就该看到整段对话（发给模型的轮数服务端另有上限） */
+  const visibleMessages = messages;
 
-  /** 用户点名切换一段旧对话 → 直接展开（人家就是要看它的） */
+  /** 用户点名切换一段旧对话 */
   const handleSelectThread = (id: string) => {
-    activeIdRef.current = id; // 抢先同步 ref，上面的 effect 不再覆盖展开状态
     selectThread(id);
-    const t = threads.find((x) => x.id === id);
-    setSeenIds(t?.messages.map((m) => m.id) ?? []);
-    setShowHistory(true);
   };
   /** 新对话：空白草稿，发第一条时落库 */
   const handleNewThread = () => {
-    activeIdRef.current = '__draft__';
     newThread();
-    setSeenIds([]);
-    setShowHistory(false);
   };
   const [expanded, setExpanded] = useState(true);
   /** 深度思考开关：发给 /api/ask 的 thinking 字段（DeepSeek 等支持思考的模型生效），记住选择 */
@@ -324,6 +318,12 @@ export default function AskPanel({
   const [chartLayer, setChartLayer] = useState<'natal' | 'liunian'>('natal');
   /** 展开了迷你盘的消息 id */
   const [chartOpenFor, setChartOpenFor] = useState<string | null>(null);
+
+  /** 对话抽屉：话题列表 / 新话题 / 档案 / AI 设置入口，都收在这里 */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const activeThread = threads.find((t) => t.id === activeId) ?? null;
+  const headerTitle = activeThread?.title ?? '新对话';
 
   /** 推荐/意图芯片统一成 { label, question, dimension? } */
   const presets: AskQuickPrompt[] =
@@ -419,9 +419,34 @@ export default function AskPanel({
     el.scrollTop = el.scrollHeight;
   }, [stream]);
 
+  /** 话题即对话：点话题芯片 = 切到（或新建）这个话题的专属对话再发问。
+      生成中的回答还在写旧话题，此时不切换，排队即可 —— 免得排队的句子落到新话题里 */
+  function submitInTopic(label: string, q: string, focus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' }) {
+    if (busyRef.current) {
+      submit(q, focus);
+      return;
+    }
+    const existing = threads.find((t) => t.title === label);
+    const inTopic = threads.some((t) => t.id === activeId && t.title === label);
+    if (!inTopic) {
+      const archived = archivedThreads.find((t) => t.title === label);
+      if (archived) {
+        // 这个话题聊过又归档了：恢复它接着聊
+        unarchiveThread(archived.id);
+        handleSelectThread(archived.id);
+      } else if (existing) {
+        handleSelectThread(existing.id);
+      } else {
+        handleNewThread();
+      }
+    }
+    submit(q, focus, label);
+  }
+
   function submit(
     q: string,
     chipFocus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' },
+    topic?: string,
   ) {
     const text = q.trim();
     if (!text) return;
@@ -504,14 +529,17 @@ export default function AskPanel({
               setStream(null);
               return;
             }
-            append({
-              question: text,
-              answer: p.answer,
-              cited: p.cited,
-              suspects: suspectsOf(p.verification),
-              ...(p.model ? { model: p.model } : {}),
-              ...(p.source ? { source: p.source } : {}),
-            });
+            append(
+              {
+                question: text,
+                answer: p.answer,
+                cited: p.cited,
+                suspects: suspectsOf(p.verification),
+                ...(p.model ? { model: p.model } : {}),
+                ...(p.source ? { source: p.source } : {}),
+              },
+              topic,
+            );
             setStream(null);
           },
           onNotCovered: (message) => {
@@ -560,7 +588,7 @@ export default function AskPanel({
 
   const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
 
-  // 深度思考开关：空态时单独一行，有消息后收进意图芯片行末尾（不再独占一行）
+  // 深度思考开关：低频设置，收在对话抽屉里
   const deepThinkChip = (
     <button
       type="button"
@@ -664,6 +692,202 @@ export default function AskPanel({
           </div>
         )}
 
+        {/* 会话头：整页唯一钉住的行 —— 标题点开对话抽屉，右侧命盘 + AI 设置 */}
+        {bare && (
+          <div className="relative mb-1 flex shrink-0 items-center gap-2.5 pb-1.5">
+            <button
+              type="button"
+              onClick={() => setSheetOpen((v) => !v)}
+              aria-expanded={sheetOpen}
+              className="group flex min-w-0 flex-1 items-baseline gap-1.5 text-left"
+            >
+              <span className="min-w-0 truncate font-serif text-[0.95rem] text-ink">{headerTitle}</span>
+              {subjectName && (
+                <span className="min-w-0 shrink text-xs text-ink-2">· {subjectName}</span>
+              )}
+              <span aria-hidden="true" className="shrink-0 text-2xs text-ink-3">⌄</span>
+            </button>
+            {chartHref && (
+              <Link
+                href={chartHref}
+                className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                命盘
+              </Link>
+            )}
+            {onOpenConfig && (
+              <button
+                type="button"
+                onClick={onOpenConfig}
+                aria-label="AI 设置"
+                title="点开 AI 设置"
+                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-sm leading-none text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                ⚙
+                {!aiReady && (
+                  <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-danger" />
+                )}
+              </button>
+            )}
+
+            {/* 对话抽屉：话题列表 / 新话题 / 宿主页内容（档案、AI 状态）。
+                手机端贴底滑出，桌面端挂在标题下方 */}
+            {sheetOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="关闭对话抽屉"
+                  onClick={() => setSheetOpen(false)}
+                  className="fixed inset-0 z-20 cursor-default bg-ink/25"
+                />
+                <div
+                  role="dialog"
+                  aria-label="对话管理"
+                  className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[72dvh] overflow-y-auto rounded-xl border border-line bg-surface p-3.5 shadow-[0_12px_40px_rgba(28,35,51,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:pb-[max(env(safe-area-inset-bottom),12px)]"
+                >
+                  {/* 这张盘下的全部话题对话 */}
+                  {threads.length > 0 && (
+                    <section aria-label="话题对话">
+                      <p className="mb-1 px-1 text-2xs text-ink-3">{subjectName ? `${subjectName}的对话` : '对话'}</p>
+                      <ul>
+                        {threads.map((t) => {
+                          const isActive = t.id === activeId;
+                          return (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectThread(t.id);
+                                  setSheetOpen(false);
+                                }}
+                                aria-current={isActive || undefined}
+                                className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                  isActive
+                                    ? 'bg-zhu-soft text-ink'
+                                    : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
+                                }`}
+                              >
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{t.title}</span>
+                                <span className="shrink-0 text-2xs text-ink-3">
+                                  {relDay(t.updatedAt)} · {t.messages.length} 条
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  )}
+
+                  {/* 已归档：收起成一行，展开后点选即恢复 */}
+                  {archivedThreads.length > 0 && (
+                    <section aria-label="已归档" className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowArchived((v) => !v)}
+                        aria-expanded={showArchived}
+                        className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
+                      >
+                        已归档 {archivedThreads.length} {showArchived ? '▴' : '▸'}
+                      </button>
+                      {showArchived && (
+                        <ul>
+                          {archivedThreads.map((t) => (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  unarchiveThread(t.id);
+                                  handleSelectThread(t.id);
+                                  setSheetOpen(false);
+                                }}
+                                className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
+                              >
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{t.title}</span>
+                                <span className="shrink-0 text-2xs text-ink-3">
+                                  {relDay(t.updatedAt)} · {t.messages.length} 条
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  )}
+
+                  {/* 开个新话题：话题即对话，点一张签就开一段新对话 */}
+                  <section aria-label="开个新话题" className="mt-3 border-t border-lineSoft pt-3">
+                    <p className="mb-1.5 px-1 text-2xs text-ink-3">开个新话题</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {presets.map((p) => (
+                        <button
+                          key={p.question}
+                          type="button"
+                          onClick={() => {
+                            submitInTopic(p.label, p.question, p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined);
+                            setSheetOpen(false);
+                          }}
+                          disabled={pending}
+                          className="rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleNewThread();
+                          setSheetOpen(false);
+                        }}
+                        disabled={pending}
+                        className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-3 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        自由聊聊
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* 宿主页内容：档案切换 / 新建 / 合盘 / AI 状态 / 语言 */}
+                  {sheetExtra && (
+                    <section aria-label="档案与 AI" className="mt-3 border-t border-lineSoft pt-3">
+                      {sheetExtra}
+                    </section>
+                  )}
+
+                  {/* 深度思考 + 当前对话操作 */}
+                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-lineSoft pt-3">
+                    {deepThinkChip}
+                    {messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
+                        }}
+                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        清空当前对话
+                      </button>
+                    )}
+                    {activeId && activeId !== '__draft__' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          archiveThread(activeId);
+                          handleNewThread();
+                        }}
+                        title="从对话列表收起来，可在「已归档」里找回"
+                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        归档这段对话
+                      </button>
+                    )}
+                  </section>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* 对话线程 */}
         <div
           id={resultId}
@@ -672,67 +896,6 @@ export default function AskPanel({
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
         >
-          {/* 沉浸式页头：首页的 AI 状态/档案行/面板头插在滚动区顶部，对话长了滚出屏幕 */}
-          {bare && headerInside}
-
-          {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 放在滚动区内，
-              对话变长后随内容滚出屏幕，聊天满屏；想切对话往上滑就有了 */}
-          {bare && loaded && threads.length + archivedThreads.length > 0 && (
-            <div className="mb-2 flex shrink-0 items-center gap-2">
-              <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
-                对话记录
-              </label>
-              <select
-                id="ask-thread-select"
-                value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '__draft__') handleNewThread();
-                  else {
-                    // 选中已归档的对话 = 恢复它
-                    if (archivedThreads.some((t) => t.id === v)) unarchiveThread(v);
-                    handleSelectThread(v);
-                  }
-                }}
-                className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                {!threads.some((t) => t.id === activeId) && (
-                  <option value="__draft__">（这次对话）</option>
-                )}
-                {threads.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} ·{' '}
-                    {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                      month: 'numeric',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </option>
-                ))}
-                {archivedThreads.length > 0 && (
-                  <optgroup label="已归档（选中即恢复）">
-                    {archivedThreads.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title} ·{' '}
-                        {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                          month: 'numeric',
-                          day: 'numeric',
-                        })}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              <button
-                type="button"
-                onClick={handleNewThread}
-                className="shrink-0 rounded-lg border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                ＋新对话
-              </button>
-            </div>
-          )}
           {/* 空态引导卡片只属于「全新对话」：历史折叠后 visibleMessages 也是空，
               但那是聊天记录被收起来，不是没聊过 —— 再渲染引导卡会和折叠条打架 */}
           {messages.length === 0 && !pending && !transient && bare && (
@@ -756,14 +919,15 @@ export default function AskPanel({
                       type="button"
                       disabled={pending}
                       onClick={() =>
-                        submit(
+                        submitInTopic(
+                          p.label,
                           p.question,
                           p.dimension || p.time
                             ? { dimension: p.dimension, time: p.time }
                             : undefined,
                         )
                       }
-                      className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-all hover:border-zhu hover:shadow-[0_2px_10px_rgba(28,35,51,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="text-sm font-medium text-ink">{p.label}</span>
                       <span className="text-2xs text-ink-2">{p.hint}</span>
@@ -798,25 +962,16 @@ export default function AskPanel({
             </div>
           )}
 
-          {/* 上次的对话：默认折叠成一行，不点开就不占屏 */}
-          {bare && historyCount > 0 && (
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-lineSoft bg-surface/70 px-3 py-2">
-              <p className="min-w-0 truncate text-xs text-ink-2">
-                上次这段对话有 {historyCount} 条
-                {!showHistory && ' · 没展开，不算这次对话的上下文'}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowHistory((v) => !v)}
-                className="shrink-0 rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                {showHistory ? '收起' : '展开'}
-              </button>
-            </div>
-          )}
-
           {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
           <div className={bare ? 'mt-auto space-y-5' : 'space-y-5'}>
+            {/* 话题题头：像签纸一样安静地标注这段对话是谁 */}
+            {bare && activeThread && visibleMessages.length > 0 && (
+              <p className="pb-1 text-center font-serif text-2xs tracking-[0.25em] text-ink-3">
+                {activeThread.title}
+                <span className="mx-1.5 tracking-normal">·</span>
+                始于 {new Date(activeThread.createdAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+              </p>
+            )}
             {messages.length >= MAX_MESSAGES && (
               <p className="rounded-lg border border-lineSoft bg-surface/70 px-3 py-2 text-2xs leading-relaxed text-ink-3">
                 这段对话只保留最近 {MAX_MESSAGES} 条，再往下问会挤掉最前面的 —— 想留档请另开一段新对话。
@@ -833,14 +988,14 @@ export default function AskPanel({
                     {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
                   >
                     <p className="text-right">
-                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                         {m.question}
                       </span>
                     </p>
                     <div className="max-w-[95%]">
                       <AnswerAvatar cited={m.cited} model={m.model} source={m.source} />
                       <div
-                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
+                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 text-sm leading-[1.9] text-ink-2 shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
                         data-ask-answer=""
                       >
                         <Markdown text={m.answer} />
@@ -942,7 +1097,7 @@ export default function AskPanel({
             >
               <span className="sr-only">查证中</span>
               <p className="text-right">
-                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                   {pendingQuestion}
                 </span>
               </p>
@@ -950,7 +1105,7 @@ export default function AskPanel({
                 <AnswerAvatar />
                 {stream?.text ? (
                   /* 流式：模型吐一个字就显示一个字 */
-                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
+                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 text-sm leading-[1.9] text-ink-2 shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
                     <Markdown text={stream.text} />
                     <span
                       aria-hidden="true"
@@ -1045,36 +1200,6 @@ export default function AskPanel({
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
           <div className="mt-4 shrink-0 border-t border-lineSoft pt-3 pb-[env(safe-area-inset-bottom)]">
-            {/* 意图芯片：空态时用大卡片引导（有消息后才收成这排小胶囊，单行横滑，手机上不折两排） */}
-            {messages.length > 0 && (
-              <div
-                className="mb-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                aria-label="问点什么"
-              >
-                {presets.map((p) => (
-                  <button
-                    key={p.question}
-                    type="button"
-                    onClick={() =>
-                      submit(
-                        p.question,
-                        p.dimension || p.time
-                          ? { dimension: p.dimension, time: p.time }
-                          : undefined,
-                      )
-                    }
-                    disabled={pending}
-                    className="shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {p.label}
-                  </button>
-                ))}
-                {deepThinkChip}
-              </div>
-            )}
-            {messages.length === 0 && (
-              <div className="mb-2 flex items-center gap-2">{deepThinkChip}</div>
-            )}
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -1114,29 +1239,6 @@ export default function AskPanel({
               <p className="mt-1.5 text-2xs text-zhu" role="status">
                 已排队：「{queuedText}」—— 这条回答结束后自动发送
               </p>
-            )}
-            {messages.length > 0 && (
-              <div className="mt-2 flex items-center justify-center gap-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
-                  }}
-                  className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                >
-                  清空对话
-                </button>
-                {activeId && activeId !== '__draft__' && (
-                  <button
-                    type="button"
-                    onClick={() => archiveThread(activeId)}
-                    title="从对话记录里收起来，可在「对话记录」下拉的「已归档」分组找回"
-                    className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                  >
-                    归档这段对话
-                  </button>
-                )}
-              </div>
             )}
           </div>
         ) : (

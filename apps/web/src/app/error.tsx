@@ -38,7 +38,7 @@ export default function Error({
         tabIndex={-1}
       >
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ERROR</p>
-        <h1 className="text-xl font-semibold tracking-[0.12em] text-ink">{copy.appErrorTitle}</h1>
+        <h1 className="font-serif text-xl font-semibold tracking-[0.12em] text-ink">{copy.appErrorTitle}</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-2">
           {copy.appErrorBody}
         </p>

@@ -35,7 +35,7 @@ export default async function AboutPage() {
     <div className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
       <header className="mb-10">
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ABOUT</p>
-        <h1 className="text-3xl font-semibold tracking-[0.12em] text-ink">{copy.aboutTitle}</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-[0.12em] text-ink">{copy.aboutTitle}</h1>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">{copy.aboutIntro}</p>
       </header>
 

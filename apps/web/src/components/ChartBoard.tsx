@@ -6,6 +6,16 @@ import PalaceCell, { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS, fo
 import CenterPanel, { type BoardLayer, type ChartCenterInfo, type CurrentDaXianInfo } from './CenterPanel';
 import { useLang } from '@/lib/lang';
 import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
+import { useReducedMotion } from './ReducedMotion';
+
+/** 开盘仪式节奏（globals.css「开盘仪式」段按此写死，改这里要改 CSS）：
+   perStep 60ms / 高亮 200ms / 中宫 0.88s / 钤印 0.9s */
+const OPEN_STEP_MS = 60;
+const OPEN_HL_MS = 200;
+const OPEN_CENTER_MS = 12 * OPEN_STEP_MS + 2 * OPEN_HL_MS;
+const OPEN_SEAL_MS = OPEN_CENTER_MS + 20;
+/** 内四宫外圈中宫依次落定，回环一环：顺序与 GRID_POS 一一对应 */
+const OPEN_ORDER = [5, 9, 8, 7, 6, 2, 1, 0, 11, 10, 4, 3];
 
 interface ChartBoardProps {
   palaces: ChartPalace[];
@@ -64,6 +74,12 @@ export default function ChartBoard({
   const [liuyueMonth, setLiuyueMonth] = useState(center.lunarMonth);
   /** 流年选中年份（liunianYears 下标），默认今年（2 = 中间） */
   const [liunianIdx, setLiunianIdx] = useState(2);
+  /** 开盘仪式：reduced-motion 下节奏压到 30ms，其余一次播完即停 */
+  const reducedMotion = useReducedMotion();
+  const openStyle = (step: number) => {
+    const delay = (reducedMotion ? 30 : OPEN_STEP_MS) * step + (step > 3 ? OPEN_HL_MS : 0);
+    return { animationDelay: `${delay}ms` };
+  };
   /** 当前叠加的运限层：本命=空，大限=大限层，流年=选中流年，流月=选中月层 */
   const fortune =
     layer === 'daxian' ? daXian
@@ -170,6 +186,8 @@ export default function ChartBoard({
             const [row, col] = GRID_POS[palace.branch];
             const active = selected === palace.branch;
             const inSan = !!sanFang && sanFang.has(palace.branch) && !active;
+            // 开盘动效：delayed .open-reveal（见下 className），与状态变化无关，只播一次
+            const openReveal = `open-reveal`;
             const fortuneName =
               layer === 'natal'
                 ? null
@@ -202,7 +220,7 @@ export default function ChartBoard({
               <button
                 key={palace.branch}
                 type="button"
-                style={{ gridRow: row, gridColumn: col }}
+                style={{ ...openStyle(OPEN_ORDER[palace.branch]), gridRow: row, gridColumn: col }}
                 onClick={() => toggleSelected(palace.branch)}                aria-pressed={active}
                 aria-label={[
                   palaceLabel(palace.name, lang),
@@ -214,7 +232,7 @@ export default function ChartBoard({
                 ]
                   .filter(Boolean)
                   .join(copy.listSeparator)}
-                className={`palace-cell ${stateClass} ${layerMark} flex min-h-0 flex-col items-start gap-0.5 overflow-hidden p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu`}
+                className={`palace-cell ${stateClass} ${openReveal} ${layerMark} ${palace.isMingGong ? 'is-ming-gong' : ''} flex min-h-0 flex-col items-start gap-0.5 overflow-hidden p-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu`}
               >
                 <span className="flex w-full shrink-0 items-baseline justify-between gap-1">
                   <span className="flex min-w-0 items-baseline gap-1">
@@ -331,12 +349,35 @@ export default function ChartBoard({
             );
           })}
 
-          {/* 中宫：控制区常驻 —— 时间轴 / 运限摘要 / 追问入口，不用点开 */}
+          {/* 中宫：控制区常驻 —— 时间轴 / 运限摘要 / 追问入口，不用点开。
+              开盘仪式末尾钤一方朱砂印，1.24s 后收起（打印恒不渲染） */}
           <div
-            style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
-            className="min-h-0 overflow-hidden bg-paper p-1.5"
+            style={{ ...openStyle(12), gridRow: '2 / 4', gridColumn: '2 / 4' }}
+            className="open-reveal relative min-h-0 overflow-hidden bg-paper p-1.5"
           >
             {mobileCenter}
+            {(() => {
+              const [seal, setSeal] = useState(false);
+              useEffect(() => {
+                const t = setTimeout(() => setSeal(true), reducedMotion ? 400 : OPEN_SEAL_MS);
+                return () => clearTimeout(t);
+              }, [reducedMotion]);
+              return seal ? (
+                <div
+                  aria-hidden="true"
+                  className={`seal-stamp pointer-events-none absolute bottom-1.5 right-1.5 flex h-9 w-9 flex-col items-center justify-center rounded-[3px] bg-hua-ji font-serif text-xs leading-tight text-surface shadow-[0_2px_8px_rgba(193,64,47,0.3)] print:hidden ${lang === 'zh' ? '' : 'opacity-70'}`}
+                >
+                  {lang === 'zh' ? (
+                    <>
+                      <span>紫</span>
+                      <span>微</span>
+                    </>
+                  ) : (
+                    <span>ZW</span>
+                  )}
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
 
@@ -421,8 +462,8 @@ export default function ChartBoard({
               return (
                 <div
                   key={palace.branch}
-                  style={{ gridRow: row, gridColumn: col }}
-                  className="min-h-0 overflow-y-auto print:overflow-visible"
+                  style={{ ...openStyle(OPEN_ORDER[palace.branch]), gridRow: row, gridColumn: col }}
+                  className="open-reveal min-h-0 overflow-y-auto print:overflow-visible"
                 >
                   <PalaceCell
                     palace={palace}
@@ -442,8 +483,8 @@ export default function ChartBoard({
             })}
 
             <div
-              style={{ gridRow: '2 / 4', gridColumn: '2 / 4' }}
-              className="min-h-0 overflow-y-auto print:overflow-visible"
+              style={{ ...openStyle(12), gridRow: '2 / 4', gridColumn: '2 / 4' }}
+              className="open-reveal min-h-0 overflow-y-auto print:overflow-visible"
             >
               {centerPanel}
             </div>

@@ -12,6 +12,8 @@ export interface ChatCopy {
   navAbout: string;
   // 首页
   homeTitle: string;
+  /** 空态 hero 的星图主题词（中文竖排 / 英文横排） */
+  heroTitle: string;
   errorYear: string;
   errorMonth: string;
   errorDay: string;
@@ -144,6 +146,7 @@ const ZH: ChatCopy = {
   disclaimerShort: '回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。',
 
   homeTitle: '和你的命盘聊聊',
+  heroTitle: '紫微斗数',
   errorYear: '出生年份需在 1900–2100 之间。',
   errorMonth: '出生月份需在 1–12 之间。',
   errorDay: '出生日期需在 1–31 之间。',
@@ -240,6 +243,7 @@ const EN: ChatCopy = {
   disclaimerShort: 'Answers are reasoned only from this chart’s existing material: conclusion first, then the basis. For reference only — not medical, legal or investment advice.',
 
   homeTitle: 'Talk with your chart',
+  heroTitle: 'Ziwei Astrology',
   errorYear: 'Birth year must be between 1900 and 2100.',
   errorMonth: 'Birth month must be between 1 and 12.',
   errorDay: 'Birth day must be between 1 and 31.',

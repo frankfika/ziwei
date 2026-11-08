@@ -135,7 +135,7 @@ export default function CenterPanel({
       <div className="text-center">
         <p className="font-serif text-title font-semibold text-ink">{info.wuxingJuName}</p>
         {(info.mingZhu || info.shenZhu) && (
-          <p className="mt-1.5 text-xs text-ink-2">
+          <p className="mt-1.5 font-serif text-xs tracking-[0.08em] text-ink-2">
             {info.mingZhu ? `${copy.lifeMaster} ${info.mingZhu}` : ''}
             {info.mingZhu && info.shenZhu ? ' · ' : ''}
             {info.shenZhu ? `${copy.bodyMaster} ${info.shenZhu}` : ''}

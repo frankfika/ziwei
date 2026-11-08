@@ -72,7 +72,7 @@ export default function AccountPage() {
     <div className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
       <header className="mb-8">
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ACCOUNT</p>
-        <h1 className="text-3xl font-semibold tracking-[0.12em] text-ink">{copy.accountTitle}</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-[0.12em] text-ink">{copy.accountTitle}</h1>
       </header>
 
       {state === 'loading' && (

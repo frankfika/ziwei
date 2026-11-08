@@ -369,6 +369,21 @@ docker logs --tail=100 ziwei
 
 ### 9.2 发布步骤（代码有更新时）
 
+> **建议先给发布命令加一条权限放行规则**（Claude Code 会把批准过的命令记进
+> `.claude/settings.local.json` 的 `permissions.allow`），否则每次发布都要人工确认：
+>
+> ```json
+> "Bash(ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35:*)"
+> ```
+>
+> 另：**构建前先给当前镜像打个回滚 tag** —— 下面 ② 步的构建会覆盖
+> `ziwei-assistant:compact` 这个 tag，不先备份就没有可回滚的旧镜像：
+>
+> ```bash
+> ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 \
+>   'docker tag ziwei-assistant:compact ziwei-assistant:rollback-$(date +%Y%m%d-%H%M)'
+> ```
+
 ```bash
 # ① 同步代码（排除数据/依赖/构建产物）
 rsync -az --rsync-path='sudo rsync' \

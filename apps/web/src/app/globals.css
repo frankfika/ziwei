@@ -404,6 +404,12 @@
 
 .hero-title {
   animation: hero-title 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+  /* 纸色晕影：把盘心的鎏金紫微星从字底下"挖"出来，
+     否则竖排标题正好从星上穿过，看起来像个杂点 */
+  text-shadow:
+    0 0 6px #f6f2e9,
+    0 0 12px #f6f2e9,
+    0 0 22px rgba(246, 242, 233, 0.92);
 }
 
 .hero-seal {

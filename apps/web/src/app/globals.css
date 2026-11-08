@@ -44,8 +44,12 @@
     .tab-crossfade,
     .chart-submit,
     .open-reveal,
-    .seal-stamp {
+    .seal-stamp,
+    .hero-atlas,
+    .hero-title,
+    .hero-seal {
       animation-duration: 80ms !important;
+      animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
     }
   }
@@ -200,7 +204,9 @@
 }
 
 .palace-cell.is-selected {
-  background-color: #e7ecf3; /* zhu-soft */
+  /* 暖金底 + 金边 + 金晕：选中是全盘唯一的鎏金块，
+     与三方四正的黛青 tint（辅助层）、命宫的淡金常亮边（锚点层）分三层 */
+  background-color: rgba(168, 121, 47, 0.1);
   box-shadow:
     inset 0 0 0 1px rgba(168, 121, 47, 0.5), /* 鎏金描边（star-miao） */
     0 0 24px rgba(168, 121, 47, 0.22); /* 鎏金光晕 */
@@ -368,6 +374,65 @@
   animation: seal-stamp 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* ── 首页 hero 分层入场（HomeChat 空态）──────────────────────────────
+   星图先亮 → 竖排主题词浮起 → 钤印最后盖下。三段各留一拍，像翻开一页图谱。 */
+@keyframes hero-atlas {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-title {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-atlas {
+  animation: hero-atlas 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-title {
+  animation: hero-title 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+}
+
+.hero-seal {
+  animation: seal-stamp 240ms cubic-bezier(0.22, 1, 0.36, 1) 760ms both;
+}
+
+/* 宫格 hover 微光：鎏金描边淡入。
+   走独立的 ::before 层，不碰 box-shadow / background-color ——
+   否则会盖掉流年（大限）的鎏金/紫描边和命宫的常亮金边 */
+.palace-cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(168, 121, 47, 0.4);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.palace-cell:hover::before {
+  opacity: 1;
+}
+
+/* 中宫局名：鎏金晕染（title 是全盘视觉重心，给它一点光） */
+.ju-glow {
+  text-shadow: 0 0 18px rgba(168, 121, 47, 0.28);
+}
+
 /* 三方淡入（DURATION.sanfang = 220ms）：淡入的是底色本身，宫内星名不跟着闪 */
 .sanfang-fade {
   animation: sanfang-fade 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -388,8 +453,9 @@
 }
 
 .star-atlas-rotor {
-  transform-box: fill-box;
-  transform-origin: center;
+  /* 缓转层只有星官（不含环垣），bbox 中心不在盘心 —— 用 view-box 坐标系定原点 */
+  transform-box: view-box;
+  transform-origin: 200px 200px;
   animation: star-atlas-spin 120s linear infinite;
 }
 
@@ -421,7 +487,10 @@
 
   /* 开盘/钤印是一次性进场动效：打印定格在终态，不参与分页与渲染 */
   .open-reveal,
-  .seal-stamp {
+  .seal-stamp,
+  .hero-atlas,
+  .hero-title,
+  .hero-seal {
     animation: none !important;
   }
 

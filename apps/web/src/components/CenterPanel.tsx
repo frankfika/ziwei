@@ -133,7 +133,7 @@ export default function CenterPanel({
     <div className="flex h-full w-full flex-col items-center justify-center gap-2.5 bg-paper px-4 py-3">
       {/* 中宫主视觉：局名 display 居中 → 命主/身主一行 → 虚岁一行（§B4） */}
       <div className="text-center">
-        <p className="font-serif text-title font-semibold text-ink">{info.wuxingJuName}</p>
+        <p className="ju-glow font-serif text-title font-semibold text-ink">{info.wuxingJuName}</p>
         {(info.mingZhu || info.shenZhu) && (
           <p className="mt-1.5 font-serif text-xs tracking-[0.08em] text-ink-2">
             {info.mingZhu ? `${copy.lifeMaster} ${info.mingZhu}` : ''}

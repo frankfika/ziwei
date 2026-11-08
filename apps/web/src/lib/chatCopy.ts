@@ -66,7 +66,6 @@ export interface ChatCopy {
   // 档案
   newProfile: string;
   synastry: string;
-  noProfilesTitle: string;
   noProfilesBody: string;
   noProfilesCta: string;
   incompleteBirth: string;
@@ -199,7 +198,6 @@ const ZH: ChatCopy = {
   sendQueueTitle: '回答中 —— 点击把这句话排到下一条',
   newProfile: '＋ 新建档案',
   synastry: '双人合盘 →',
-  noProfilesTitle: '还没有档案',
   noProfilesBody: '先排一张盘，之后打开首页就能直接接着聊。',
   noProfilesCta: '去排一张盘',
   incompleteBirth: '这个档案的生辰不完整，无法对话。请重新排盘。',
@@ -296,7 +294,6 @@ const EN: ChatCopy = {
   sendQueueTitle: 'Answering — tap to queue this message',
   newProfile: '＋ New profile',
   synastry: 'Synastry →',
-  noProfilesTitle: 'No profile yet',
   noProfilesBody: 'Cast a chart first — the home page then picks up right where you left off.',
   noProfilesCta: 'Cast a chart',
   incompleteBirth: 'This profile’s birth data is incomplete. Please cast the chart again.',

@@ -71,13 +71,27 @@ const TWINKLE: ReadonlyArray<readonly [number, number, number, number]> = [
   // [x, y, r, delay]
   [190, 95, 2.4, 0], // 北斗勺身（天权）
   [262, 52, 2.4, 1.1], // 摇光
-  [200, 200, 3, 0.6], // 紫微（中心）
   [140, 278, 2, 1.8],
   [300, 140, 2, 2.5],
 ];
 
 const INK = '#3D5A85'; // zhu 黛青：墨线
 const GOLD = '#A8792F'; // star-miao 鎏金：主星点睛
+
+/** 十二地支 —— 方位与命盘页 GRID_POS 一致（子在午顶、卯在左、酉在右）：
+    branch+1 = 顺时针下一宫；角位自 10:30 起每 30° 一位 */
+const BRANCHES: ReadonlyArray<readonly [number, string]> = [
+  [0, '子'], [1, '丑'], [2, '寅'], [3, '卯'], [4, '辰'], [5, '巳'],
+  [6, '午'], [7, '未'], [8, '申'], [9, '酉'], [10, '戌'], [11, '亥'],
+];
+
+/** 地支刻字位置：branch → [x, y]（r=168，自 12 点顺时针，每宫 30°） */
+function branchPos(branch: number): readonly [number, number] {
+  const i = (branch - 5 + 12) % 12; // i=0 → branch 5（巳，10:30 位）
+  const theta = (-45 + i * 30) * (Math.PI / 180); // 顺时针，正角在 12 点
+  const r = 168;
+  return [200 + r * Math.sin(theta), 200 - r * Math.cos(theta)];
+}
 
 export default function StarAtlas({ className = '' }: { className?: string }) {
   return (
@@ -87,8 +101,8 @@ export default function StarAtlas({ className = '' }: { className?: string }) {
       aria-hidden="true"
       role="presentation"
     >
-      {/* 缓转层：整图 120s 一圈 —— 环与星官一起转，慢到几乎察觉不到 */}
-      <g className="star-atlas-rotor">
+      {/* 静态层：环垣、刻度、十二地支、极星十字丝 —— 方位不能随星图转 */}
+      <g>
         {/* 三重环垣 */}
         <circle cx="200" cy="200" r="188" fill="none" stroke={INK} strokeOpacity="0.28" strokeWidth="1" />
         <circle cx="200" cy="200" r="152" fill="none" stroke={INK} strokeOpacity="0.18" strokeWidth="0.8" />
@@ -107,6 +121,35 @@ export default function StarAtlas({ className = '' }: { className?: string }) {
           );
         })}
 
+        {/* 十二地支刻字：与命盘页同一套方位（子在午顶、卯左酉右） */}
+        {BRANCHES.map(([branch, glyph]) => {
+          const [x, y] = branchPos(branch);
+          return (
+            <text
+              key={branch}
+              x={x}
+              y={y}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="11"
+              fill={INK}
+              fillOpacity="0.42"
+              fontFamily='"Songti SC", "Noto Serif SC", serif'
+            >
+              {glyph}
+            </text>
+          );
+        })}
+
+        {/* 极星十字丝：古星图中心的定位标记 */}
+        <g stroke={INK} strokeOpacity="0.22" strokeWidth="0.7">
+          <line x1="186" y1="200" x2="214" y2="200" />
+          <line x1="200" y1="186" x2="200" y2="214" />
+        </g>
+      </g>
+
+      {/* 缓转层：星官与散星 120s 一圈 —— 慢到几乎察觉不到，只有星点在漂 */}
+      <g className="star-atlas-rotor">
         {/* 星官连线 + 星点 */}
         {ASTERISMS.map((stars, i) => (
           <g key={i}>
@@ -138,7 +181,11 @@ export default function StarAtlas({ className = '' }: { className?: string }) {
             style={{ animationDelay: `${delay}s` }}
           />
         ))}
-        {/* 紫微光晕 */}
+      </g>
+
+      {/* 紫微：中宫正位，鎏金 + 光晕（静态，不随星图转） */}
+      <g className="star-twinkle">
+        <circle cx="200" cy="200" r="3" fill={GOLD} />
         <circle cx="200" cy="200" r="9" fill="none" stroke={GOLD} strokeOpacity="0.35" strokeWidth="0.8" />
       </g>
     </svg>

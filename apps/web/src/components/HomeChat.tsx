@@ -74,27 +74,33 @@ export default function HomeChat({
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
         <h1 className="sr-only">{copy.homeTitle}</h1>
 
-        {/* 古星图 hero：缓转星图垫底，中文竖排主题词悬在图上，朱砂印落在右下角 */}
-        <div className="chart-submit relative h-72 w-72 sm:h-[22rem] sm:w-[22rem]">
-          <StarAtlas className="h-full w-full" />
+        {/* 古星图 hero：星图先亮 → 竖排主题词浮起 → 钤印盖下 */}
+        <div className="relative h-72 w-72 sm:h-[22rem] sm:w-[22rem]">
+          <StarAtlas className="hero-atlas h-full w-full" />
           <div className="absolute inset-0 flex items-center justify-center">
             {lang === 'zh' ? (
-              <p className="font-serif text-2xl tracking-[0.42em] text-ink [writing-mode:vertical-rl]">
+              <p className="hero-title font-serif text-2xl tracking-[0.42em] text-ink [writing-mode:vertical-rl]">
                 {copy.heroTitle}
               </p>
             ) : (
-              <p className="max-w-[9rem] font-serif text-xl leading-snug tracking-wide2 text-ink">
+              <p className="hero-title max-w-[9rem] font-serif text-xl leading-snug tracking-wide2 text-ink">
                 {copy.heroTitle}
               </p>
             )}
           </div>
-          {/* 朱砂钤印：古籍落款，斜 3° 像随手盖下去的 */}
+          {/* 朱砂钤印：古籍落款，斜 3° 像随手盖下去的（英文版换 ZW，不露中文字） */}
           <div
             aria-hidden="true"
-            className="absolute bottom-6 right-5 flex h-10 w-10 rotate-3 flex-col items-center justify-center rounded-[3px] bg-hua-ji font-serif text-sm leading-tight text-surface shadow-[0_2px_8px_rgba(193,64,47,0.35)]"
+            className="hero-seal absolute bottom-6 right-5 flex h-10 w-10 rotate-3 flex-col items-center justify-center rounded-[3px] bg-hua-ji font-serif text-sm leading-tight text-surface shadow-[0_2px_8px_rgba(193,64,47,0.35)]"
           >
-            <span>紫</span>
-            <span>微</span>
+            {lang === 'zh' ? (
+              <>
+                <span>紫</span>
+                <span>微</span>
+              </>
+            ) : (
+              <span className="text-xs tracking-[0.05em]">ZW</span>
+            )}
           </div>
         </div>
 

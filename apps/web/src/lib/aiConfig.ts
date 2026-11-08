@@ -29,14 +29,14 @@ export const DEFAULT_CONFIG: UserProviderConfig = {
 };
 
 /** 常见端点的预设，省得手打 */
-export const PRESETS: Array<{ label: string; kind: UserProviderKind; baseUrl: string; model: string; hint: string }> = [
-  { label: 'OpenAI', kind: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', hint: '官方' },
-  { label: 'DeepSeek', kind: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', hint: '国产，便宜' },
+export const PRESETS: Array<{ label: string; kind: UserProviderKind; baseUrl: string; model: string; hint: string; hintEn?: string }> = [
+  { label: 'OpenAI', kind: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', hint: '官方', hintEn: 'Official' },
+  { label: 'DeepSeek', kind: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', hint: '国产，便宜', hintEn: 'Chinese provider, cheap' },
   { label: '智谱 GLM', kind: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', hint: '国产' },
-  { label: 'MiniMax', kind: 'openai', baseUrl: 'https://api.minimaxi.com/v1', model: 'MiniMax-M1', hint: '国产，M1 快（M3 思维链慢）' },
-  { label: '月之暗面 Kimi', kind: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', hint: '长文本' },
+  { label: 'MiniMax', kind: 'openai', baseUrl: 'https://api.minimaxi.com/v1', model: 'MiniMax-M1', hint: '国产，M1 快（M3 思维链慢）', hintEn: 'Chinese provider; M1 is fast (M3 reasoning is slow)' },
+  { label: '月之暗面 Kimi', kind: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', hint: '长文本', hintEn: 'Long context' },
   { label: 'Anthropic', kind: 'anthropic', baseUrl: '', model: 'claude-sonnet-5', hint: 'Claude' },
-  { label: '本地 Ollama', kind: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5:7b', hint: '不联网' },
+  { label: '本地 Ollama', kind: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5:7b', hint: '不联网', hintEn: 'Runs locally' },
 ];
 
 export function readUserConfig(): UserProviderConfig | null {

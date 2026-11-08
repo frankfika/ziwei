@@ -11,6 +11,8 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 import type { Lang } from './quotaCopy';
+import { useLangContext } from './LangProvider';
+import { syncDocumentTitle } from './langServer';
 
 const STORAGE_KEY = 'ziwei_lang';
 const EVENT = 'ziwei:lang';
@@ -39,6 +41,8 @@ export function getLang(): Lang {
   return load();
 }
 
+/** 切语言时同步 document.title（实现与词表在 langServer.ts，与 layout.tsx META 同步改） */
+
 /** 设置语言并广播（同一标签页内所有订阅者一起更新） */
 export function setLang(lang: Lang): void {
   current = lang;
@@ -47,6 +51,11 @@ export function setLang(lang: Lang): void {
     localStorage.setItem(STORAGE_KEY, lang);
   } catch {
     /* 存不下就算了，本次会话内仍然生效 */
+  }
+  // 同时写 cookie：服务端（metadata、<html lang>）读得到，刷新不闪回中文
+  if (typeof document !== 'undefined') {
+    document.cookie = `${STORAGE_KEY}=${lang}; path=/; max-age=31536000; samesite=lax`;
+    syncDocumentTitle(lang);
   }
   emit();
 }
@@ -61,9 +70,16 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-/** 订阅当前语言 */
+/**
+ * 订阅当前语言 —— 优先用 LangProvider（服务端按 cookie 注入，首屏就是对的），
+ * 没有 Provider 时退回 localStorage 订阅（老入口/独立组件仍能用）。
+ */
 export function useLang(): [Lang, (l: Lang) => void] {
-  const lang = useSyncExternalStore(subscribe, load, () => 'zh' as Lang);
+  const ctx = useLangContext();
+  const fallback = useSyncExternalStore(subscribe, load, () => 'zh' as Lang);
   const toggle = useCallback((l: Lang) => setLang(l), []);
-  return [lang, toggle];
+  if (ctx) return [ctx.lang, ctx.setLang];
+  return [fallback, toggle];
 }
+
+export { langFromCookie } from './langServer';

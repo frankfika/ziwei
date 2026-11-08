@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES, STEM_NAMES } from '@/lib/birth';
+import { useLang } from '@/lib/lang';
+import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
 
 /** 盘面时间层：本命 / 大限 / 流年 / 流月（叠加视图） */
 export type BoardLayer = 'natal' | 'daxian' | 'liunian' | 'liuyue';
@@ -37,9 +41,6 @@ export interface ChartCenterInfo {
 
 const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CN_MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
-
-/** 四柱列名（一行四个等宽的字，无边框格子墙） */
-const PILLAR_LABELS = ['年', '月', '日', '时'];
 
 function cnDay(day: number): string {
   if (day <= 10) return `初${CN_DIGITS[day]}`;
@@ -120,6 +121,8 @@ export default function CenterPanel({
   /** 紧凑版：移动端中宫只留局名/命主/虚岁 + 时间轴，省掉生辰/四柱/落宫 */
   compact?: boolean;
 }) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const branchOf = (b: number) =>
     palaces.find((p) => p.branch === b)?.branchName ?? SHICHEN_NAMES[b] ?? '—';
 
@@ -133,14 +136,14 @@ export default function CenterPanel({
         <p className="font-serif text-title font-semibold text-ink">{info.wuxingJuName}</p>
         {(info.mingZhu || info.shenZhu) && (
           <p className="mt-1.5 text-xs text-ink-2">
-            {info.mingZhu ? `命主 ${info.mingZhu}` : ''}
+            {info.mingZhu ? `${copy.lifeMaster} ${info.mingZhu}` : ''}
             {info.mingZhu && info.shenZhu ? ' · ' : ''}
-            {info.shenZhu ? `身主 ${info.shenZhu}` : ''}
+            {info.shenZhu ? `${copy.bodyMaster} ${info.shenZhu}` : ''}
           </p>
         )}
         <p className="mt-1 text-2xs text-ink-3">
           {info.yinYangGender ? `${info.yinYangGender} · ` : ''}
-          {info.currentAge > 0 && info.currentAge < 150 ? `虚岁 ${info.currentAge} 岁` : ''}
+          {info.currentAge > 0 && info.currentAge < 150 ? copy.nominalAge(info.currentAge) : ''}
         </p>
       </div>
 
@@ -148,15 +151,15 @@ export default function CenterPanel({
       {onLayerChange && (
         <div
           role="tablist"
-          aria-label="时间层"
+          aria-label={copy.timeLayerAria}
           className="flex rounded-full border border-line bg-surface p-0.5"
         >
           {(
             [
-              ['natal', '本命'],
-              ['daxian', '大限'],
-              ['liunian', '流年'],
-              ['liuyue', '流月'],
+              ['natal', copy.natal],
+              ['daxian', copy.daXian],
+              ['liunian', copy.liuNian],
+              ['liuyue', copy.liuYue],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -179,14 +182,16 @@ export default function CenterPanel({
       {layer !== 'natal' && fortune && (
         <div className="w-full space-y-0.5 rounded-lg border border-hua-ke/30 bg-surface px-2.5 py-2 text-left">
           <p className="text-2xs text-ink-3">
-            {fortune.kind === 'liunian' ? '流年' : '当前大限'}{' '}
+            {fortune.kind === 'liunian' ? copy.liuNian : copy.currentDaXian}{' '}
             <span className="text-ink">{fortune.label}</span> ·{' '}
-            {fortune.kind === 'liunian' ? '命宫在' : '命宫在'}
-            {palaces.find((p) => p.branch === fortune.mingBranch)?.name ?? ''}
+            {copy.lifePalaceAt}
+            {palaceLabel(palaces.find((p) => p.branch === fortune.mingBranch)?.name ?? '', lang)}
           </p>
           <p className="text-2xs leading-snug text-ink-2">
-            四化：禄 {fortune.siHua.lu} · 权 {fortune.siHua.quan} · 科 {fortune.siHua.ke} · 忌{' '}
-            {fortune.siHua.ji}
+            {copy.siHuaIntro}
+            {siHuaLabel('禄', lang)} {fortune.siHua.lu} · {siHuaLabel('权', lang)}{' '}
+            {fortune.siHua.quan} · {siHuaLabel('科', lang)} {fortune.siHua.ke} ·{' '}
+            {siHuaLabel('忌', lang)} {fortune.siHua.ji}
           </p>
           {onAskTime && (
             <button
@@ -194,7 +199,7 @@ export default function CenterPanel({
               onClick={() => onAskTime(fortune.kind)}
               className="mt-0.5 inline-flex min-h-8 items-center rounded-full border border-zhu/30 px-2.5 py-1 text-2xs leading-none text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              {fortune.kind === 'liunian' ? '就今年追问' : '就这步大限追问'}
+              {fortune.kind === 'liunian' ? copy.askThisYear : copy.askThisLimit}
             </button>
           )}
         </div>
@@ -204,7 +209,7 @@ export default function CenterPanel({
       {layer === 'liunian' && onLiunianIdxChange && (liunianLabels?.length ?? 0) > 0 && (
         <div
           role="radiogroup"
-          aria-label="流年年份"
+          aria-label={copy.annualYearAria}
           className="flex max-w-full flex-wrap items-center justify-center gap-1"
         >
           {liunianLabels!.map((label, i) => (
@@ -230,7 +235,7 @@ export default function CenterPanel({
       {layer === 'liuyue' && onLiuyueMonthChange && liuyueLabels?.length === 12 && (
         <div
           role="radiogroup"
-          aria-label="流月月份"
+          aria-label={copy.monthlyMonthAria}
           className="flex max-w-full flex-wrap items-center justify-center gap-1"
         >
           {liuyueLabels.map((label, i) => (
@@ -281,21 +286,21 @@ export default function CenterPanel({
                 onClick={() => onNavigateTab('reading')}
                 className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
-                看解读
+                {copy.readInterpretation}
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('ask')}
                 className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
-                去追问
+                {copy.goAsk}
               </button>
               {reportUrl && (
                 <Link
                   href={reportUrl}
                   className="rounded-full border border-line bg-surface px-2 py-1 text-2xs shrink-0 whitespace-nowrap leading-none text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                 >
-                  年报
+                  {copy.annualReport}
                 </Link>
               )}
             </div>
@@ -308,7 +313,7 @@ export default function CenterPanel({
         <details className="group w-full">
           <summary className="cursor-pointer list-none text-center text-2xs text-ink-3 transition-colors hover:text-ink-2 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-1">
-              专业层 · 四柱与落宫
+              {copy.proLayer}
               <span aria-hidden="true" className="transition-transform group-open:rotate-180">
                 ▾
               </span>
@@ -316,21 +321,20 @@ export default function CenterPanel({
           </summary>
           <div className="mt-2 space-y-3">
             <div className="text-center">
-              <p className="font-serif text-sm tracking-[0.3em] text-ink-2">紫微斗数</p>
+              <p className="font-serif text-sm tracking-[0.3em] text-ink-2">{copy.ziweiDouShu}</p>
               <p className="mt-1 text-2xs text-ink-3">
-                {STEM_NAMES[info.yearStem]}
-                {SHICHEN_NAMES[info.yearBranch]}年
-                {info.isLeapMonth ? '闰' : ''}
-                {CN_MONTHS[info.lunarMonth - 1]}月{cnDay(info.lunarDay)}
+                {copy.lunarYear(`${STEM_NAMES[info.yearStem]}${SHICHEN_NAMES[info.yearBranch]}`)}
+                {copy.lunarMonth(info.isLeapMonth, CN_MONTHS[info.lunarMonth - 1], info.lunarMonth)}
+                {copy.lunarDay(cnDay(info.lunarDay), info.lunarDay)}
               </p>
             </div>
 
             {pillars && (
               <div className="w-full">
-                <p className="mb-1.5 text-center text-2xs text-ink-3">四柱</p>
+                <p className="mb-1.5 text-center text-2xs text-ink-3">{copy.fourPillars}</p>
                 {/* 一行四个等宽的字 + 下面一行干支：无边框、无格子墙 */}
                 <div className="grid grid-cols-4 gap-x-2 gap-y-1">
-                  {PILLAR_LABELS.map((label) => (
+                  {copy.pillarLabels.map((label) => (
                     <span key={label} className="text-center text-2xs text-ink-3">
                       {label}
                     </span>
@@ -349,11 +353,11 @@ export default function CenterPanel({
 
             {/* 细节退后：只留「落宫」这类不重复的信息 */}
             <div className="w-full space-y-2">
-              <Row label="命宫" accent>
-                {branchOf(info.mingGongBranch)}宫
+              <Row label={copy.mingGong} accent>
+                {copy.branchPalace(branchOf(info.mingGongBranch))}
               </Row>
-              <Row label="身宫">{branchOf(info.shenGongBranch)}宫</Row>
-              <Row label="紫微">在{branchOf(info.ziweiPos)}宫</Row>
+              <Row label={copy.shenGong}>{copy.branchPalace(branchOf(info.shenGongBranch))}</Row>
+              <Row label={copy.ziweiLabel}>{copy.inPalace(branchOf(info.ziweiPos))}</Row>
             </div>
           </div>
         </details>

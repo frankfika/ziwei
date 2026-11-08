@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import ChartTabs from '@/components/ChartTabBar';
+import { ChartDetails, ChartInvalid, ChartSummary } from '@/components/ChartPageChrome';
 import { describeProviderEnv } from '@ziwei/ask';
 import { liuNianLayer, daXianLayer, liuYueLayer } from '@ziwei/chart-engine';
 import { getService } from '@/lib/service';
-import { GENDER_LABEL, SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
+import { SHICHEN_NAMES, SHICHEN_RANGES, formatDate } from '@/lib/birth';
 import {
   applyCitationModeToDimensions,
   resolveCitationMode,
@@ -15,33 +15,6 @@ export const dynamic = 'force-dynamic';
 function one(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return v[0] ?? '';
   return v ?? '';
-}
-
-function invalid(message: string) {
-  return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
-      <div className="panel mx-auto max-w-lg p-8 text-center">
-        <h1 className="text-lg tracking-wide text-ink">无法排盘</h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink-2" role="alert">
-          {message}
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link
-            href="/"
-            className="inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            回到输入页
-          </Link>
-          <Link
-            href="/about"
-            className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-5 py-2.5 text-sm text-ink-2 transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-          >
-            查看口径说明
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default async function ChartPage({
@@ -69,7 +42,7 @@ export default async function ChartPage({
     hour > 11 ||
     (genderRaw !== 'male' && genderRaw !== 'female')
   ) {
-    return invalid('参数不完整或超出范围，请回到输入页重新填写生辰。');
+    return <ChartInvalid kind="params" />;
   }
 
   const gender = genderRaw;
@@ -86,8 +59,11 @@ export default async function ChartPage({
       ...(name ? { name } : {}),
     });
   } catch (err) {
-    return invalid(
-      err instanceof Error ? err.message : '排盘失败，请检查出生日期是否合法。',
+    return (
+      <ChartInvalid
+        kind="failed"
+        {...(err instanceof Error ? { message: err.message } : {})}
+      />
     );
   }
 
@@ -232,47 +208,28 @@ export default async function ChartPage({
         }}
         /* 摘要行：单行 H1（不再是大标题块） */
         summary={
-          <h1 className="truncate text-sm font-medium tracking-wide text-ink md:text-base">
-            {name ? `${name} · ` : ''}
-            {`${year}年${month}月${day}日`} · {SHICHEN_NAMES[hour]}时 · {GENDER_LABEL[gender]}
-            {lateFlag && (
-              <span className="ml-1.5 text-zhu" title="晚子时已按传统规则顺延排盘日">
-                晚子时顺延
-              </span>
-            )}
-          </h1>
+          <ChartSummary
+            {...(name ? { name } : {})}
+            year={year}
+            month={month}
+            day={day}
+            shichen={SHICHEN_NAMES[hour]}
+            gender={gender}
+            lateZi={lateFlag}
+          />
         }
         /* 「详情」折叠面板：口径说明默认藏起来，不占首屏高度 */
         details={
-          <div className="space-y-2 text-2xs leading-relaxed text-ink-2">
-            <p>
-              排盘日 <span className="tabular-nums text-ink">{`${year}年${month}月${day}日`}</span>
-            </p>
-            <p>
-              {SHICHEN_NAMES[hour]}时（{SHICHEN_RANGES[hour]}）
-            </p>
-            <p>未做真太阳时校正</p>
-            {lateFlag && (
-              <p className="text-zhu">
-                晚子时已顺延：输入日期 {birthDateRaw || '—'} 属晚子时（23:00–23:59），
-                排盘日顺延至 {chartDate}，时辰为 {SHICHEN_NAMES[hour]}时。
-              </p>
-            )}
-            <div className="flex flex-wrap gap-3 border-t border-lineSoft pt-2">
-              <Link
-                href="/"
-                className="text-ink underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                重新排盘
-              </Link>
-              <Link
-                href="/about"
-                className="text-ink underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                口径说明
-              </Link>
-            </div>
-          </div>
+          <ChartDetails
+            year={year}
+            month={month}
+            day={day}
+            shichen={SHICHEN_NAMES[hour]}
+            shichenRange={SHICHEN_RANGES[hour]}
+            lateZi={lateFlag}
+            birthDate={birthDateRaw}
+            chartDate={chartDate}
+          />
         }
       />
     </div>

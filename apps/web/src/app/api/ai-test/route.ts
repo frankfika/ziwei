@@ -22,16 +22,16 @@ export async function POST(request: Request) {
   const baseUrl = str(formData, 'baseUrl').trim();
 
   if (kind !== 'openai' && kind !== 'anthropic' && kind !== 'echo') {
-    return Response.json({ ok: false, error: `不认识的协议类型：${kind || '（空）'}` });
+    return Response.json({ ok: false, error: `不认识的协议类型：${kind || '（空）'} / Unknown protocol type: ${kind || '(empty)'}` });
   }
   if (kind === 'openai' && !baseUrl) {
-    return Response.json({ ok: false, error: 'OpenAI 兼容端点需要填 API 根地址' });
+    return Response.json({ ok: false, error: 'OpenAI 兼容端点需要填 API 根地址 / OpenAI-compatible endpoints need an API base URL' });
   }
   if (kind !== 'echo' && !apiKey) {
-    return Response.json({ ok: false, error: 'API Key 还没填' });
+    return Response.json({ ok: false, error: 'API Key 还没填 / API key is missing' });
   }
   if (!model) {
-    return Response.json({ ok: false, error: '模型名还没填' });
+    return Response.json({ ok: false, error: '模型名还没填 / Model name is missing' });
   }
 
   try {

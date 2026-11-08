@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import NavLinks from './NavLinks';
+import { useLang } from '@/lib/lang';
 
 /** 紫微星标：四角星，取「四方定位」之意 */
 function ZiweiMark({ className }: { className?: string }) {
@@ -16,6 +19,7 @@ function ZiweiMark({ className }: { className?: string }) {
 }
 
 export function SiteHeader() {
+  const [lang] = useLang();
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur pt-[env(safe-area-inset-top)] print:hidden">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
@@ -25,10 +29,10 @@ export function SiteHeader() {
         >
           <ZiweiMark className="h-[18px] w-[18px] shrink-0 text-zhu drop-shadow-[0_0_7px_rgba(61,90,133,0.35)] transition-transform duration-300 group-hover:rotate-12" />
           <span className="whitespace-nowrap font-serif text-[15px] font-semibold tracking-[0.16em] text-ink">
-            紫微助手
+            {lang === 'en' ? 'Ziwei Assistant' : '紫微助手'}
           </span>
           <span className="hidden text-[10px] tracking-[0.3em] text-ink-3/70 sm:inline">
-            ZIWEI ASSISTANT
+            {lang === 'en' ? 'ZIWEI ASTROLOGY' : 'ZIWEI ASSISTANT'}
           </span>
         </Link>
         <NavLinks />

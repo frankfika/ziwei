@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { QUOTA_COPY } from '@/lib/quotaCopy';
 import { useLang } from '@/lib/lang';
+import { CHAT_COPY } from '@/lib/chatCopy';
+import LangToggle from './LangToggle';
 
 const NAV = [
-  { href: '/new', label: '开始排盘' },
-  { href: '/about', label: '关于与口径' },
+  { href: '/new', key: 'navNew' },
+  { href: '/about', key: 'navAbout' },
 ] as const;
 
 function isCurrent(pathname: string, href: string): boolean {
@@ -18,7 +19,7 @@ function isCurrent(pathname: string, href: string): boolean {
 export default function NavLinks() {
   const pathname = usePathname() || '/';
   const [lang] = useLang();
-  const copy = QUOTA_COPY[lang];
+  const copy = CHAT_COPY[lang];
 
   const linkClass = (current: boolean) =>
     `inline-flex min-h-9 items-center whitespace-nowrap rounded-md px-2 py-1.5 text-xs tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:px-3 ${
@@ -26,7 +27,7 @@ export default function NavLinks() {
     }`;
 
   return (
-    <nav className="flex items-center gap-1" aria-label="主导航">
+    <nav className="flex items-center gap-1" aria-label={copy.navAria}>
       {NAV.map((item) => {
         const current = isCurrent(pathname, item.href);
         return (
@@ -36,17 +37,12 @@ export default function NavLinks() {
             aria-current={current ? 'page' : undefined}
             className={linkClass(current)}
           >
-            {item.label}
+            {copy[item.key]}
           </Link>
         );
       })}
-      <Link
-        href="/account"
-        aria-current={isCurrent(pathname, '/account') ? 'page' : undefined}
-        className={linkClass(isCurrent(pathname, '/account'))}
-      >
-        {copy.navAccount}
-      </Link>
+      {/* 语言开关放在全局导航里：任何页面一键中/EN */}
+      <LangToggle className="ml-0.5" />
     </nav>
   );
 }

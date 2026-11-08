@@ -1,17 +1,10 @@
-import ErrorAlert from '@/components/ErrorAlert';
+import { cookies } from 'next/headers';
 import HomeChat from '@/components/HomeChat';
 import { describeProviderEnv, readProviderEnv } from '@ziwei/ask';
+import { langFromCookie } from '@/lib/langServer';
+import { CHAT_COPY } from '@/lib/chatCopy';
 
 export const dynamic = 'force-dynamic';
-
-const ERROR_TEXT: Record<string, string> = {
-  year: '出生年份需在 1900–2100 之间。',
-  month: '出生月份需在 1–12 之间。',
-  day: '出生日期需在 1–31 之间。',
-  date: '这个日期不存在，请检查年月日。',
-  clock: '钟点需在 00:00–23:59 之间。',
-  shichen: '时辰序号需在 0–11 之间。',
-};
 
 export default async function HomePage({
   searchParams,
@@ -20,7 +13,23 @@ export default async function HomePage({
 }) {
   const sp = await searchParams;
   const errorKey = typeof sp.error === 'string' ? sp.error : '';
-  const errorText = ERROR_TEXT[errorKey];
+  // 语言来自 cookie（切语言时写入）：首页标题与错误提示跟着语言走
+  const jar = await cookies();
+  const copy = CHAT_COPY[langFromCookie(jar.get('ziwei_lang')?.value)];
+  const errorText =
+    errorKey === 'year'
+      ? copy.errorYear
+      : errorKey === 'month'
+        ? copy.errorMonth
+        : errorKey === 'day'
+          ? copy.errorDay
+          : errorKey === 'date'
+            ? copy.errorDate
+            : errorKey === 'clock'
+              ? copy.errorClock
+              : errorKey === 'shichen'
+                ? copy.errorShichen
+                : '';
 
   const provider = describeProviderEnv();
   const serverModel = provider.ok ? readProviderEnv().model : undefined;
@@ -28,15 +37,9 @@ export default async function HomePage({
   return (
     // 聊天壳占满剩余高度：用 flex 链算高度，不做 100dvh 减法 ——
     // 减法一旦算不出来（老浏览器不认 env()），整条 flex 链会塌成一条缝。
-    <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col px-5 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-7">
-      {/* 极简：一行标题，剩下的全是对话 */}
-      <h1 className="mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:text-[1.6rem]">
-        和你的命盘聊聊
-        {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
-      </h1>
-
-      {/* 对话主壳：选人 → 对话线程 + 意图芯片 */}
-      <HomeChat providerConfigured={provider.ok} serverModel={serverModel} />
+    <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col px-5 pb-3 pt-3 sm:px-8 sm:pb-5 sm:pt-7">
+      {/* 对话主壳：选人 → 对话线程 + 意图芯片（标题在 HomeChat 里，随语言即时切换） */}
+      <HomeChat providerConfigured={provider.ok} serverModel={serverModel} errorText={errorText} />
     </div>
   );
 }

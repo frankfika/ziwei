@@ -24,9 +24,9 @@ export type CitationMode = 'full' | 'inline' | 'drop-line';
 export const CITATION_MODES: CitationMode[] = ['full', 'inline', 'drop-line'];
 
 export const CITATION_MODE_LABEL: Record<CitationMode, string> = {
-  full: '完整展示（含《天纪》原话与出处标注）',
-  inline: '引文降级为「（引文略）」',
-  'drop-line': '含引文的整行略去',
+  full: '完整展示（含《天纪》原话与出处标注） / Full text (incl. Tian Ji quotes with citations)',
+  inline: '引文降级为「（引文略）」 / Quotes downgraded to “(quote omitted)”',
+  'drop-line': '含引文的整行略去 / Lines containing quotes omitted',
 };
 
 /** 从环境变量解析模式；无法识别时回退到 `full` */

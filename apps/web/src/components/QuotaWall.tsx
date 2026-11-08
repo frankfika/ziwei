@@ -83,7 +83,7 @@ export default function QuotaWall({
         setPayError(
           j?.error === 'PAYMENT_NOT_CONFIGURED'
             ? copy.payNotConfigured
-            : copy.payFailed(j?.detail ?? j?.error ?? '未知错误'),
+            : copy.payFailed(j?.detail ?? j?.error ?? copy.unknownError),
         );
         return;
       }

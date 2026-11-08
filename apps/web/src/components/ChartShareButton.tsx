@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { GENDER_LABEL, SHICHEN_NAMES } from '@/lib/birth';
+import { SHICHEN_NAMES } from '@/lib/birth';
+import { useLang } from '@/lib/lang';
+import { READING_COPY, type ReadingCopy } from '@/lib/readingCopy';
 
 export interface ChartShareButtonProps {
   name?: string;
@@ -27,13 +29,13 @@ function buildSummary({
   hour,
   gender,
   chartDate,
-}: ChartShareButtonProps): string {
+}: ChartShareButtonProps, copy: ReadingCopy): string {
   const parts = [
     name?.trim() ? name.trim() : null,
-    `${year} 年 ${month} 月 ${day} 日`,
-    `${SHICHEN_NAMES[hour]}时`,
-    GENDER_LABEL[gender],
-    `排盘日 ${chartDate}`,
+    copy.birthDate(year, month, day),
+    copy.shichen(SHICHEN_NAMES[hour]),
+    copy.gender(gender),
+    `${copy.chartDate} ${chartDate}`,
   ].filter(Boolean);
   return parts.join(' · ');
 }
@@ -42,6 +44,8 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
   const [copied, setCopied] = useState<CopyKind>(null);
   const [failed, setFailed] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lang] = useLang();
+  const copy = READING_COPY[lang];
 
   useEffect(() => {
     return () => {
@@ -67,20 +71,20 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
     }
   };
 
-  const onCopySummary = () => copyText(buildSummary(props), 'summary');
+  const onCopySummary = () => copyText(buildSummary(props, copy), 'summary');
   const onCopyLink = () => copyText(window.location.href, 'link');
 
   const liveMessage =
     copied === 'summary'
-      ? '已复制摘要'
+      ? copy.summaryCopied
       : copied === 'link'
-        ? '已复制链接'
+        ? copy.linkCopied
         : failed
-          ? '复制未成功，请手动选中标题复制'
+          ? copy.copyFailed
           : '';
 
-  const summaryLabel = copied === 'summary' ? '已复制摘要' : '复制生辰摘要';
-  const linkLabel = copied === 'link' ? '已复制链接' : '复制本页链接';
+  const summaryLabel = copied === 'summary' ? copy.summaryCopied : copy.copySummary;
+  const linkLabel = copied === 'link' ? copy.linkCopied : copy.copyLink;
 
   // 选完就收起菜单，别让它一直挂在摘要行下面
   const collapse = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -92,7 +96,7 @@ export default function ChartShareButton(props: ChartShareButtonProps) {
 
   return (
     <details className="relative shrink-0 print:hidden">
-      <summary className={SUMMARY_CHIP_CLASS}>分享</summary>
+      <summary className={SUMMARY_CHIP_CLASS}>{copy.share}</summary>
       <div className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-xl border border-line bg-surface-2 p-1.5 shadow-[0_12px_40px_rgba(46,42,35,0.14)]">
         <button type="button" onClick={(e) => { onCopySummary(); collapse(e); }} className={actionClass}>
           {summaryLabel}

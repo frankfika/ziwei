@@ -11,6 +11,8 @@ import { useMemo, useState } from 'react';
 import DateSelects from './DateSelects';
 import { useHistory } from '@/lib/history';
 import { resolveForm, SHICHEN_NAMES } from '@/lib/birth';
+import { useLang } from '@/lib/lang';
+import { SITE_COPY } from '@/lib/siteCopy';
 
 export interface SynastryPerson {
   name: string;
@@ -32,6 +34,8 @@ interface SynastryFormProps {
 const EMPTY: SynastryPerson = { name: '', gender: '', year: '', month: '', day: '', hour: '' };
 
 export default function SynastryForm({ initialA, initialB }: SynastryFormProps) {
+  const [lang] = useLang();
+  const copy = SITE_COPY[lang];
   const { history } = useHistory();
   const [a, setA] = useState<SynastryPerson>({ ...EMPTY, ...initialA });
   const [b, setB] = useState<SynastryPerson>({ ...EMPTY, ...initialB });
@@ -88,47 +92,47 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
   ) => (
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="block">
-        <span className="field-label">姓名（可选）</span>
+        <span className="field-label">{copy.formName}</span>
         <input
           name={`${prefix}n`}
           value={person.name}
           onChange={(e) => set({ ...person, name: e.target.value })}
           className="field-input"
-          placeholder={prefix === 'a' ? '如：小张' : '如：小李'}
+          placeholder={prefix === 'a' ? copy.formNamePlaceholderA : copy.formNamePlaceholderB}
         />
       </label>
       <label className="block">
-        <span className="field-label">性别</span>
+        <span className="field-label">{copy.formGender}</span>
         <select
           name={`${prefix}g`}
           value={person.gender}
           onChange={(e) => set({ ...person, gender: e.target.value as SynastryPerson['gender'] })}
           className="field-input"
         >
-          <option value="" disabled>请选择</option>
-          <option value="male">男</option>
-          <option value="female">女</option>
+          <option value="" disabled>{copy.formSelect}</option>
+          <option value="male">{copy.formMale}</option>
+          <option value="female">{copy.formFemale}</option>
         </select>
       </label>
       <label className="block sm:col-span-2">
-        <span className="field-label">出生日期（公历）</span>
+        <span className="field-label">{copy.formBirthDate}</span>
         <DateSelects
           value={{ year: person.year, month: person.month, day: person.day }}
           onChange={(v) => set({ ...person, year: v.year, month: v.month, day: v.day })}
         />
       </label>
       <label className="block">
-        <span className="field-label">出生时辰</span>
+        <span className="field-label">{copy.formBirthHour}</span>
         <select
           name={`${prefix}h`}
           value={person.hour}
           onChange={(e) => set({ ...person, hour: e.target.value })}
           className="field-input"
         >
-          <option value="" disabled>请选择</option>
+          <option value="" disabled>{copy.formSelect}</option>
           {SHICHEN_NAMES.map((s, i) => (
             <option key={s} value={i}>
-              {s}时
+              {copy.shichenLabel(s)}
             </option>
           ))}
         </select>
@@ -144,11 +148,11 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
         return (
           <fieldset key={prefix} className="panel p-5">
             <legend className="px-1 text-xs font-medium tracking-wide2 text-ink">
-              {idx === 0 ? '甲方' : '乙方'}
+              {idx === 0 ? copy.synPersonA : copy.synPersonB}
             </legend>
             {candidates.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                <span className="text-2xs text-ink-3">从档案选：</span>
+                <span className="text-2xs text-ink-3">{copy.formFromProfiles}</span>
                 {candidates.map((c) => (
                   <button
                     key={c.id}
@@ -171,10 +175,10 @@ export default function SynastryForm({ initialA, initialB }: SynastryFormProps) 
         disabled={!complete(a) || !complete(b)}
         className="btn-primary disabled:cursor-not-allowed disabled:opacity-45"
       >
-        看合盘
+        {copy.formSubmit}
       </button>
       <p className="mt-2 text-2xs leading-relaxed text-ink-3">
-        性别决定大限顺逆、时辰决定整张盘，所以两项都不预填 —— 请各自选好，两个人四个项都选齐才能看合盘。
+        {copy.formNote}
       </p>
     </div>
   );

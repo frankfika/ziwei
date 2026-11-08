@@ -13,13 +13,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AskPanel, { type AskSeed } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
-import LangToggle from './LangToggle';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 import { useLang } from '@/lib/lang';
 import { QUOTA_COPY } from '@/lib/quotaCopy';
-import { useQuotaStatus } from '@/lib/useQuota';
+import { CHAT_COPY } from '@/lib/chatCopy';
 
 /** 「就此追问」事件的载荷：问句 + 焦点 + 可选的盘 */
 export interface ZiweiAskEventDetail {
@@ -54,8 +53,8 @@ export default function FloatingAsk({
   const [userAi, setUserAi] = useState(false);
   // 额度相关文案：中英可切；额度上限以服务端为准（可能被 env 覆盖）
   const [lang] = useLang();
-  const quota = useQuotaStatus();
   const copy = QUOTA_COPY[lang];
+  const chat = CHAT_COPY[lang];
 
   // 打开面板时刷新 AI 配置状态（设置完回来不用刷新）
   useEffect(() => {
@@ -126,11 +125,11 @@ export default function FloatingAsk({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="打开追问助手"
+          aria-label={chat.openAskAria}
           data-floating-ask-toggle
           className={`fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-3 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-zhu text-base font-medium text-white shadow-[0_8px_24px_rgba(46,42,35,0.3)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu md:left-auto md:right-6 ${bottomClass}`}
         >
-          <span aria-hidden="true">问</span>
+          <span aria-hidden="true">{chat.askGlyph}</span>
         </button>
       )}
 
@@ -138,18 +137,18 @@ export default function FloatingAsk({
       {open && (
         <div
           role="dialog"
-          aria-label="追问助手"
+          aria-label={chat.askPanelTitle}
           data-floating-ask-panel
           className="fixed inset-0 z-50 flex flex-col bg-paper"
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-lineSoft px-4 pt-[env(safe-area-inset-top)] sm:px-6">
-            <span className="text-sm tracking-[0.2em] text-ink">命盘追问</span>
+            <span className="text-sm tracking-[0.2em] text-ink">{chat.askPanelTitle}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setShowConfig((v) => !v)}
-                aria-label={aiConfigured ? 'AI 已配置' : '配置 AI'}
-                title={aiConfigured ? 'AI 已配置' : '配置 AI'}
+                aria-label={aiConfigured ? chat.aiReadyAria : chat.aiSetupAria}
+                title={aiConfigured ? chat.aiReadyAria : chat.aiSetupAria}
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu ${
                   aiConfigured ? 'text-zhu' : 'text-ink-2 hover:text-ink'
                 }`}
@@ -159,7 +158,7 @@ export default function FloatingAsk({
               <button
                 type="button"
                 onClick={close}
-                aria-label="收起追问助手"
+                aria-label={chat.closeAskAria}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 ✕
@@ -179,25 +178,9 @@ export default function FloatingAsk({
             </div>
           )}
 
-          {!aiConfigured ? (
+          {!aiConfigured && (
             <p className="shrink-0 px-4 pt-2 text-2xs text-danger sm:px-6">
               {copy.noAiStatus} —— ⚙（只存本机）
-            </p>
-          ) : userAi ? (
-            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              <span>
-                {copy.statusUser(readUserConfig()?.model ?? '')}
-                {copy.statusHintUser}
-              </span>
-              <LangToggle />
-            </p>
-          ) : (
-            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              <span>
-                {copy.statusBuiltin(serverModel ?? '内置模型', quota.limit)}
-                {copy.statusHint}
-              </span>
-              <LangToggle />
             </p>
           )}
 
@@ -213,10 +196,10 @@ export default function FloatingAsk({
                 available
                 seed={seed ?? undefined}
                 quickPrompts={[
-                  { label: '我现在如何', question: '我现在这步运走得怎么样？今年要注意什么？', time: 'liunian' },
-                  { label: '这十年', question: '当前这步大限整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
-                  { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
-                  { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },
+                  { label: '我现在如何', labelEn: 'Where I am now', question: '我现在这步运走得怎么样？今年要注意什么？', time: 'liunian' },
+                  { label: '这十年', labelEn: 'This decade', question: '当前这步大限整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },
+                  { label: '感情', labelEn: 'Love', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love' },
+                  { label: '事业', labelEn: 'Career', question: '事业方向上，这份命盘有什么特点？', dimension: 'career' },
                 ]}
                 bare
               />

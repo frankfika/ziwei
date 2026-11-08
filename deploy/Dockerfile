@@ -14,13 +14,16 @@
 #
 # 构建：
 #   docker build -f deploy/Dockerfile -t ziwei-assistant:latest .
+#
+# 基础镜像走 daocloud 国内镜像：生产服务器到 registry-1.docker.io 的 DNS 被污染、
+# 直连必然超时（2026-11-06 实测解析到 Facebook IP），改用国内镜像源才能构建。
 # 运行：
 #   docker run --rm -p 3000:3000 -v <宿主机数据目录>:/app/data ziwei-assistant:latest
 
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 1：依赖（只复制清单文件，让 pnpm install 命中层缓存）
 # ═══════════════════════════════════════════════════════════════════
-FROM node:22-slim AS deps
+FROM docker.m.daocloud.io/library/node:22-slim AS deps
 
 WORKDIR /app
 ENV NPM_CONFIG_FUND=false \
@@ -49,7 +52,7 @@ RUN echo 'node-linker=hoisted' > /app/.npmrc \
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 2：构建 Next.js 生产产物
 # ═══════════════════════════════════════════════════════════════════
-FROM node:22-slim AS build
+FROM docker.m.daocloud.io/library/node:22-slim AS build
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -68,7 +71,7 @@ RUN npm run web:build
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 3：运行时
 # ═══════════════════════════════════════════════════════════════════
-FROM node:22-slim AS runtime
+FROM docker.m.daocloud.io/library/node:22-slim AS runtime
 
 WORKDIR /app
 

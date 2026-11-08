@@ -11,6 +11,8 @@ import { useState } from 'react';
 import type { ChartFortuneLayer, ChartPalace } from '@ziwei/chart-engine';
 import { GRID_POS, sanFangBranches, brightnessClass, SIHUA_CLASS, fortuneSiHuaOf } from './PalaceCell';
 import type { ChatChartPayload } from '@/app/chat-chart-action';
+import { useLang } from '@/lib/lang';
+import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
 
 interface MiniChartProps {
   chart: ChatChartPayload;
@@ -22,6 +24,8 @@ interface MiniChartProps {
 }
 
 export default function MiniChart({ chart, focusBranch = null, layer = 'natal', onLayerChange }: MiniChartProps) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const [selected, setSelected] = useState<number | null>(focusBranch);
   const [open, setOpen] = useState(true);
 
@@ -53,7 +57,7 @@ export default function MiniChart({ chart, focusBranch = null, layer = 'natal', 
             ▶
           </span>
           <span className="truncate text-2xs text-ink-2">
-            {chart.center.wuxingJuName} · 虚岁 {chart.center.currentAge}
+            {chart.center.wuxingJuName} · {copy.nominalAge(chart.center.currentAge)}
           </span>
         </button>
         {onLayerChange && (
@@ -68,7 +72,7 @@ export default function MiniChart({ chart, focusBranch = null, layer = 'natal', 
                   layer === k ? 'bg-zhu-soft text-ink' : 'text-ink-3'
                 }`}
               >
-                {k === 'natal' ? '本命' : '流年'}
+                {k === 'natal' ? copy.natal : copy.liuNian}
               </button>
             ))}
           </div>
@@ -84,7 +88,7 @@ export default function MiniChart({ chart, focusBranch = null, layer = 'natal', 
               gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
             }}
             role="group"
-            aria-label="命盘缩略图"
+            aria-label={copy.miniBoardAria}
           >
             {chart.palaces.map((palace) => (
               <MiniCell
@@ -104,12 +108,12 @@ export default function MiniChart({ chart, focusBranch = null, layer = 'natal', 
             >
               <span className="text-2xs font-semibold text-ink">{chart.center.wuxingJuName}</span>
               <span className="text-[9px] leading-tight text-ink-3">
-                {chart.center.mingZhu ? `命主 ${chart.center.mingZhu}` : ''}
-                {chart.center.shenZhu ? ` 身主 ${chart.center.shenZhu}` : ''}
+                {chart.center.mingZhu ? `${copy.lifeMaster} ${chart.center.mingZhu}` : ''}
+                {chart.center.shenZhu ? ` ${copy.bodyMaster} ${chart.center.shenZhu}` : ''}
               </span>
               {fortune && (
                 <span className="text-[9px] leading-tight text-hua-ke">
-                  流年命在
+                  {copy.liunianLifeAt}
                   {chart.palaces.find((p) => p.branch === fortune.mingBranch)?.name ?? ''}
                 </span>
               )}
@@ -122,7 +126,7 @@ export default function MiniChart({ chart, focusBranch = null, layer = 'natal', 
             <span className="chip-sihua border-hua-quan/40 bg-hua-quan/10 text-hua-quan">权</span>
             <span className="chip-sihua border-hua-ke/40 bg-hua-ke/10 text-hua-ke">科</span>
             <span className="chip-sihua border-hua-ji/40 bg-hua-ji/10 text-hua-ji">忌</span>
-            {fortune && <span>流年层：宫名带框 + 流年四化</span>}
+            {fortune && <span>{copy.layerHint}</span>}
           </div>
         </div>
       )}
@@ -143,6 +147,8 @@ function MiniCell({
   fortune: ChartFortuneLayer | null;
   onSelect: () => void;
 }) {
+  const [lang] = useLang();
+  const copy = CHART_COPY[lang];
   const [row, col] = GRID_POS[palace.branch];
   const major = palace.stars.filter((s) => s.type === 'major');
   const fortuneName = fortune?.palaces.find((p) => p.branch === palace.branch)?.name ?? null;
@@ -153,7 +159,7 @@ function MiniCell({
       style={{ gridRow: row, gridColumn: col }}
       onClick={onSelect}
       aria-pressed={active}
-      aria-label={`${palace.name}，主星${major.map((s) => s.name).join('、') || '空宫'}`}
+      aria-label={`${palaceLabel(palace.name, lang)}${major.length ? `，${copy.majorStars(major.map((s) => s.name).join('、'))}` : `，${copy.emptyPalace}`}`}
       className={`palace-cell flex min-h-[42px] flex-col items-start gap-0 overflow-hidden p-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${
         active ? 'is-selected' : inSan ? 'is-sanfang' : ''
       }`}

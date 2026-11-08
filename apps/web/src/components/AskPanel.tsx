@@ -11,7 +11,10 @@
  *  · provider 未配置 / 样本库未覆盖，**原样显示服务端给的说明**，不自己编措辞。
  */
 
-import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
+import Link from 'next/link';
+import { useLang } from '@/lib/lang';
+import { CHAT_COPY, type ChatCopy } from '@/lib/chatCopy';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
@@ -45,6 +48,17 @@ export interface AskPanelProps {
   subjectName?: string;
   /** 对话内嵌命盘：回答后就地渲染迷你盘，不跳走 */
   embedChart?: boolean;
+  /**
+   * bare 会话头右侧的「命盘」链接（首页传入）；不传则不显示。
+   * 会话头是整页唯一钉住的行：话题标题（点开对话抽屉）· 命盘 · AI 设置。
+   */
+  chartHref?: string;
+  /** AI 是否就绪：会话头 ⚙ 上的红点提示 */
+  aiReady?: boolean;
+  /** 点 ⚙ 打开 AI 设置（面板由宿主页渲染） */
+  onOpenConfig?: () => void;
+  /** 对话抽屉里宿主页的部分：档案切换 / 新建档案 / 合盘 / AI 状态 / 语言 */
+  sheetExtra?: ReactNode;
 }
 
 export interface AskSeed {
@@ -59,12 +73,16 @@ export interface AskSeed {
 
 export interface AskQuickPrompt {
   label: string;
+  /** 英文界面下的显示名；话题建档仍用 label（中文）作稳定键，切语言不串库 */
+  labelEn?: string;
   question: string;
   dimension?: string;
   /** 时间层焦点：流年（今年）/ 大限（这十年） */
   time?: 'liunian' | 'daxian';
   /** 空态大卡片用的一句话说明（比 question 短） */
   hint?: string;
+  /** hint 的英文版 */
+  hintEn?: string;
   /** 是否进空态大卡片（首页第一次进来时给「点哪儿」的提示） */
   featured?: boolean;
 }
@@ -82,6 +100,18 @@ const CONTEXT_TURNS = 6;
 const CHIP_CLASS =
   'max-w-full min-h-9 whitespace-normal rounded-full border border-line bg-surface-2 px-3 py-2 text-left text-2xs leading-snug text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
+/** 话题行右侧的相对日期：今天 / 昨天 / M/D */
+function relDay(ts: number, day: { today: string; yesterday: string }): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  if (same(d, now)) return day.today;
+  if (same(d, yest)) return day.yesterday;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 /** 「问」标记：冷玉小方（深底 + 紫字，无高饱和紫底） */
 const ASK_MARK_CLASS =
   'mr-1.5 inline-flex min-w-6 items-center justify-center rounded-sm bg-surface px-1.5 py-0.5 text-2xs text-zhu';
@@ -96,6 +126,8 @@ function AnswerAvatar({
   model?: string;
   source?: 'user' | 'builtin';
 }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   return (
     <p className="mb-1 flex items-center gap-1.5">
       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zhu text-[10px] leading-none text-white">
@@ -105,8 +137,8 @@ function AnswerAvatar({
       {model && (
         <span className="text-2xs text-ink-2">
           · {model}
-          {source === 'user' && '（你的 Key）'}
-          {source === 'builtin' && '（内置免费）'}
+          {source === 'user' && copy.sourceUser}
+          {source === 'builtin' && copy.sourceBuiltin}
         </span>
       )}
       {cited && cited.length > 0 && (
@@ -117,7 +149,7 @@ function AnswerAvatar({
 }
 
 /** 「正在思考」的实时思维链：只用于等待期进度展示，正文开始流出后让位，不进线程、不持久化 */
-function ThinkingBlock({ text }: { text: string }) {
+function ThinkingBlock({ text, note }: { text: string; note: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight });
@@ -126,7 +158,7 @@ function ThinkingBlock({ text }: { text: string }) {
     <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5" role="status">
       <p className="mb-1 flex items-center gap-1.5 text-2xs text-ink-3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-zhu/70 motion-reduce:animate-none" aria-hidden="true" />
-        正在思考…（过程仅作参考，以最终回答为准）
+        {note}
       </p>
       <div
         ref={ref}
@@ -152,20 +184,22 @@ type Transient =
       checkout: string;
     };
 
-function suspectsOf(v: AskStreamVerification): string[] {
+function suspectsOf(v: AskStreamVerification, copy: ChatCopy): string[] {
   return [
-    ...v.suspectStars.map((s) => `星曜「${s}」`),
-    ...v.suspectPalaces.map((s) => `宫位「${s}」`),
-    ...v.suspectPlacements.map((s) => `落宫「${s}」`),
+    ...v.suspectStars.map((s) => copy.suspectStar(s)),
+    ...v.suspectPalaces.map((s) => copy.suspectPalace(s)),
+    ...v.suspectPlacements.map((s) => copy.suspectPlacement(s)),
   ];
 }
 
 function MessageMeta({ message }: { message: AskMessage }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-2">
       <span className={ASK_MARK_CLASS}>答</span>
       <span>
-        {new Date(message.at).toLocaleString('zh-CN', {
+        {new Date(message.at).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', {
           month: 'numeric',
           day: 'numeric',
           hour: '2-digit',
@@ -175,7 +209,7 @@ function MessageMeta({ message }: { message: AskMessage }) {
       {message.cited && message.cited.length > 0 && (
         <>
           <span aria-hidden="true">·</span>
-          <span>依据：{message.cited.join('、')}</span>
+          <span>{copy.citedLabel}{message.cited.join('、')}</span>
         </>
       )}
       {message.model && (
@@ -183,8 +217,8 @@ function MessageMeta({ message }: { message: AskMessage }) {
           <span aria-hidden="true">·</span>
           <span>
             {message.model}
-            {message.source === 'user' && '（你的 Key）'}
-            {message.source === 'builtin' && '（内置免费）'}
+            {message.source === 'user' && copy.sourceUser}
+            {message.source === 'builtin' && copy.sourceBuiltin}
           </span>
         </>
       )}
@@ -193,6 +227,8 @@ function MessageMeta({ message }: { message: AskMessage }) {
 }
 
 function MessageVerification({ suspects, isLatest }: { suspects: string[]; isLatest: boolean }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   if (suspects.length > 0) {
     return (
       <div
@@ -201,7 +237,7 @@ function MessageVerification({ suspects, isLatest }: { suspects: string[]; isLat
         role="alert"
       >
         <p className="text-xs font-medium text-hua-ke">
-          这条回答里有些说法超出了你的盘面材料，请谨慎参考：
+          {copy.overreachNotice}
         </p>
         <ul className="mt-1.5 space-y-0.5 text-2xs text-ink-2">
           {suspects.map((s) => (
@@ -228,11 +264,14 @@ export default function AskPanel({
   bare = false,
   subjectName,
   embedChart = false,
+  chartHref,
+  aiReady = true,
+  onOpenConfig,
+  sheetExtra,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const {
     messages,
-    loaded,
     append,
     clear,
     threads,
@@ -244,47 +283,32 @@ export default function AskPanel({
     unarchiveThread,
   } = useAskThread(identity);
   const [question, setQuestion] = useState('');
+  /** 界面语言：界面骨架走 chatCopy；问句发给模型仍用中文（数据集是中文原文） */
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
+  /** 推荐/意图芯片统一成 { label, question, dimension? } */
+  const presets: AskQuickPrompt[] =
+    quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
+  const labelOf = (p: AskQuickPrompt) => (lang === 'en' && p.labelEn ? p.labelEn : p.label);
+  /** 话题题名：建档用中文 label 作稳定键，展示时按语言取译名 */
+  const topicTitle = (t: { title: string }) => {
+    const hit = presets.find((x) => x.label === t.title);
+    return hit ? labelOf(hit) : t.title;
+  };
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
   const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
-  /** 挂载时已存在的消息 id（=「上次留下的」，默认折叠）；按 id 记，对话满额截断后新问答也不会被误藏 */
-  const [seenIds, setSeenIds] = useState<string[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const messagesRef = useRef<AskMessage[]>([]);
-  messagesRef.current = messages;
-  const activeIdRef = useRef<string | null>(null);
-  // 初次加载 & 身份变化：把现有消息记作「历史」并折叠
-  useEffect(() => {
-    if (!loaded) return;
-    const cur = activeId ?? null;
-    if (activeIdRef.current !== cur) {
-      activeIdRef.current = cur;
-      setSeenIds(messagesRef.current.map((m) => m.id));
-      setShowHistory(false);
-    }
-  }, [loaded, activeId]);
-  /** 没展开历史时，只渲染本次新增的消息 */
-  const visibleMessages = showHistory
-    ? messages
-    : messages.filter((m) => !seenIds.includes(m.id));
-  /** 折叠条上「上次这段对话有 N 条」：仍留存的旧消息数（满额截断后会随之减少） */
-  const historyCount = messages.filter((m) => seenIds.includes(m.id)).length;
+  /** 全量显示：聊天即主屏，回来就该看到整段对话（发给模型的轮数服务端另有上限） */
+  const visibleMessages = messages;
 
-  /** 用户点名切换一段旧对话 → 直接展开（人家就是要看它的） */
+  /** 用户点名切换一段旧对话 */
   const handleSelectThread = (id: string) => {
-    activeIdRef.current = id; // 抢先同步 ref，上面的 effect 不再覆盖展开状态
     selectThread(id);
-    const t = threads.find((x) => x.id === id);
-    setSeenIds(t?.messages.map((m) => m.id) ?? []);
-    setShowHistory(true);
   };
   /** 新对话：空白草稿，发第一条时落库 */
   const handleNewThread = () => {
-    activeIdRef.current = '__draft__';
     newThread();
-    setSeenIds([]);
-    setShowHistory(false);
   };
   const [expanded, setExpanded] = useState(true);
   /** 深度思考开关：发给 /api/ask 的 thinking 字段（DeepSeek 等支持思考的模型生效），记住选择 */
@@ -319,9 +343,12 @@ export default function AskPanel({
   /** 展开了迷你盘的消息 id */
   const [chartOpenFor, setChartOpenFor] = useState<string | null>(null);
 
-  /** 推荐/意图芯片统一成 { label, question, dimension? } */
-  const presets: AskQuickPrompt[] =
-    quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
+  /** 对话抽屉：话题列表 / 新话题 / 档案 / AI 设置入口，都收在这里 */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const activeThread = threads.find((t) => t.id === activeId) ?? null;
+  const headerTitle = activeThread ? topicTitle(activeThread) : copy.newChatTitle;
+
 
   // 输入框随内容长高（上限约 6 行，再多内部滚动），长问题也能一直看到自己正在打的字。
   // 多行时把胶囊圆角换成小圆角：9999px 大圆角在高的框上会把文字裁出弧形边缘。
@@ -413,9 +440,34 @@ export default function AskPanel({
     el.scrollTop = el.scrollHeight;
   }, [stream]);
 
+  /** 话题即对话：点话题芯片 = 切到（或新建）这个话题的专属对话再发问。
+      生成中的回答还在写旧话题，此时不切换，排队即可 —— 免得排队的句子落到新话题里 */
+  function submitInTopic(label: string, q: string, focus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' }) {
+    if (busyRef.current) {
+      submit(q, focus);
+      return;
+    }
+    const existing = threads.find((t) => t.title === label);
+    const inTopic = threads.some((t) => t.id === activeId && t.title === label);
+    if (!inTopic) {
+      const archived = archivedThreads.find((t) => t.title === label);
+      if (archived) {
+        // 这个话题聊过又归档了：恢复它接着聊
+        unarchiveThread(archived.id);
+        handleSelectThread(archived.id);
+      } else if (existing) {
+        handleSelectThread(existing.id);
+      } else {
+        handleNewThread();
+      }
+    }
+    submit(q, focus, label);
+  }
+
   function submit(
     q: string,
     chipFocus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' },
+    topic?: string,
   ) {
     const text = q.trim();
     if (!text) return;
@@ -492,20 +544,23 @@ export default function AskPanel({
             if (!p.answer.trim()) {
               setTransient({
                 kind: 'error',
-                message: '模型这次没有产出正文。可以直接点重试，或换一个不带思考的模型。',
+                message: copy.emptyAnswer,
                 retryQuestion: text,
               });
               setStream(null);
               return;
             }
-            append({
-              question: text,
-              answer: p.answer,
-              cited: p.cited,
-              suspects: suspectsOf(p.verification),
-              ...(p.model ? { model: p.model } : {}),
-              ...(p.source ? { source: p.source } : {}),
-            });
+            append(
+              {
+                question: text,
+                answer: p.answer,
+                cited: p.cited,
+                suspects: suspectsOf(p.verification, copy),
+                ...(p.model ? { model: p.model } : {}),
+                ...(p.source ? { source: p.source } : {}),
+              },
+              topic,
+            );
             setStream(null);
           },
           onNotCovered: (message) => {
@@ -532,7 +587,7 @@ export default function AskPanel({
       } catch {
         setTransient({
           kind: 'local-error',
-          message: '追问请求失败，可能是网络波动或服务暂时不可用。请稍后重试。',
+          message: copy.requestFailed,
           retryQuestion: text,
         });
       } finally {
@@ -554,6 +609,25 @@ export default function AskPanel({
 
   const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
 
+  // 深度思考开关：低频设置，收在对话抽屉里
+  const deepThinkChip = (
+    <button
+      type="button"
+      onClick={toggleDeepThink}
+      aria-pressed={deepThink}
+      title={copy.deepThinkTitle}
+      className={
+        'shrink-0 ' +
+        CHIP_CLASS +
+        (deepThink
+          ? ' border-zhu/50 text-ink'
+          : ' border-line text-ink-2 opacity-70')
+      }
+    >
+      {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
+    </button>
+  );
+
   return (
     <div
       className={bare ? 'flex min-h-0 flex-1 flex-col print:hidden' : 'print:hidden'}
@@ -571,19 +645,19 @@ export default function AskPanel({
           >
             <span>
               <span className="block text-sm tracking-[0.2em] text-ink">
-                命盘追问
+                {copy.askPanelTitle}
                 {messages.length > 0 && (
                   <span className="ml-2 text-2xs font-normal tracking-normal text-ink-2">
-                    已存 {messages.length} 条对话
+                    {copy.savedChats(messages.length)}
                   </span>
                 )}
               </span>
               <span className="mt-1 block text-2xs font-normal text-ink-2">
-                对话只存在本机
+                {copy.localOnly}
               </span>
             </span>
             <span className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-line px-3 py-1.5 text-2xs text-ink-2">
-              {expanded ? '收起' : '展开'}
+              {expanded ? copy.collapse : copy.expand}
             </span>
           </button>
         </h2>
@@ -603,7 +677,7 @@ export default function AskPanel({
                 disabled={pending}
                 className={CHIP_CLASS}
               >
-                {p.label}
+                {labelOf(p)}
               </button>
             ))}
             <button
@@ -612,10 +686,10 @@ export default function AskPanel({
                 setExpanded(true);
                 window.requestAnimationFrame(() => textareaRef.current?.focus());
               }}
-              aria-label="展开更多推荐追问"
+              aria-label={copy.moreAskAria}
               className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3 py-2 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              更多推荐
+              {copy.moreRecommended}
             </button>
           </div>
         )}
@@ -625,7 +699,7 @@ export default function AskPanel({
       <div
         id="ask-panel-content"
         hidden={!bare && !expanded}
-        className={bare ? 'flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
+        className={bare ? 'chat-stage flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
       >
         {!providerConfigured && !bare && (
           <div
@@ -634,66 +708,204 @@ export default function AskPanel({
             role="status"
           >
             <p className="text-xs leading-relaxed text-ink-2">
-              智能追问暂未开启。排盘与解读不受影响，可以照常查看。
+              {copy.askUnavailable}
             </p>
           </div>
         )}
 
-        {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 新开一段不再「找不到旧的」 */}
-        {bare && loaded && threads.length + archivedThreads.length > 0 && (
-          <div className="mb-3 flex shrink-0 items-center gap-2">
-            <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
-              对话记录
-            </label>
-            <select
-              id="ask-thread-select"
-              value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === '__draft__') handleNewThread();
-                else {
-                  // 选中已归档的对话 = 恢复它
-                  if (archivedThreads.some((t) => t.id === v)) unarchiveThread(v);
-                  handleSelectThread(v);
-                }
-              }}
-              className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              {!threads.some((t) => t.id === activeId) && (
-                <option value="__draft__">（这次对话）</option>
-              )}
-              {threads.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title} ·{' '}
-                  {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                    month: 'numeric',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </option>
-              ))}
-              {archivedThreads.length > 0 && (
-                <optgroup label="已归档（选中即恢复）">
-                  {archivedThreads.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title} ·{' '}
-                      {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                        month: 'numeric',
-                        day: 'numeric',
-                      })}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
+        {/* 会话头：整页唯一钉住的行 —— 标题点开对话抽屉，右侧命盘 + AI 设置 */}
+        {bare && (
+          <div className="relative mb-1 flex shrink-0 items-center gap-2.5 pb-1.5">
             <button
               type="button"
-              onClick={handleNewThread}
-              className="shrink-0 rounded-lg border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              onClick={() => setSheetOpen((v) => !v)}
+              aria-expanded={sheetOpen}
+              className="group flex min-w-0 flex-1 items-baseline gap-1.5 text-left"
             >
-              ＋新对话
+              <span className="min-w-0 truncate font-serif text-[0.95rem] text-ink">{headerTitle}</span>
+              {subjectName && (
+                <span className="min-w-0 shrink text-xs text-ink-2">· {subjectName}</span>
+              )}
+              <span aria-hidden="true" className="shrink-0 text-2xs text-ink-3">⌄</span>
             </button>
+            {chartHref && (
+              <Link
+                href={chartHref}
+                className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                {copy.chartLink}
+              </Link>
+            )}
+            {onOpenConfig && (
+              <button
+                type="button"
+                onClick={onOpenConfig}
+                aria-label={copy.aiSettings}
+                title={copy.openAiSettingsTitle}
+                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-sm leading-none text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                ⚙
+                {!aiReady && (
+                  <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-danger" />
+                )}
+              </button>
+            )}
+
+            {/* 对话抽屉：话题列表 / 新话题 / 宿主页内容（档案、AI 状态）。
+                手机端贴底滑出，桌面端挂在标题下方 */}
+            {sheetOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label={copy.closeSheetAria}
+                  onClick={() => setSheetOpen(false)}
+                  className="fixed inset-0 z-20 cursor-default bg-ink/25"
+                />
+                <div
+                  role="dialog"
+                  aria-label={copy.manageAria}
+                  className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[72dvh] overflow-y-auto rounded-xl border border-line bg-surface p-3.5 shadow-[0_12px_40px_rgba(28,35,51,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:pb-[max(env(safe-area-inset-bottom),12px)]"
+                >
+                  {/* 这张盘下的全部话题对话 */}
+                  {threads.length > 0 && (
+                    <section aria-label={copy.conversationsOf()}>
+                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
+                      <ul>
+                        {threads.map((t) => {
+                          const isActive = t.id === activeId;
+                          return (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectThread(t.id);
+                                  setSheetOpen(false);
+                                }}
+                                aria-current={isActive || undefined}
+                                className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                  isActive
+                                    ? 'bg-zhu-soft text-ink'
+                                    : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
+                                }`}
+                              >
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
+                                <span className="shrink-0 text-2xs text-ink-3">
+                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  )}
+
+                  {/* 已归档：收起成一行，展开后点选即恢复 */}
+                  {archivedThreads.length > 0 && (
+                    <section aria-label={copy.archivedLabel} className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowArchived((v) => !v)}
+                        aria-expanded={showArchived}
+                        className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
+                      >
+                        {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
+                      </button>
+                      {showArchived && (
+                        <ul>
+                          {archivedThreads.map((t) => (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  unarchiveThread(t.id);
+                                  handleSelectThread(t.id);
+                                  setSheetOpen(false);
+                                }}
+                                className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
+                              >
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
+                                <span className="shrink-0 text-2xs text-ink-3">
+                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  )}
+
+                  {/* 开个新话题：话题即对话，点一张签就开一段新对话 */}
+                  <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
+                    <p className="mb-1.5 px-1 text-2xs text-ink-3">{copy.newTopic}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {presets.map((p) => (
+                        <button
+                          key={p.question}
+                          type="button"
+                          onClick={() => {
+                            submitInTopic(p.label, p.question, p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined);
+                            setSheetOpen(false);
+                          }}
+                          disabled={pending}
+                          className="rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {labelOf(p)}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleNewThread();
+                          setSheetOpen(false);
+                        }}
+                        disabled={pending}
+                        className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-3 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {copy.freeChat}
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* 宿主页内容：档案切换 / 新建 / 合盘 / AI 状态 / 语言 */}
+                  {sheetExtra && (
+                    <section aria-label={copy.profileAiAria} className="mt-3 border-t border-lineSoft pt-3">
+                      {sheetExtra}
+                    </section>
+                  )}
+
+                  {/* 深度思考 + 当前对话操作 */}
+                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-lineSoft pt-3">
+                    {deepThinkChip}
+                    {messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(copy.clearConfirm)) clear();
+                        }}
+                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        {copy.clearThread}
+                      </button>
+                    )}
+                    {activeId && activeId !== '__draft__' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          archiveThread(activeId);
+                          handleNewThread();
+                        }}
+                        title={copy.archiveTitle}
+                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        {copy.archiveThread}
+                      </button>
+                    )}
+                  </section>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -710,13 +922,14 @@ export default function AskPanel({
           {messages.length === 0 && !pending && !transient && bare && (
             /* 空态就是「引导」：不给一排灰字链接，直接给几张能点的卡片 ——
                没人会主动提问，就让人点一下就有回答 */
-            <div className="flex flex-1 flex-col justify-center gap-3" role="status">
-              <div>
-                <p className="text-[1.05rem] font-medium text-ink">
-                  {subjectName ? `想问问 ${subjectName} 这张盘什么？` : '想问问这张盘什么？'}
+            <div className="flex flex-1 flex-col justify-center gap-4" role="status">
+              <div className="text-center">
+                <p aria-hidden="true" className="mb-1.5 font-serif text-lg text-zhu/70">
+                  ✦
                 </p>
-                <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-ink-2">
-                  回答只依据这张盘的数据集原文 —— 材料里没写的，它会直说没有；对话只存在本机浏览器。
+                <p className="font-serif text-[1.15rem] text-ink">{copy.emptyTitle(subjectName)}</p>
+                <p className="mx-auto mt-1.5 max-w-xl text-xs leading-relaxed text-ink-2">
+                  {copy.emptySub}
                 </p>
               </div>
               <div className="grid gap-2.5 sm:grid-cols-2">
@@ -728,17 +941,20 @@ export default function AskPanel({
                       type="button"
                       disabled={pending}
                       onClick={() =>
-                        submit(
+                        submitInTopic(
+                          p.label,
                           p.question,
                           p.dimension || p.time
                             ? { dimension: p.dimension, time: p.time }
                             : undefined,
                         )
                       }
-                      className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-all hover:border-zhu hover:shadow-[0_2px_10px_rgba(28,35,51,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span className="text-sm font-medium text-ink">{p.label}</span>
-                      <span className="text-2xs text-ink-2">{p.hint}</span>
+                      <span className="text-sm font-medium text-ink">{labelOf(p)}</span>
+                      <span className="text-2xs text-ink-2">
+                        {lang === 'en' && p.hintEn ? p.hintEn : p.hint}
+                      </span>
                     </button>
                   ))}
               </div>
@@ -747,7 +963,7 @@ export default function AskPanel({
           {messages.length === 0 && !pending && !transient && !bare && (
             <div role="status">
               <p className="text-xs leading-relaxed text-ink-2">
-                围绕这张盘提问，回答只依据数据集原文。
+                {copy.askAround}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {presets.slice(0, 2).map((p) => (
@@ -763,35 +979,30 @@ export default function AskPanel({
                     disabled={pending}
                     className={CHIP_CLASS}
                   >
-                    {p.label}
+                    {labelOf(p)}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* 上次的对话：默认折叠成一行，不点开就不占屏 */}
-          {bare && historyCount > 0 && (
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-lineSoft bg-surface/70 px-3 py-2">
-              <p className="min-w-0 truncate text-xs text-ink-2">
-                上次这段对话有 {historyCount} 条
-                {!showHistory && ' · 没展开，不算这次对话的上下文'}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowHistory((v) => !v)}
-                className="shrink-0 rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                {showHistory ? '收起' : '展开'}
-              </button>
-            </div>
-          )}
-
           {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
-          <div className={bare ? 'mt-auto space-y-4' : 'space-y-5'}>
+          <div className={bare ? 'mt-auto space-y-5' : 'space-y-5'}>
+            {/* 话题题头：像签纸一样安静地标注这段对话是谁 */}
+            {bare && activeThread && visibleMessages.length > 0 && (
+              <p className="pb-1 text-center font-serif text-2xs tracking-[0.25em] text-ink-3">
+                {topicTitle(activeThread)}
+                <span className="mx-1.5 tracking-normal">·</span>
+                {copy.captionStarted}{' '}
+                {new Date(activeThread.createdAt).toLocaleDateString(
+                  lang === 'en' ? 'en-US' : 'zh-CN',
+                  { month: 'long', day: 'numeric' },
+                )}
+              </p>
+            )}
             {messages.length >= MAX_MESSAGES && (
               <p className="rounded-lg border border-lineSoft bg-surface/70 px-3 py-2 text-2xs leading-relaxed text-ink-3">
-                这段对话只保留最近 {MAX_MESSAGES} 条，再往下问会挤掉最前面的 —— 想留档请另开一段新对话。
+                {copy.maxNotice(MAX_MESSAGES)}
               </p>
             )}
             {visibleMessages.map((m) => {
@@ -805,14 +1016,14 @@ export default function AskPanel({
                     {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
                   >
                     <p className="text-right">
-                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                         {m.question}
                       </span>
                     </p>
                     <div className="max-w-[95%]">
                       <AnswerAvatar cited={m.cited} model={m.model} source={m.source} />
                       <div
-                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
+                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
                         data-ask-answer=""
                       >
                         <Markdown text={m.answer} />
@@ -828,7 +1039,7 @@ export default function AskPanel({
                             onClick={() => setChartOpenFor(null)}
                             className="mt-1.5 text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                           >
-                            收起命盘
+                            {copy.collapseChart}
                           </button>
                         </div>
                       ) : (
@@ -840,7 +1051,7 @@ export default function AskPanel({
                           }}
                           className="text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                         >
-                          在对话里看这张盘
+                          {copy.viewChartInChat}
                         </button>
                       )
                     )}
@@ -883,7 +1094,7 @@ export default function AskPanel({
                               onClick={() => setChartOpenFor(null)}
                               className="mt-2 inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                             >
-                              收起命盘
+                              {copy.collapseChart}
                             </button>
                           </>
                         ) : (
@@ -895,7 +1106,7 @@ export default function AskPanel({
                             }}
                             className="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-2.5 py-1 text-2xs leading-none text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                           >
-                            在对话里看这张盘
+                            {copy.viewChartInChat}
                           </button>
                         )}
                       </div>
@@ -914,7 +1125,7 @@ export default function AskPanel({
             >
               <span className="sr-only">查证中</span>
               <p className="text-right">
-                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2 text-left text-xs leading-relaxed text-white">
+                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                   {pendingQuestion}
                 </span>
               </p>
@@ -922,7 +1133,7 @@ export default function AskPanel({
                 <AnswerAvatar />
                 {stream?.text ? (
                   /* 流式：模型吐一个字就显示一个字 */
-                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5 text-sm leading-[1.9] text-ink-2 [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
+                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
                     <Markdown text={stream.text} />
                     <span
                       aria-hidden="true"
@@ -931,14 +1142,14 @@ export default function AskPanel({
                   </div>
                 ) : stream?.thinking ? (
                   /* 思考期：把思维链实时显示出来 —— 6–8 秒的空白等待变成看得见的进度 */
-                  <ThinkingBlock text={stream.thinking} />
+                  <ThinkingBlock text={stream.thinking} note={copy.thinkingNote} />
                 ) : (
                   <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:150ms] motion-reduce:animate-none" />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:300ms] motion-reduce:animate-none" />
                     {/* 模型在思考时并没有字可吐，明确说清楚在干嘛 */}
-                    <span className="text-xs text-ink-2">正在思考…</span>
+                    <span className="text-xs text-ink-2">{copy.thinking}</span>
                   </div>
                 )}
               </div>
@@ -963,7 +1174,7 @@ export default function AskPanel({
                     />
                   </div>
                 ) : stream?.thinking ? (
-                  <ThinkingBlock text={stream.thinking} />
+                  <ThinkingBlock text={stream.thinking} note={copy.thinkingNote} />
                 ) : (
                   <>
                     <div className="flex items-center gap-3">
@@ -974,7 +1185,7 @@ export default function AskPanel({
                       <p className="text-xs text-ink-2">星图检索中…</p>
                     </div>
                     <p className="mt-1.5 text-2xs text-ink-2">
-                      正在核对盘面并检索数据集原文，通常需要几秒。
+                      {copy.verifyingIntro}
                     </p>
                   </>
                 )}
@@ -1006,7 +1217,7 @@ export default function AskPanel({
                     disabled={pending}
                     className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                   >
-                    重试
+                    {copy.retry}
                   </button>
                 )}
               </div>
@@ -1017,45 +1228,6 @@ export default function AskPanel({
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
           <div className="mt-4 shrink-0 border-t border-lineSoft pt-3 pb-[env(safe-area-inset-bottom)]">
-            {/* 意图芯片：空态时用大卡片引导（有消息后才收成这排小胶囊） */}
-            {messages.length > 0 && (
-              <div className="mb-2.5 flex flex-wrap gap-1.5" aria-label="问点什么">
-                {presets.map((p) => (
-                  <button
-                    key={p.question}
-                    type="button"
-                    onClick={() =>
-                      submit(
-                        p.question,
-                        p.dimension || p.time
-                          ? { dimension: p.dimension, time: p.time }
-                          : undefined,
-                      )
-                    }
-                    disabled={pending}
-                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="mb-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleDeepThink}
-                aria-pressed={deepThink}
-                title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
-                className={
-                  CHIP_CLASS +
-                  (deepThink
-                    ? ' border-zhu/50 text-ink'
-                    : ' border-line text-ink-2 opacity-70')
-                }
-              >
-                {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
-              </button>
-            </div>
             <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
@@ -1070,15 +1242,15 @@ export default function AskPanel({
                 }}
                 rows={1}
                 maxLength={2000}
-                placeholder={pending ? '正在回答中，可以先把下一句打好…' : '问问感情、事业、今年如何…'}
+                placeholder={pending ? copy.placeholderPending : copy.placeholderIdle}
                 className={`chat-input flex-1 ${inputTall ? '!rounded-2xl' : ''}`}
               />
               <button
                 type="button"
                 onClick={() => submit(question)}
                 disabled={!question.trim()}
-                aria-label={pending ? '回答中，点击先排队' : '发送'}
-                title={pending ? '回答中 —— 点击把这句话排到下一条' : '发送'}
+                aria-label={pending ? copy.sendQueueTitle : copy.send}
+                title={pending ? copy.sendQueueTitle : copy.send}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {pending ? (
@@ -1093,38 +1265,15 @@ export default function AskPanel({
             </div>
             {queuedText && (
               <p className="mt-1.5 text-2xs text-zhu" role="status">
-                已排队：「{queuedText}」—— 这条回答结束后自动发送
+                {copy.queued(queuedText)}
               </p>
-            )}
-            {messages.length > 0 && (
-              <div className="mt-2 flex items-center justify-center gap-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
-                  }}
-                  className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                >
-                  清空对话
-                </button>
-                {activeId && activeId !== '__draft__' && (
-                  <button
-                    type="button"
-                    onClick={() => archiveThread(activeId)}
-                    title="从对话记录里收起来，可在「对话记录」下拉的「已归档」分组找回"
-                    className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                  >
-                    归档这段对话
-                  </button>
-                )}
-              </div>
             )}
           </div>
         ) : (
         <>
         <div className="mt-6 border-t border-line pt-5">
           <label htmlFor="ask-question" className="field-label">
-            你的问题
+            {copy.yourQuestion}
           </label>
           <textarea
             ref={textareaRef}
@@ -1141,10 +1290,10 @@ export default function AskPanel({
             maxLength={2000}
             placeholder={
               pending
-                ? '正在回答中，可以先把下一句打好…'
+                ? copy.placeholderPending
                 : messages.length > 0
-                  ? '接着上面的对话继续问，例如：那财运方面呢？'
-                  : '例如：这份命盘在职业方向上有什么特点？'
+                  ? copy.placeholderContinue
+                  : copy.exampleCareer
             }
             className="field-input resize-y leading-relaxed"
             aria-describedby="ask-submit-hint"
@@ -1166,7 +1315,7 @@ export default function AskPanel({
                   disabled={pending}
                   className={CHIP_CLASS}
                 >
-                  {p.label}
+                  {labelOf(p)}
                 </button>
               ))}
             </div>
@@ -1177,13 +1326,13 @@ export default function AskPanel({
               type="button"
               onClick={toggleDeepThink}
               aria-pressed={deepThink}
-              title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+              title={copy.deepThinkTitle}
               className={
                 CHIP_CLASS +
                 (deepThink ? ' border-zhu/50 text-ink' : ' border-line text-ink-2 opacity-70')
               }
             >
-              {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+              {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
             </button>
           </div>
 
@@ -1195,14 +1344,14 @@ export default function AskPanel({
             aria-describedby="ask-submit-hint"
             className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            {pending ? '正在查证…' : '追问'}
+            {pending ? copy.verifying : copy.followUp}
           </button>
           <p id="ask-submit-hint" className="mt-2 text-2xs text-ink-2">
             {pending
-              ? '查证进行中，请稍候。'
+              ? copy.hintVerifying
               : messages.length > 0
-                ? '会带上这张盘之前的对话作为语境。也可 ⌘/Ctrl + Enter。'
-                : '提交后将依据本盘与数据集原文作答。也可 ⌘/Ctrl + Enter。'}
+                ? copy.hintContinue
+                : copy.hintFirst}
           </p>
         </div>
 
@@ -1211,11 +1360,11 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
+                if (window.confirm(copy.clearConfirm)) clear();
               }}
               className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              清空对话
+              {copy.nonBareClear}
             </button>
           </div>
         )}
@@ -1225,7 +1374,7 @@ export default function AskPanel({
 
       {!bare && (
         <p className="mt-3 text-2xs leading-relaxed text-ink-2">
-          回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。
+          {copy.disclaimerShort}
         </p>
       )}
     </div>

@@ -124,6 +124,8 @@ export interface QuotaCopy {
   logout: string;
   /** 导航栏入口 */
   navAccount: string;
+  /** 未知错误兜底 */
+  unknownError: string;
 }
 
 const ZH: QuotaCopy = {
@@ -144,8 +146,8 @@ const ZH: QuotaCopy = {
   wallTitle: '今天的免费追问额度用完了',
   wallBody: (n, scope) =>
     scope === 'account'
-      ? `内置 AI 每个账户每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`
-      : `内置 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`,
+      ? `公共 AI 每个账户每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以在 ⚙ 里填自己的 API Key 继续问 —— 本项目开源，自部署不限量。`
+      : `公共 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以在 ⚙ 里填自己的 API Key 继续问 —— 本项目开源，自部署不限量。`,
   packsTitle: '流量包',
   packAsks: (n) => `${n} 次追问`,
   buy: '购买',
@@ -163,6 +165,7 @@ const ZH: QuotaCopy = {
   payFailed: (detail) => `下单失败：${detail}`,
   payNotConfigured: '支付服务还没配置好（缺支付宝商户凭据），暂时买不了。',
   langToggle: 'EN',
+  unknownError: '未知错误',
   loginRequired: '登录后可以购买流量包，额度记在你的账户里。',
   loginCta: '去登录',
   emailLabel: '邮箱',
@@ -211,8 +214,8 @@ const EN: QuotaCopy = {
   wallTitle: "You've used today's free follow-ups",
   wallBody: (n, scope) =>
     scope === 'account'
-      ? `The built-in AI allows ${n} free follow-ups per account per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`
-      : `The built-in AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`,
+      ? `The shared AI allows ${n} free follow-ups per account per day, resetting at 00:00 UTC. Add your own API key in ⚙ to keep asking — this project is open source; self-host for unlimited use.`
+      : `The shared AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key in ⚙ to keep asking — this project is open source; self-host for unlimited use.`,
   packsTitle: 'Traffic packs',
   packAsks: (n) => `${n} follow-ups`,
   buy: 'Buy',
@@ -230,6 +233,7 @@ const EN: QuotaCopy = {
   payFailed: (detail) => `Checkout failed: ${detail}`,
   payNotConfigured: 'Payment is not set up yet (missing Alipay merchant credentials).',
   langToggle: '中文',
+  unknownError: 'Unknown error',
   loginRequired: 'Sign in to buy a traffic pack — the credits go to your account.',
   loginCta: 'Sign in',
   emailLabel: 'Email',

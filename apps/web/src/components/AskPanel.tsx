@@ -1211,14 +1211,26 @@ export default function AskPanel({
               >
                 <p className="text-xs leading-relaxed text-ink-2">{transient.message}</p>
                 {(transient.kind === 'local-error' || transient.kind === 'error') && (
-                  <button
-                    type="button"
-                    onClick={() => submit(transient.retryQuestion)}
-                    disabled={pending}
-                    className="mt-3 rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                  >
-                    {copy.retry}
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => submit(transient.retryQuestion)}
+                      disabled={pending}
+                      className="rounded-lg border border-zhu/25 bg-surface px-3 py-2 text-xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                    >
+                      {copy.retry}
+                    </button>
+                    {/* 服务端报错（内置 AI 限流/故障）：给一条不用等的活路 —— 配自己的 Key */}
+                    {transient.kind === 'error' && onOpenConfig && (
+                      <button
+                        type="button"
+                        onClick={onOpenConfig}
+                        className="rounded-lg bg-zhu px-3 py-2 text-xs text-white transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                      >
+                        {copy.errorConfigCta}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )

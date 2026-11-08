@@ -195,6 +195,7 @@ export default function FloatingAsk({
                 gender={birth.gender}
                 available
                 seed={seed ?? undefined}
+                onOpenConfig={() => setShowConfig(true)}
                 quickPrompts={[
                   { label: '我现在如何', labelEn: 'Where I am now', question: '我现在这步运走得怎么样？今年要注意什么？', time: 'liunian' },
                   { label: '这十年', labelEn: 'This decade', question: '当前这步大限整体如何？大限命宫和大限四化怎么看？', time: 'daxian' },

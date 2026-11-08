@@ -98,6 +98,8 @@ export interface ChatCopy {
   hintFirst: string;
   verifyingIntro: string;
   retry: string;
+  /** 服务端报错卡上的「配置自己的 Key」出口（内置 AI 挂了时给用户一条活路） */
+  errorConfigCta: string;
   yourQuestion: string;
   nonBareClear: string;
   disclaimerShort: string;
@@ -136,6 +138,7 @@ const ZH: ChatCopy = {
   hintFirst: '提交后将依据本盘与数据集原文作答。也可 ⌘/Ctrl + Enter。',
   verifyingIntro: '正在核对盘面并检索数据集原文，通常需要几秒。',
   retry: '重试',
+  errorConfigCta: '配置自己的 Key',
   yourQuestion: '你的问题',
   nonBareClear: '清空对话',
   disclaimerShort: '回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。',
@@ -231,6 +234,7 @@ const EN: ChatCopy = {
   hintFirst: 'The answer draws on this chart and the dataset text. ⌘/Ctrl + Enter also works.',
   verifyingIntro: 'Checking your chart and retrieving the dataset text — usually a few seconds.',
   retry: 'Retry',
+  errorConfigCta: 'Set up your own key',
   yourQuestion: 'Your question',
   nonBareClear: 'Clear chat',
   disclaimerShort: 'Answers are reasoned only from this chart’s existing material: conclusion first, then the basis. For reference only — not medical, legal or investment advice.',

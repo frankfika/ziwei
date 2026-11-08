@@ -53,7 +53,7 @@ apps/rokid-agent/
 │   ├── runtime.d.ts           # AIUI 运行时类型（AbsoluteOrientationSensor 等）
 │   └── wx.d.ts                # wx.* 风格 API 类型
 ├── assets/
-│   └── engine.js              # 端侧排盘引擎（esbuild 产出的单文件 ESM，859.9 KB）
+│   └── engine.js              # 端侧排盘引擎（esbuild 产出的单文件 ESM，861.7 KB）
 └── scripts/
     └── build-engine.mjs       # 打包 / 指纹核对脚本
 ```
@@ -78,8 +78,8 @@ node apps/rokid-agent/scripts/build-engine.mjs
 输出示例：
 
 ```
-✓ 已生成 apps/rokid-agent/assets/engine.js（859.9 KB）
-  指纹 sha256:b02dc5de6740b5d9752bef556d6513956b641222e3ebcaf35e92997038b2135d
+✓ 已生成 apps/rokid-agent/assets/engine.js（861.7 KB）
+  指纹 sha256:e094778c4cd3115f73b7b372dca3ed8f317795e244c771765e1b05d4b835b462
 ```
 
 打包参数（`BUILD_OPTIONS`，改动即改变指纹）：
@@ -96,7 +96,7 @@ node apps/rokid-agent/scripts/build-engine.mjs
  * 紫微星盘 · 端侧排盘引擎（自动生成，勿手改）
  * 来源：packages/chart-engine（vendored 自 https://github.com/Renhuai123/ziwei-doushu，MIT）
  * 生成：node apps/rokid-agent/scripts/build-engine.mjs
- * 指纹：sha256:b02dc5de...
+ * 指纹：sha256:e094778c...
  * 署名义务见 ATTRIBUTION.md：数据集 CC BY 4.0 / 作者 王多鱼AI；引擎代码 MIT。
  */
 ```
@@ -113,7 +113,7 @@ node apps/rokid-agent/scripts/build-engine.mjs --check
 - 提审材料里应写上这个指纹，用来证明「真机跑的是哪一份产物」。
 
 > 当前记录值（2026-11-06 实测）：
-> `sha256:b02dc5de6740b5d9752bef556d6513956b641222e3ebcaf35e92997038b2135d`，859.9 KB。
+> `sha256:e094778c4cd3115f73b7b372dca3ed8f317795e244c771765e1b05d4b835b462`，861.7 KB。
 
 ### 3.4 自动化背书：「打包不失真」
 

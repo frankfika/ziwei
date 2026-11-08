@@ -72,7 +72,7 @@ export const suite: SuiteFn = async (t) => {
   });
 
   await t.test('打包产物 assets/engine.js 不进源程序打印稿', () => {
-    // engine.js 是 880 KB 的单行 bundle —— 塞进打印稿既超页又不可读
+    // engine.js 是 862 KB 的单行 bundle —— 塞进打印稿既超页又不可读
     if (sourceFiles.some((f) => f.includes('engine.js') && !f.includes('chart-engine/src'))) {
       throw new Error('SOURCE_FILES 里混进了打包产物 engine.js');
     }

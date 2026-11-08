@@ -108,7 +108,7 @@ npm test                                  # 12 文件 / 154 用例全绿
 npx tsx tests/rokid_agent.test.ts         # 64/64
 npm run typecheck                         # 9 包全过
 npx tsc --noEmit -p tests/tsconfig.json   # 干净
-node apps/rokid-agent/scripts/build-engine.mjs --check   # sha256:b02dc5de…135d, 859.9 KB
+node apps/rokid-agent/scripts/build-engine.mjs --check   # sha256:e094778c…b462, 861.7 KB
 cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-agent  # 0 diagnostic
 ```
 

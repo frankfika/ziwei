@@ -1,7 +1,7 @@
 # 提审操作手册 · 紫微星盘 · Rokid Spatial Joy 2026
 
 > 写给下一个执行体（含本人在内）。按顺序做，别跳步 —— 每一步的产物是下一步的输入。
-> 最后更新：**2026-11-08（第十轮：合 main + AIX 重打，两处审核仍「审核中」）**。
+> 最后更新：**2026-11-08（第十一轮：模拟器继续调试，查出并修掉 i18next 运行时报错）**。
 > 事实来源见文末「本文事实的来源」。
 
 ---
@@ -132,6 +132,41 @@
 - ❓ **待 Frank 拍板**：要不要**用新包重新提交商店审核**（要重填更新日志 + 点「提交审核」，
   属终审动作，**没点**）。新旧包的**功能代码完全相同**，差别只在包内预览视频版本 ——
   也可以不动，等当前这版（v1.0.5）审完再说。
+
+**2026-11-08 第十一轮（模拟器继续调试：查出 i18next 报错来自本作品的包，已修）**：
+
+- 🔍 **在 Studio 模拟调试页继续调试，查出一条被误判的 error**。
+  设备日志面板里唯一的 error 是
+  `i18next::pluralResolver: Your environment seems not to be Intl API compatible…`
+  —— §3.2 此前写的是「Studio 运行时自身、与本作品无关」，**这个判断是错的**：
+  - `packages/chart-engine` 依赖 `iztro`，`iztro` 依赖 `i18next`，
+    `i18next` 整套被打进了 `assets/engine.js`（880 KB 的 bundle 里就有它）；
+  - 眼镜的 ink WASM 运行时**没有 `Intl.PluralRules`** → i18next 初始化时打这条 error；
+  - **实证**：node 里 `delete Intl.PluralRules` 后加载 `assets/engine.js`，
+    **逐字复现同一条 error** ⇒ 它由**本作品的包**发出，不是 Studio 运行时。
+- ✅ **排盘结果本身没受影响**：缺 `Intl.PluralRules` 时 i18next 退回 compatibilityJSON v3，
+  排盘输出与原生环境**逐字节一致**（4 生辰 × 5 时点 × 3 层运限 = 50 项比对，0 差异）。
+- ✅ **已修**：构建期注入最小 `Intl.PluralRules` 兜底
+  （`apps/rokid-agent/scripts/build-engine.mjs` 的 `RUNTIME_SHIM`）——
+  只在 `Intl.PluralRules` 缺失时补一个最小实现（原生环境一律不动），
+  判定规则与 i18next 的 v3 fallback 对中文/英文等价 ⇒ **排盘输出不变、日志变干净**。
+  放在构建期而不是源码里：它是对**目标运行时**的兼容补丁，不是排盘逻辑，
+  源码与软著打印稿保持零改动。
+- ✅ **新增回归测试一条**（`tests/rokid_agent.test.ts`）：
+  「打包产物在缺 Intl.PluralRules 的眼镜运行时（ink WASM）不打 error 日志」——
+  子进程里删掉 `Intl.PluralRules` 再加载产物，断言 **0 条 error** 且排盘摘要不变。
+- 📌 **顺带查明一件不是 bug 的事**：仓库里已提交的 `assets/engine.js` 与当前 lockfile
+  （iztro 2.6.3）重新打包出来的产物**字节不一致**（旧产物是更早的 iztro 打的），
+  但**行为逐项一致**（50 项比对 0 差异 + 9 份金标准盘整对象 deepEqual）——
+  所以旧包里的引擎**没有算错**，只是字节不可复现。
+- 📦 **引擎产物指纹变了**（补丁在产物正文最前面，指纹覆盖它）：
+  `sha256:e094778c…b462` / **861.7 KB（882,366 B）**
+  （原 `sha256:b02dc5de…135d` / 859.9 KB）。
+  README / PROPOSAL / DEVICE-CHECKLIST / HANDOVER / faq / PPT 生成脚本已同步。
+- ⚠️ **软著材料不受影响**：`assets/engine.js` 是打包产物、**不进源程序打印稿**；
+  说明书里的「约 860 KB」在新旧体积下都成立（859.9 KB → 861.7 KB），**无需重生成**。
+- 🔁 **待办**：本轮改了 `apps/rokid-agent/`（引擎产物 + 构建脚本），
+  **需要重新导入工程 → 重新打包 → 重新核验**，再由 Frank 拍板要不要重提商店审核。
 
 **2026-11-07 第二轮新增（已实测）**：
 
@@ -290,7 +325,7 @@ Studio 会把 `app.json` / `app.js` / `pages/` / `assets/` / `lib/` / `types/` �
 | **示例盘有标注** | ✅ | 中宫末行「示例盘　返回键换成你的生辰」 |
 | **镜腿单击 → 解读浮层** | ✅ | 日志 `info 镜腿单击`；浮层「命宫 丁丑 / 本命命宫 · 命格总览」+ **解读正文检索成功** + 免责声明 |
 | **再按确认键 → 追问浮层** | ✅ | 「追问 / 今年这一层盘面有什么变化 / 焦点: 命宫 · 流年」 |
-| **运行时无本作品代码的报错** | ✅ | 日志唯一一条 error 是 Studio 运行时自身 i18next 的 `Intl.PluralRules` 兼容警告，与本作品无关 |
+| **运行时无本作品代码的报错** | ✅ | 日志唯一一条 error 曾是 `i18next::pluralResolver: … not to be Intl API compatible`（`Intl.PluralRules` 兼容告警）。**2026-11-08 第十二轮查明：这条 error 来自本作品自己的包**（iztro → i18next 被打进 `assets/engine.js`，眼镜 ink WASM 运行时没有 `Intl.PluralRules`），**不是 Studio 运行时自身**的。排盘结果不受影响（i18next 退回 compatibilityJSON v3，对中文恒为 other），但设备日志面板会一直挂着它。已在构建期注入最小 `Intl.PluralRules` 兜底（`scripts/build-engine.mjs` 的 `RUNTIME_SHIM`），该 error **已消失且排盘输出逐字段不变**（见 §3.4 末条 + 回归测试） |
 | **盘面渲染与本地模拟器一致** | ✅ | 两边逐格比对：12 宫位、主星、四化、中宫信息全部相同（双端交叉验证） |
 | `app.json` 被运行时正确解析 | ✅ | 页面下拉项显示 `page--紫微星盘`（标题来自 `navigationBarTitleText`） |
 | 语音不可用时**不白屏**（兜底生效） | ✅ | 页面显示「没听清，再说一次：1990年1月1日 子时 男」 |

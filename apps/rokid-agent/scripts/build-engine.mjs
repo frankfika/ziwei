@@ -42,6 +42,57 @@ export const BUILD_OPTIONS = {
   legalComments: 'none',
 };
 
+/**
+ * 运行时兼容补丁 —— **在产物正文最前面**执行。
+ *
+ * 为什么需要：
+ *  · 排盘引擎依赖 iztro，iztro 又依赖 i18next；
+ *  · i18next 初始化时会检查 `Intl.PluralRules`，Rokid 眼镜的 ink WASM 运行时
+ *    **没有这个 API** → i18next 打印一条 error 级日志：
+ *      「i18next::pluralResolver: Your environment seems not to be Intl API compatible…」
+ *  · 排盘结果本身不受影响（i18next 会退回 compatibilityJSON v3 规则，
+ *    对中文恒为 other，与下面的补丁判定完全一致），
+ *    但设备日志面板会一直挂着一条 error，看着像本作品有 bug。
+ *
+ * 补丁做什么：只在 **Intl.PluralRules 缺失**时补一个最小实现
+ * （原生环境一律不动），让 i18next 走原生分支、不再打这条日志。
+ * 判定规则与 i18next 的 v3 fallback 对中文/英文完全等价 → 排盘输出不变。
+ *
+ * 放在构建期而不是源码里：它是对**目标运行时**的兼容补丁，
+ * 不是排盘逻辑的一部分；源码与软著打印稿保持零改动。
+ */
+export const RUNTIME_SHIM = `/* 运行时兼容补丁：Intl.PluralRules 兜底（Rokid ink WASM 无此 API） */
+(function () {
+  if (typeof Intl === 'undefined') {
+    globalThis.Intl = {};
+  }
+  if (typeof Intl.PluralRules === 'function') return;
+  var SINGLE = {
+    zh: 1, ja: 1, ko: 1, vi: 1, th: 1, id: 1, ms: 1, my: 1, km: 1, lo: 1,
+    en: 1, de: 1, nl: 1, sv: 1, da: 1, no: 1, nb: 1, fi: 1, et: 1, el: 1,
+    es: 1, it: 1, hu: 1, tr: 1, sk: 1, sl: 1, hr: 1, sr: 1, bs: 1, ca: 1,
+  };
+  var ZERO_ONE = { fr: 1, pt: 1 };
+  function category(locale, n) {
+    var lang = String(locale || 'en').toLowerCase().split(/[-_]/)[0];
+    if (SINGLE[lang]) return n === 1 ? 'one' : 'other';
+    if (ZERO_ONE[lang]) return n === 0 || n === 1 ? 'one' : 'other';
+    return 'other';
+  }
+  Intl.PluralRules = function PluralRules(locales, options) {
+    var type = options && options.type === 'ordinal' ? 'ordinal' : 'cardinal';
+    this.locales = locales === undefined ? 'en' : locales;
+    this.type = type;
+    this.resolvedOptions = function () {
+      return { locale: String(this.locales), type: this.type };
+    };
+    this.select = function (n) {
+      return category(this.locales, Math.abs(Number(n)));
+    };
+  };
+})();
+`;
+
 /** esbuild 可执行文件 */
 function esbuildBin() {
   const local = path.join(REPO_ROOT, 'node_modules', '.bin', 'esbuild');
@@ -90,8 +141,10 @@ export async function buildEngine() {
   execFileSync(esbuildBin(), args, { stdio: 'inherit' });
 
   const body = fs.readFileSync(outfile, 'utf8');
-  const sha256 = createHash('sha256').update(body).digest('hex');
-  const withBanner = banner(sha256) + body;
+  // 兼容补丁拼在正文最前面 —— 它必须先于 i18next 初始化执行
+  const payload = RUNTIME_SHIM + body;
+  const sha256 = createHash('sha256').update(payload).digest('hex');
+  const withBanner = banner(sha256) + payload;
   fs.writeFileSync(outfile, withBanner, 'utf8');
   return withBanner;
 }

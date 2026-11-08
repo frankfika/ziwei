@@ -64,7 +64,7 @@ AIX 文件名：________________　版本号：________（打包时自动 +1）
 | P1 | 浏览器打开整段 URL（直接导入，不走表单按钮）：`https://aiui.rokid.com/?import_from_github=https%3A%2F%2Fgithub.com%2Ffrankfika%2Fziwei%2Ftree%2Ffeat%2Frokid-spatial-joy-2026%2Fapps%2Frokid-agent` | 侧栏出现 `frankfika/ziwei`，文件树完整：`app.json` / `app.js` / `pages/index/index.ink` / `lib/*.js` / `assets/engine.js` / `types/` |
 | P1b | **再核对一个新增文件**：`lib/birth-source.js` 是否在工程树里 | **必须在**。它是修「模拟器出不了盘」时新增的（出生参数三级兜底），不在 = 导入的是旧工程 |
 | P2 | 点顶部「**代码**」页签，核对 `pages/index/index.ink` | **应为 1120 行**（当前分支的实测行数）。对不上 = 导入的不是最新代码，重导 |
-| P3 | 核对 `assets/engine.js` | **不是 0 字节**（当前 880,559 B / 859.9 KB）。截断 = 重导 |
+| P3 | 核对 `assets/engine.js` | **不是 0 字节**（当前 882,366 B / 861.7 KB）。截断 = 重导 |
 | P4 | 顶部「**真机调试**」页签 → 底部「**AIX 打包**」区 → 点「**重新打包并保存**」 | 产出新 `.aix`（2026-11-08 10:33 那版是 `bcdceff1163f4e6e8dea474d03b5f0c9-1794105155119.aix`，**8.96 MB**，含追问超时 120s 修复；`...-1794100520699.aix` 2.07 MB 已作废）；顶部横幅变「**调试版本已就绪 · 可进行真机调试**」；侧栏状态「已同步」 |
 
 > 打包设置（「设置」→ 工程 → 打包）默认三项无需改：资源优化 开 / JSON 校验 开 / 资源优化等级 2。
@@ -75,8 +75,8 @@ AIX 文件名：________________　版本号：________（打包时自动 +1）
 
 ```bash
 node apps/rokid-agent/scripts/build-engine.mjs --check
-# 期望：产物指纹 sha256:b02dc5de6740b5d9752bef556d6513956b641222e3ebcaf35e92997038b2135d
-#       产物大小 859.9 KB
+# 期望：产物指纹 sha256:e094778c4cd3115f73b7b372dca3ed8f317795e244c771765e1b05d4b835b462
+#       产物大小 861.7 KB
 
 node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
 # 期望：首屏状态 ready=true｜12 宫｜层=本命盘｜选中=命宫
@@ -347,7 +347,7 @@ node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
 | 17 | 运限层仍显示本命四化；或模板渲染异常 | 三元表达式在 Ink 里支持差；四化标记叠加 | `index.ink` 模板一律用 `ink:if` 双层渲染，不用 `{{a ? b : c}}`；运限层整层隐藏本命四化（`lib/chart-layout.js` `formatStar()`） | 模板异常：改成 `ink:if` 两行；四化叠加：确认 `formatStar()` 在运限层只输出带前缀的那一套 |
 | 18 | 按【返回】直接退出应用（跳过了生辰录入层） | 返回键语义被改 | `index.ink` `onKeyUp()`：`KeyCode.BACK` → `this._openInput()`；录入层里再按 BACK → `this.finish()` | 恢复两级返回：盘面态回录入层，录入层才退出 |
 | 19 | 说了自己的生辰，界面上还是示例盘 / 还是别人的盘 | 示例盘或存档判定错 | `lib/birth-source.js` `resolveInitialBirth()` / `DEMO_BIRTH`（1990-01-01 子时 男）；`lib/storage.js` `PROFILES_KEY = 'ziwei.agent.profiles'` | 语音录入后应 `upsertProfile()` 写入并去掉示例盘标注；示例盘**不写**存档（否则下次被当成用户自己的盘） |
-| 20 | 盘面内容明显算错（宫位/安星/五行局不对） | 端侧引擎产物不是当前版本 | `assets/engine.js` 指纹应为 `sha256:b02dc5de…135d`（859.9 KB） | 跑 §1.3 第一条命令核对；不对就重新 `node apps/rokid-agent/scripts/build-engine.mjs` 再打包 |
+| 20 | 盘面内容明显算错（宫位/安星/五行局不对） | 端侧引擎产物不是当前版本 | `assets/engine.js` 指纹应为 `sha256:e094778c…b462`（861.7 KB） | 跑 §1.3 第一条命令核对；不对就重新 `node apps/rokid-agent/scripts/build-engine.mjs` 再打包 |
 | 21 | 明明是同一个人，盘面每次不一样 | 走了服务端兜底且入参不一致 | 页面 `onLoad` 的 `resolveInitialBirth(query, latestProfile())` | 记下每次启动的入参来源（入参 / 存档 / 示例）；确认显示的是「端侧计算」而非服务端 |
 
 ---

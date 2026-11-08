@@ -43,14 +43,16 @@ const PREVIEW_ASSETS: Array<{ file: string; minWidth: number; minHeight: number 
   { file: 'sim-ask.png', minWidth: 480, minHeight: 600 },
 ];
 
-/** 2026-11-08 10:33 重新打包后的现行 AIX 包（含追问超时修复） */
-const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794105155119.aix';
+/** 2026-11-08 10:33 重新打包后的 AIX 包（含追问超时修复）—— **提审提交的就是这一版** */
+const SUBMITTED_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794105155119.aix';
+/** 2026-11-08 16:57 重打（首帧修复版预览视频，功能代码与上面一致） */
+const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794128239691.aix';
 /** 2026-11-08 10:08 那一版 —— 含「追问超时 40s」的老 bug，已作废 */
 const OLD_TIMEOUT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794100520699.aix';
 /** 更早的那一版（修「模拟器出不了盘」之前的代码） */
 const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794011125685.aix';
 /** 文档里允许出现的 AIX 包名白名单 —— 出了这个集合就是笔误 */
-const KNOWN_AIX = new Set([CURRENT_AIX, OLD_TIMEOUT_AIX, STALE_AIX]);
+const KNOWN_AIX = new Set([CURRENT_AIX, SUBMITTED_AIX, OLD_TIMEOUT_AIX, STALE_AIX]);
 /** 取包脚本 */
 const FETCH_SCRIPT = path.join(AGENT_DIR, 'scripts/fetch-aix.mjs');
 /** 提审预览视频（提审页要求 3–5 个素材、至少 1 图 1 视频） */

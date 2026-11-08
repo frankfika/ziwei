@@ -23,6 +23,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -409,6 +410,42 @@ export const suite = async (t: Tester): Promise<void> => {
       assert.equal(bundle.isLateZi(22), false, '打包产物 isLateZi(22) 应为 false');
       assert.equal(bundle.shichenFromClock(23, 30), 0, '打包产物 shichenFromClock(23:30) 应为 0（子时）');
       assert.equal(bundle.hourLabel(0), '子时', '打包产物 hourLabel(0) 应为「子时」');
+    });
+
+    await t.test('打包产物在缺 Intl.PluralRules 的眼镜运行时（ink WASM）不打 error 日志', () => {
+      // 眼镜的 ink WASM 运行时没有 Intl.PluralRules，而 iztro → i18next 初始化时会打
+      // 一条 error 级日志（「i18next::pluralResolver: Your environment seems not to be
+      // Intl API compatible…」）。排盘结果不受影响，但设备日志面板里一直挂着这条 error，
+      // 看着像本作品有 bug —— 构建期已注入最小 PluralRules 兜底（见 build-engine.mjs 的
+      // RUNTIME_SHIM）。这里钉死两件事：这条 error 必须消失，且排盘结果一个字都不能变。
+      const probe = `
+        delete Intl.PluralRules;
+        const errs = [];
+        const orig = console.error;
+        console.error = (...a) => { errs.push(a.map(String).join(' ')); };
+        const mod = await import(${JSON.stringify(pathToFileURL(ENGINE_BUNDLE).href)});
+        console.error = orig;
+        const c = mod.chart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+        process.stdout.write(JSON.stringify({ errs, summary: mod.chartSummary(c) }));
+      `;
+      const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', probe], {
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(stdout) as { errs: string[]; summary: string };
+
+      assert.deepEqual(
+        parsed.errs,
+        [],
+        `眼镜运行时仍打出 error 级日志：${parsed.errs.join(' | ')}\n` +
+          '  重新打包：node apps/rokid-agent/scripts/build-engine.mjs',
+      );
+
+      const birth = { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' };
+      assert.equal(
+        parsed.summary,
+        bundle.chartSummary(bundle.chart(birth)),
+        '缺 Intl.PluralRules 时排盘结果与正常环境不一致（兜底规则必须等价于 i18next 的 v3 fallback）',
+      );
     });
 
     for (const c of GOLDEN_CASES) {

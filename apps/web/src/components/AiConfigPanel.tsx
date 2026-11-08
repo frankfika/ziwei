@@ -19,6 +19,7 @@ import {
 import { useLang } from '@/lib/lang';
 import { QUOTA_COPY } from '@/lib/quotaCopy';
 import { useQuotaStatus } from '@/lib/useQuota';
+import LangToggle from './LangToggle';
 
 type TestState =
   | { phase: 'idle' }
@@ -119,13 +120,16 @@ export default function AiConfigPanel({
     <div className="rounded-xl border border-line bg-surface p-4" data-ai-config>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-xs font-medium tracking-wide text-ink">AI 设置</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex min-h-8 items-center rounded-md px-2 py-1 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-        >
-          收起
-        </button>
+        <div className="flex items-center gap-1">
+          <LangToggle />
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-8 items-center rounded-md px-2 py-1 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            收起
+          </button>
+        </div>
       </div>
 
       {/* 现在到底在用谁 —— 只认已保存的配置；表单有未保存的改动时明确说出来 */}

@@ -11,13 +11,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
-import LangToggle from './LangToggle';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
-import { useLang } from '@/lib/lang';
-import { QUOTA_COPY } from '@/lib/quotaCopy';
-import { useQuotaStatus } from '@/lib/useQuota';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
   { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化' },
@@ -48,10 +44,6 @@ export default function HomeChat({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
-  // 额度相关文案：中英可切；额度上限以服务端为准
-  const [lang] = useLang();
-  const quota = useQuotaStatus();
-  const copy = QUOTA_COPY[lang];
 
   // 客户端配置状态：挂载与打开面板后都刷新
   useEffect(() => {
@@ -91,42 +83,6 @@ export default function HomeChat({
   const aiReady = providerConfigured || userAi;
   const name = displayName(selected!);
   const chart = chartUrl(selected!.form);
-  const userCfg = userAi ? readUserConfig() : null;
-
-  // 抽屉里的宿主页内容：盘信息 / 档案切换 / AI 状态 —— 平时全部收起，点会话头标题才出现
-  const aiPillRow = (
-    <div className="mb-1.5 flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setShowConfig((v) => !v)}
-        data-ai-status
-        title="点开 AI 设置"
-        className="inline-flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[11px] leading-snug text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:text-xs sm:leading-normal"
-      >
-        <span
-          aria-hidden="true"
-          className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
-        />
-        <span className="min-w-0 flex-1 truncate">
-          {userCfg ? (
-            <>{copy.statusUser(userCfg.model)}</>
-          ) : providerConfigured ? (
-            quota.vip ? (
-              <>{copy.statusVip(serverModel ? serverModel : '内置模型', quota.limit)}</>
-            ) : (
-              <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
-            )
-          ) : (
-            <span className="text-danger">{copy.noAiStatus}</span>
-          )}
-        </span>
-        <span aria-hidden="true" className="text-ink-3">
-          ⚙
-        </span>
-      </button>
-      <LangToggle />
-    </div>
-  );
 
   const profileRow = (
     <div
@@ -171,8 +127,17 @@ export default function HomeChat({
         {name && ' · '}
         {detailLabel(selected!.form)}
       </p>
-      {profileRow}
-      {aiPillRow}
+      {/* 只有一个档案时收成两枚链接，少给选项 */}
+      {history.length > 1 ? profileRow : (
+        <p className="flex flex-wrap gap-1.5 px-1 pb-1">
+          <Link href="/new" className={TOOL_LINK_CLASS}>
+            ＋ 新建档案
+          </Link>
+          <Link href="/synastry" className={TOOL_LINK_CLASS}>
+            双人合盘 →
+          </Link>
+        </p>
+      )}
     </>
   );
 
@@ -213,8 +178,7 @@ export default function HomeChat({
         </div>
       ) : (
         <>
-          {profileRow}
-          {aiPillRow}
+          {sheetExtra}
           <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
             <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
           </div>

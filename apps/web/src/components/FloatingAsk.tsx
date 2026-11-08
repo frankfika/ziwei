@@ -13,13 +13,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AskPanel, { type AskSeed } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
-import LangToggle from './LangToggle';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useHistory } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 import { useLang } from '@/lib/lang';
 import { QUOTA_COPY } from '@/lib/quotaCopy';
-import { useQuotaStatus } from '@/lib/useQuota';
 
 /** 「就此追问」事件的载荷：问句 + 焦点 + 可选的盘 */
 export interface ZiweiAskEventDetail {
@@ -54,7 +52,6 @@ export default function FloatingAsk({
   const [userAi, setUserAi] = useState(false);
   // 额度相关文案：中英可切；额度上限以服务端为准（可能被 env 覆盖）
   const [lang] = useLang();
-  const quota = useQuotaStatus();
   const copy = QUOTA_COPY[lang];
 
   // 打开面板时刷新 AI 配置状态（设置完回来不用刷新）
@@ -179,25 +176,9 @@ export default function FloatingAsk({
             </div>
           )}
 
-          {!aiConfigured ? (
+          {!aiConfigured && (
             <p className="shrink-0 px-4 pt-2 text-2xs text-danger sm:px-6">
               {copy.noAiStatus} —— ⚙（只存本机）
-            </p>
-          ) : userAi ? (
-            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              <span>
-                {copy.statusUser(readUserConfig()?.model ?? '')}
-                {copy.statusHintUser}
-              </span>
-              <LangToggle />
-            </p>
-          ) : (
-            <p className="flex shrink-0 items-center gap-2 px-4 pt-2 text-2xs text-ink-2 sm:px-6">
-              <span>
-                {copy.statusBuiltin(serverModel ?? '内置模型', quota.limit)}
-                {copy.statusHint}
-              </span>
-              <LangToggle />
             </p>
           )}
 

@@ -144,8 +144,8 @@ const ZH: QuotaCopy = {
   wallTitle: '今天的免费追问额度用完了',
   wallBody: (n, scope) =>
     scope === 'account'
-      ? `内置 AI 每个账户每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`
-      : `内置 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以填自己的 API Key，或买一个流量包继续问。`,
+      ? `公共 AI 每个账户每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以在 ⚙ 里填自己的 API Key 继续问 —— 本项目开源，自部署不限量。`
+      : `公共 AI 每个 IP 每天免费 ${n} 次，次日 0 点（UTC）刷新。也可以在 ⚙ 里填自己的 API Key 继续问 —— 本项目开源，自部署不限量。`,
   packsTitle: '流量包',
   packAsks: (n) => `${n} 次追问`,
   buy: '购买',
@@ -211,8 +211,8 @@ const EN: QuotaCopy = {
   wallTitle: "You've used today's free follow-ups",
   wallBody: (n, scope) =>
     scope === 'account'
-      ? `The built-in AI allows ${n} free follow-ups per account per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`
-      : `The built-in AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key, or buy a traffic pack to keep asking.`,
+      ? `The shared AI allows ${n} free follow-ups per account per day, resetting at 00:00 UTC. Add your own API key in ⚙ to keep asking — this project is open source; self-host for unlimited use.`
+      : `The shared AI allows ${n} free follow-ups per IP per day, resetting at 00:00 UTC. Add your own API key in ⚙ to keep asking — this project is open source; self-host for unlimited use.`,
   packsTitle: 'Traffic packs',
   packAsks: (n) => `${n} follow-ups`,
   buy: 'Buy',

@@ -13,6 +13,7 @@ import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
 import ErrorAlert from './ErrorAlert';
 import StarAtlas from './StarAtlas';
+import Seal from './Seal';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useLang } from '@/lib/lang';
 import { CHAT_COPY } from '@/lib/chatCopy';
@@ -88,20 +89,8 @@ export default function HomeChat({
               </p>
             )}
           </div>
-          {/* 朱砂钤印：古籍落款，斜 3° 像随手盖下去的（英文版换 ZW，不露中文字） */}
-          <div
-            aria-hidden="true"
-            className="hero-seal absolute bottom-6 right-5 flex h-10 w-10 rotate-3 flex-col items-center justify-center rounded-[3px] bg-hua-ji font-serif text-sm leading-tight text-surface shadow-[0_2px_8px_rgba(193,64,47,0.35)]"
-          >
-            {lang === 'zh' ? (
-              <>
-                <span>紫</span>
-                <span>微</span>
-              </>
-            ) : (
-              <span className="text-xs tracking-[0.05em]">ZW</span>
-            )}
-          </div>
+          {/* 朱砂钤印：古籍落款 */}
+          <Seal className="hero-seal absolute bottom-6 right-5" />
         </div>
 
         <p className="max-w-xs text-xs leading-relaxed text-ink-2">

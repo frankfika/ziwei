@@ -7,6 +7,7 @@ import CenterPanel, { type BoardLayer, type ChartCenterInfo, type CurrentDaXianI
 import { useLang } from '@/lib/lang';
 import { CHART_COPY, palaceLabel, siHuaLabel } from '@/lib/chartCopy';
 import { useReducedMotion } from './ReducedMotion';
+import Seal from './Seal';
 
 /** 开盘仪式节奏（globals.css「开盘仪式」段的 200ms 时长对应 OPEN_REVEAL_MS）：
    边宫（8）→ 角宫（4）→ 中宫，两处换气各留 OPEN_BREATH_MS */
@@ -391,19 +392,7 @@ export default function ChartBoard({
           >
             {mobileCenter}
             {seal && (
-              <div
-                aria-hidden="true"
-                className={`seal-stamp pointer-events-none absolute bottom-1.5 right-1.5 flex h-9 w-9 flex-col items-center justify-center rounded-[3px] bg-hua-ji font-serif text-xs leading-tight text-surface shadow-[0_2px_8px_rgba(193,64,47,0.3)] print:hidden ${lang === 'zh' ? '' : 'opacity-70'}`}
-              >
-                {lang === 'zh' ? (
-                  <>
-                    <span>紫</span>
-                    <span>微</span>
-                  </>
-                ) : (
-                  <span>ZW</span>
-                )}
-              </div>
+              <Seal size="sm" className="seal-stamp absolute bottom-1.5 right-1.5 print:hidden" />
             )}
           </div>
         </div>

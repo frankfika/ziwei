@@ -11,7 +11,7 @@
  *  · provider 未配置 / 样本库未覆盖，**原样显示服务端给的说明**，不自己编措辞。
  */
 
-import { useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
@@ -45,6 +45,11 @@ export interface AskPanelProps {
   subjectName?: string;
   /** 对话内嵌命盘：回答后就地渲染迷你盘，不跳走 */
   embedChart?: boolean;
+  /**
+   * bare 模式下插入滚动区顶部的页头（AI 状态/档案行/面板头等）。
+   * 放进滚动区而不是钉在外面：对话变长后随内容滚出屏幕，聊天满屏 —— 沉浸式。
+   */
+  headerInside?: ReactNode;
 }
 
 export interface AskSeed {
@@ -228,6 +233,7 @@ export default function AskPanel({
   bare = false,
   subjectName,
   embedChart = false,
+  headerInside,
 }: AskPanelProps) {
   const identity = chartKey({ year, month, day, hour, gender });
   const {
@@ -658,64 +664,6 @@ export default function AskPanel({
           </div>
         )}
 
-        {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 新开一段不再「找不到旧的」 */}
-        {bare && loaded && threads.length + archivedThreads.length > 0 && (
-          <div className="mb-2 flex shrink-0 items-center gap-2">
-            <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
-              对话记录
-            </label>
-            <select
-              id="ask-thread-select"
-              value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === '__draft__') handleNewThread();
-                else {
-                  // 选中已归档的对话 = 恢复它
-                  if (archivedThreads.some((t) => t.id === v)) unarchiveThread(v);
-                  handleSelectThread(v);
-                }
-              }}
-              className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              {!threads.some((t) => t.id === activeId) && (
-                <option value="__draft__">（这次对话）</option>
-              )}
-              {threads.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title} ·{' '}
-                  {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                    month: 'numeric',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </option>
-              ))}
-              {archivedThreads.length > 0 && (
-                <optgroup label="已归档（选中即恢复）">
-                  {archivedThreads.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title} ·{' '}
-                      {new Date(t.updatedAt).toLocaleString('zh-CN', {
-                        month: 'numeric',
-                        day: 'numeric',
-                      })}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <button
-              type="button"
-              onClick={handleNewThread}
-              className="shrink-0 rounded-lg border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-            >
-              ＋新对话
-            </button>
-          </div>
-        )}
-
         {/* 对话线程 */}
         <div
           id={resultId}
@@ -724,6 +672,67 @@ export default function AskPanel({
           aria-busy={pending}
           className={bare ? 'flex min-h-0 flex-1 flex-col overflow-y-auto' : undefined}
         >
+          {/* 沉浸式页头：首页的 AI 状态/档案行/面板头插在滚动区顶部，对话长了滚出屏幕 */}
+          {bare && headerInside}
+
+          {/* 对话切换：这张盘下的全部对话，随时切回去/开新的 —— 放在滚动区内，
+              对话变长后随内容滚出屏幕，聊天满屏；想切对话往上滑就有了 */}
+          {bare && loaded && threads.length + archivedThreads.length > 0 && (
+            <div className="mb-2 flex shrink-0 items-center gap-2">
+              <label htmlFor="ask-thread-select" className="shrink-0 text-2xs text-ink-2">
+                对话记录
+              </label>
+              <select
+                id="ask-thread-select"
+                value={threads.some((t) => t.id === activeId) ? activeId! : '__draft__'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__draft__') handleNewThread();
+                  else {
+                    // 选中已归档的对话 = 恢复它
+                    if (archivedThreads.some((t) => t.id === v)) unarchiveThread(v);
+                    handleSelectThread(v);
+                  }
+                }}
+                className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-2xs text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                {!threads.some((t) => t.id === activeId) && (
+                  <option value="__draft__">（这次对话）</option>
+                )}
+                {threads.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ·{' '}
+                    {new Date(t.updatedAt).toLocaleString('zh-CN', {
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </option>
+                ))}
+                {archivedThreads.length > 0 && (
+                  <optgroup label="已归档（选中即恢复）">
+                    {archivedThreads.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title} ·{' '}
+                        {new Date(t.updatedAt).toLocaleString('zh-CN', {
+                          month: 'numeric',
+                          day: 'numeric',
+                        })}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <button
+                type="button"
+                onClick={handleNewThread}
+                className="shrink-0 rounded-lg border border-zhu/30 bg-surface px-2.5 py-1.5 text-2xs text-zhu transition-colors hover:bg-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                ＋新对话
+              </button>
+            </div>
+          )}
           {/* 空态引导卡片只属于「全新对话」：历史折叠后 visibleMessages 也是空，
               但那是聊天记录被收起来，不是没聊过 —— 再渲染引导卡会和折叠条打架 */}
           {messages.length === 0 && !pending && !transient && bare && (

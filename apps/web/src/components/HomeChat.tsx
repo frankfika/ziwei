@@ -93,6 +93,96 @@ export default function HomeChat({
   const chart = chartUrl(selected!.form);
   const userCfg = userAi ? readUserConfig() : null;
 
+  // 沉浸式页头：AI 状态 / 档案行 / 面板头通过 headerInside 插进 AskPanel 滚动区顶部 ——
+  // 对话变长后随内容滚出屏幕，聊天满屏；往下翻回顶部即可再操作档案与设置。
+  const aiPillRow = (
+    <div className="mb-1.5 flex shrink-0 items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setShowConfig((v) => !v)}
+        data-ai-status
+        title="点开 AI 设置"
+        className="inline-flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[11px] leading-snug text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:text-xs sm:leading-normal"
+      >
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
+        />
+        <span className="min-w-0 flex-1 truncate">
+          {userCfg ? (
+            <>{copy.statusUser(userCfg.model)}</>
+          ) : providerConfigured ? (
+            quota.vip ? (
+              <>{copy.statusVip(serverModel ? serverModel : '内置模型', quota.limit)}</>
+            ) : (
+              <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
+            )
+          ) : (
+            <span className="text-danger">{copy.noAiStatus}</span>
+          )}
+        </span>
+        <span aria-hidden="true" className="text-ink-3">
+          ⚙
+        </span>
+      </button>
+      <LangToggle />
+    </div>
+  );
+
+  const profileRow = (
+    <div
+      className="mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      role="tablist"
+      aria-label="选择档案"
+    >
+      {history.map((entry) => {
+        const active = entry.id === selected?.id;
+        return (
+          <button
+            key={entry.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            title={entry.label}
+            onClick={() => setSelectedId(entry.id)}
+            className={`${PROFILE_CHIP_CLASS} ${
+              active
+                ? 'border-zhu bg-zhu-soft text-ink'
+                : 'border-line bg-surface text-ink-2 hover:border-ink-3'
+            }`}
+          >
+            {shortLabel(entry)}
+          </button>
+        );
+      })}
+      <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line" />
+      <Link href="/new" className={TOOL_LINK_CLASS}>
+        ＋ 新建档案
+      </Link>
+      <Link href="/synastry" className={TOOL_LINK_CLASS}>
+        双人合盘 →
+      </Link>
+    </div>
+  );
+
+  const panelHeader = (
+    <div className="mb-2 flex shrink-0 items-baseline justify-between gap-3 border-b border-line/70 pb-2">
+      <p className="min-w-0 truncate text-sm text-ink">
+        {name && <span className="font-medium">{name}</span>}
+        {name && <span className="text-ink-3"> · </span>}
+        <span className="text-xs text-ink-2">{detailLabel(selected!.form)}</span>
+      </p>
+      {chart && (
+        <Link
+          href={chart}
+          className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+        >
+          查看命盘 →
+        </Link>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showConfig && (
@@ -105,92 +195,11 @@ export default function HomeChat({
         </div>
       )}
 
-      {/* 状态胶囊独占一行：说清「现在用谁」，点它开 AI 设置（设置入口只留这一处） */}
-      <div className="mb-2">
-        <button
-          type="button"
-          onClick={() => setShowConfig((v) => !v)}
-          data-ai-status
-          title="点开 AI 设置"
-          className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[11px] leading-snug text-ink-2 transition-colors hover:border-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu sm:text-xs sm:leading-normal"
-        >
-          <span
-            aria-hidden="true"
-            className={`h-1.5 w-1.5 rounded-full ${aiReady ? 'bg-hua-lu' : 'bg-danger'}`}
-          />
-          {userCfg ? (
-            <>{copy.statusUser(userCfg.model)}</>
-          ) : providerConfigured ? (
-            quota.vip ? (
-              <>{copy.statusVip(serverModel ? serverModel : '内置模型', quota.limit)}</>
-            ) : (
-              <>{copy.statusBuiltin(serverModel ? serverModel : '内置模型', quota.limit)}</>
-            )
-          ) : (
-            <span className="text-danger">{copy.noAiStatus}</span>
-          )}
-          <span aria-hidden="true" className="text-ink-3">
-            ⚙
-          </span>
-        </button>
-        <LangToggle />
-      </div>
-
-      {/* 档案行：档案芯片 + 新建/合盘 —— 都是「管档案」的动作，放一行横向滚动 */}
-      <div
-        className="-mx-2 mb-2 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label="选择档案"
-      >
-        {history.map((entry) => {
-          const active = entry.id === selected?.id;
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              title={entry.label}
-              onClick={() => setSelectedId(entry.id)}
-              className={`${PROFILE_CHIP_CLASS} ${
-                active
-                  ? 'border-zhu bg-zhu-soft text-ink'
-                  : 'border-line bg-surface text-ink-2 hover:border-ink-3'
-              }`}
-            >
-              {shortLabel(entry)}
-            </button>
-          );
-        })}
-        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line" />
-        <Link href="/new" className={TOOL_LINK_CLASS}>
-          ＋ 新建档案
-        </Link>
-        <Link href="/synastry" className={TOOL_LINK_CLASS}>
-          双人合盘 →
-        </Link>
-      </div>
-
       {/* 对话线程：key 随档案切换，线程按盘隔离存储。
-          面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部 */}
+          面板占满剩余高度，线程内部滚动 —— 输入框始终钉在聊天区底部。
+          页头三行（AI 状态/档案/面板头）插在滚动区顶部，对话长了滚出屏幕 */}
       {resolved?.ok && resolved.resolved ? (
         <div className="flex min-h-0 flex-1 flex-col px-0 py-2 sm:rounded-2xl sm:border sm:border-line sm:bg-surface-2/40 sm:px-4 sm:py-3">
-          {/* 面板头：说清现在问的是哪张盘 */}
-          <div className="mb-2.5 flex shrink-0 items-baseline justify-between gap-3 border-b border-line/70 pb-2.5">
-            <p className="min-w-0 truncate text-sm text-ink">
-              {name && <span className="font-medium">{name}</span>}
-              {name && <span className="text-ink-3"> · </span>}
-              <span className="text-xs text-ink-2">{detailLabel(selected!.form)}</span>
-            </p>
-            {chart && (
-              <Link
-                href={chart}
-                className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-              >
-                查看命盘 →
-              </Link>
-            )}
-          </div>
           <AskPanel
             key={identity}
             year={resolved.resolved.year}
@@ -203,12 +212,23 @@ export default function HomeChat({
             quickPrompts={INTENT_CHIPS}
             subjectName={name || undefined}
             bare
+            headerInside={
+              <>
+                {aiPillRow}
+                {profileRow}
+                {panelHeader}
+              </>
+            }
           />
         </div>
       ) : (
-        <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
-          <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
-        </div>
+        <>
+          {aiPillRow}
+          {profileRow}
+          <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
+            <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
+          </div>
+        </>
       )}
     </div>
   );

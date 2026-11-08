@@ -12,17 +12,19 @@ import Link from 'next/link';
 import AskPanel, { type AskQuickPrompt } from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
 import { readUserConfig } from '@/lib/aiConfig';
+import { useLang } from '@/lib/lang';
+import { CHAT_COPY } from '@/lib/chatCopy';
 import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
 const INTENT_CHIPS: AskQuickPrompt[] = [
-  { label: '今年如何', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化' },
-  { label: '这十年', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian', hint: '当前大限的十年走向' },
-  { label: '整体格局', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview', hint: '原局整体定性' },
-  { label: '感情', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love', featured: true, hint: '婚姻与相处模式' },
-  { label: '事业', question: '事业方向上，这份命盘有什么特点？', dimension: 'career', featured: true, hint: '适合的方向与特点' },
-  { label: '财运', question: '财运方面，原文给了哪些倾向？', dimension: 'wealth', featured: true, hint: '原文给出的倾向' },
-  { label: '健康', question: '健康方面，原文里有没有要留意的地方？', dimension: 'health', hint: '需要留意的部分' },
+  { label: '今年如何', labelEn: 'This year', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化', hintEn: 'Annual palace & transformations' },
+  { label: '这十年', labelEn: 'This decade', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian', hint: '当前大限的十年走向', hintEn: 'The ten-year cycle ahead' },
+  { label: '整体格局', labelEn: 'Overall chart', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview', hint: '原局整体定性', hintEn: 'The natal chart’s character' },
+  { label: '感情', labelEn: 'Love', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love', featured: true, hint: '婚姻与相处模式', hintEn: 'Marriage & how you relate' },
+  { label: '事业', labelEn: 'Career', question: '事业方向上，这份命盘有什么特点？', dimension: 'career', featured: true, hint: '适合的方向与特点', hintEn: 'Where you do best' },
+  { label: '财运', labelEn: 'Money', question: '财运方面，原文给了哪些倾向？', dimension: 'wealth', featured: true, hint: '原文给出的倾向', hintEn: 'How the text reads it' },
+  { label: '健康', labelEn: 'Health', question: '健康方面，原文里有没有要留意的地方？', dimension: 'health', hint: '需要留意的部分', hintEn: 'What to watch' },
 ];
 
 const PROFILE_CHIP_CLASS =
@@ -40,6 +42,8 @@ export default function HomeChat({
   /** 服务端内置 AI 的模型名（展示用，不含密钥） */
   serverModel?: string;
 }) {
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
   const { history, ready } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
@@ -62,15 +66,15 @@ export default function HomeChat({
   if (history.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-        <p className="text-title text-ink">还没有档案</p>
+        <p className="text-title text-ink">{copy.noProfilesTitle}</p>
         <p className="max-w-xs text-xs leading-relaxed text-ink-2">
-          先排一张盘，之后打开首页就能直接接着聊。
+          {copy.noProfilesBody}
         </p>
         <Link
           href="/new"
           className="mt-1 inline-flex min-h-11 items-center rounded-lg bg-zhu px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(61,90,133,0.24)] transition-colors hover:bg-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
-          去排一张盘
+          {copy.noProfilesCta}
         </Link>
       </div>
     );
@@ -112,10 +116,10 @@ export default function HomeChat({
       })}
       <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line" />
       <Link href="/new" className={TOOL_LINK_CLASS}>
-        ＋ 新建档案
+        {copy.newProfile}
       </Link>
       <Link href="/synastry" className={TOOL_LINK_CLASS}>
-        双人合盘 →
+        {copy.synastry}
       </Link>
     </div>
   );
@@ -131,10 +135,10 @@ export default function HomeChat({
       {history.length > 1 ? profileRow : (
         <p className="flex flex-wrap gap-1.5 px-1 pb-1">
           <Link href="/new" className={TOOL_LINK_CLASS}>
-            ＋ 新建档案
+            {copy.newProfile}
           </Link>
           <Link href="/synastry" className={TOOL_LINK_CLASS}>
-            双人合盘 →
+            {copy.synastry}
           </Link>
         </p>
       )}
@@ -180,7 +184,7 @@ export default function HomeChat({
         <>
           {sheetExtra}
           <div className="panel flex flex-1 items-center justify-center p-5 text-center" role="status">
-            <p className="text-xs text-ink-2">这个档案的生辰不完整，无法对话。请重新排盘。</p>
+            <p className="text-xs text-ink-2">{copy.incompleteBirth}</p>
           </div>
         </>
       )}

@@ -13,6 +13,8 @@
 
 import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useLang } from '@/lib/lang';
+import { CHAT_COPY } from '@/lib/chatCopy';
 import { streamAsk, type AskStreamVerification } from '@/lib/askStream';
 import { chartKey } from '@/lib/history';
 import { useAskThread, MAX_MESSAGES, type AskMessage } from '@/lib/askThreads';
@@ -71,12 +73,16 @@ export interface AskSeed {
 
 export interface AskQuickPrompt {
   label: string;
+  /** 英文界面下的显示名；话题建档仍用 label（中文）作稳定键，切语言不串库 */
+  labelEn?: string;
   question: string;
   dimension?: string;
   /** 时间层焦点：流年（今年）/ 大限（这十年） */
   time?: 'liunian' | 'daxian';
   /** 空态大卡片用的一句话说明（比 question 短） */
   hint?: string;
+  /** hint 的英文版 */
+  hintEn?: string;
   /** 是否进空态大卡片（首页第一次进来时给「点哪儿」的提示） */
   featured?: boolean;
 }
@@ -95,14 +101,14 @@ const CHIP_CLASS =
   'max-w-full min-h-9 whitespace-normal rounded-full border border-line bg-surface-2 px-3 py-2 text-left text-2xs leading-snug text-ink-2 transition-colors hover:border-ink-3 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
 
 /** 话题行右侧的相对日期：今天 / 昨天 / M/D */
-function relDay(ts: number): string {
+function relDay(ts: number, day: { today: string; yesterday: string }): string {
   const d = new Date(ts);
   const now = new Date();
   const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
   const yest = new Date(now);
   yest.setDate(now.getDate() - 1);
-  if (same(d, now)) return '今天';
-  if (same(d, yest)) return '昨天';
+  if (same(d, now)) return day.today;
+  if (same(d, yest)) return day.yesterday;
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
@@ -141,7 +147,7 @@ function AnswerAvatar({
 }
 
 /** 「正在思考」的实时思维链：只用于等待期进度展示，正文开始流出后让位，不进线程、不持久化 */
-function ThinkingBlock({ text }: { text: string }) {
+function ThinkingBlock({ text, note }: { text: string; note: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight });
@@ -150,7 +156,7 @@ function ThinkingBlock({ text }: { text: string }) {
     <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-2.5" role="status">
       <p className="mb-1 flex items-center gap-1.5 text-2xs text-ink-3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-zhu/70 motion-reduce:animate-none" aria-hidden="true" />
-        正在思考…（过程仅作参考，以最终回答为准）
+        {note}
       </p>
       <div
         ref={ref}
@@ -271,6 +277,18 @@ export default function AskPanel({
     unarchiveThread,
   } = useAskThread(identity);
   const [question, setQuestion] = useState('');
+  /** 界面语言：界面骨架走 chatCopy；问句发给模型仍用中文（数据集是中文原文） */
+  const [lang] = useLang();
+  const copy = CHAT_COPY[lang];
+  /** 推荐/意图芯片统一成 { label, question, dimension? } */
+  const presets: AskQuickPrompt[] =
+    quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
+  const labelOf = (p: AskQuickPrompt) => (lang === 'en' && p.labelEn ? p.labelEn : p.label);
+  /** 话题题名：建档用中文 label 作稳定键，展示时按语言取译名 */
+  const topicTitle = (t: { title: string }) => {
+    const hit = presets.find((x) => x.label === t.title);
+    return hit ? labelOf(hit) : t.title;
+  };
   const [transient, setTransient] = useState<Transient | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
@@ -323,11 +341,8 @@ export default function AskPanel({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
-  const headerTitle = activeThread?.title ?? '新对话';
+  const headerTitle = activeThread ? topicTitle(activeThread) : copy.newChatTitle;
 
-  /** 推荐/意图芯片统一成 { label, question, dimension? } */
-  const presets: AskQuickPrompt[] =
-    quickPrompts ?? PRESETS.map((p) => ({ label: p, question: p }));
 
   // 输入框随内容长高（上限约 6 行，再多内部滚动），长问题也能一直看到自己正在打的字。
   // 多行时把胶囊圆角换成小圆角：9999px 大圆角在高的框上会把文字裁出弧形边缘。
@@ -523,7 +538,7 @@ export default function AskPanel({
             if (!p.answer.trim()) {
               setTransient({
                 kind: 'error',
-                message: '模型这次没有产出正文。可以直接点重试，或换一个不带思考的模型。',
+                message: copy.emptyAnswer,
                 retryQuestion: text,
               });
               setStream(null);
@@ -594,7 +609,7 @@ export default function AskPanel({
       type="button"
       onClick={toggleDeepThink}
       aria-pressed={deepThink}
-      title="深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。"
+      title={copy.deepThinkTitle}
       className={
         'shrink-0 ' +
         CHIP_CLASS +
@@ -603,7 +618,7 @@ export default function AskPanel({
           : ' border-line text-ink-2 opacity-70')
       }
     >
-      {deepThink ? '● 深度思考：开' : '○ 深度思考：关'}
+      {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
     </button>
   );
 
@@ -656,7 +671,7 @@ export default function AskPanel({
                 disabled={pending}
                 className={CHIP_CLASS}
               >
-                {p.label}
+                {labelOf(p)}
               </button>
             ))}
             <button
@@ -678,7 +693,7 @@ export default function AskPanel({
       <div
         id="ask-panel-content"
         hidden={!bare && !expanded}
-        className={bare ? 'flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
+        className={bare ? 'chat-stage flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
       >
         {!providerConfigured && !bare && (
           <div
@@ -712,7 +727,7 @@ export default function AskPanel({
                 href={chartHref}
                 className="shrink-0 text-xs text-zhu underline underline-offset-2 transition-colors hover:text-zhu-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
-                命盘
+                {copy.chartLink}
               </Link>
             )}
             {onOpenConfig && (
@@ -736,19 +751,19 @@ export default function AskPanel({
               <>
                 <button
                   type="button"
-                  aria-label="关闭对话抽屉"
+                  aria-label={copy.closeSheetAria}
                   onClick={() => setSheetOpen(false)}
                   className="fixed inset-0 z-20 cursor-default bg-ink/25"
                 />
                 <div
                   role="dialog"
-                  aria-label="对话管理"
+                  aria-label={copy.manageAria}
                   className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[72dvh] overflow-y-auto rounded-xl border border-line bg-surface p-3.5 shadow-[0_12px_40px_rgba(28,35,51,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:pb-[max(env(safe-area-inset-bottom),12px)]"
                 >
                   {/* 这张盘下的全部话题对话 */}
                   {threads.length > 0 && (
-                    <section aria-label="话题对话">
-                      <p className="mb-1 px-1 text-2xs text-ink-3">{subjectName ? `${subjectName}的对话` : '对话'}</p>
+                    <section aria-label={copy.conversationsOf()}>
+                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
                       <ul>
                         {threads.map((t) => {
                           const isActive = t.id === activeId;
@@ -767,9 +782,9 @@ export default function AskPanel({
                                     : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
                                 }`}
                               >
-                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{t.title}</span>
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
                                 <span className="shrink-0 text-2xs text-ink-3">
-                                  {relDay(t.updatedAt)} · {t.messages.length} 条
+                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
                                 </span>
                               </button>
                             </li>
@@ -781,14 +796,14 @@ export default function AskPanel({
 
                   {/* 已归档：收起成一行，展开后点选即恢复 */}
                   {archivedThreads.length > 0 && (
-                    <section aria-label="已归档" className="mt-1">
+                    <section aria-label={copy.archivedLabel} className="mt-1">
                       <button
                         type="button"
                         onClick={() => setShowArchived((v) => !v)}
                         aria-expanded={showArchived}
                         className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
                       >
-                        已归档 {archivedThreads.length} {showArchived ? '▴' : '▸'}
+                        {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
                       </button>
                       {showArchived && (
                         <ul>
@@ -803,9 +818,9 @@ export default function AskPanel({
                                 }}
                                 className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
                               >
-                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{t.title}</span>
+                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
                                 <span className="shrink-0 text-2xs text-ink-3">
-                                  {relDay(t.updatedAt)} · {t.messages.length} 条
+                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
                                 </span>
                               </button>
                             </li>
@@ -816,8 +831,8 @@ export default function AskPanel({
                   )}
 
                   {/* 开个新话题：话题即对话，点一张签就开一段新对话 */}
-                  <section aria-label="开个新话题" className="mt-3 border-t border-lineSoft pt-3">
-                    <p className="mb-1.5 px-1 text-2xs text-ink-3">开个新话题</p>
+                  <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
+                    <p className="mb-1.5 px-1 text-2xs text-ink-3">{copy.newTopic}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {presets.map((p) => (
                         <button
@@ -830,7 +845,7 @@ export default function AskPanel({
                           disabled={pending}
                           className="rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {p.label}
+                          {labelOf(p)}
                         </button>
                       ))}
                       <button
@@ -842,14 +857,14 @@ export default function AskPanel({
                         disabled={pending}
                         className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-3 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        自由聊聊
+                        {copy.freeChat}
                       </button>
                     </div>
                   </section>
 
                   {/* 宿主页内容：档案切换 / 新建 / 合盘 / AI 状态 / 语言 */}
                   {sheetExtra && (
-                    <section aria-label="档案与 AI" className="mt-3 border-t border-lineSoft pt-3">
+                    <section aria-label={copy.profileAiAria} className="mt-3 border-t border-lineSoft pt-3">
                       {sheetExtra}
                     </section>
                   )}
@@ -861,11 +876,11 @@ export default function AskPanel({
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm('清空当前这段对话？其他对话会保留。')) clear();
+                          if (window.confirm(copy.clearConfirm)) clear();
                         }}
                         className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
-                        清空当前对话
+                        {copy.clearThread}
                       </button>
                     )}
                     {activeId && activeId !== '__draft__' && (
@@ -875,10 +890,10 @@ export default function AskPanel({
                           archiveThread(activeId);
                           handleNewThread();
                         }}
-                        title="从对话列表收起来，可在「已归档」里找回"
+                        title={copy.archiveTitle}
                         className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
-                        归档这段对话
+                        {copy.archiveThread}
                       </button>
                     )}
                   </section>
@@ -901,13 +916,14 @@ export default function AskPanel({
           {messages.length === 0 && !pending && !transient && bare && (
             /* 空态就是「引导」：不给一排灰字链接，直接给几张能点的卡片 ——
                没人会主动提问，就让人点一下就有回答 */
-            <div className="flex flex-1 flex-col justify-center gap-3" role="status">
-              <div>
-                <p className="text-[1.05rem] font-medium text-ink">
-                  {subjectName ? `想问问 ${subjectName} 这张盘什么？` : '想问问这张盘什么？'}
+            <div className="flex flex-1 flex-col justify-center gap-4" role="status">
+              <div className="text-center">
+                <p aria-hidden="true" className="mb-1.5 font-serif text-lg text-zhu/70">
+                  ✦
                 </p>
-                <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-ink-2">
-                  回答只依据这张盘的数据集原文 —— 材料里没写的，它会直说没有；对话只存在本机浏览器。
+                <p className="font-serif text-[1.15rem] text-ink">{copy.emptyTitle(subjectName)}</p>
+                <p className="mx-auto mt-1.5 max-w-xl text-xs leading-relaxed text-ink-2">
+                  {copy.emptySub}
                 </p>
               </div>
               <div className="grid gap-2.5 sm:grid-cols-2">
@@ -929,8 +945,10 @@ export default function AskPanel({
                       }
                       className="flex flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-all hover:border-zhu hover:shadow-[0_2px_10px_rgba(28,35,51,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <span className="text-sm font-medium text-ink">{p.label}</span>
-                      <span className="text-2xs text-ink-2">{p.hint}</span>
+                      <span className="text-sm font-medium text-ink">{labelOf(p)}</span>
+                      <span className="text-2xs text-ink-2">
+                        {lang === 'en' && p.hintEn ? p.hintEn : p.hint}
+                      </span>
                     </button>
                   ))}
               </div>
@@ -955,7 +973,7 @@ export default function AskPanel({
                     disabled={pending}
                     className={CHIP_CLASS}
                   >
-                    {p.label}
+                    {labelOf(p)}
                   </button>
                 ))}
               </div>
@@ -967,14 +985,18 @@ export default function AskPanel({
             {/* 话题题头：像签纸一样安静地标注这段对话是谁 */}
             {bare && activeThread && visibleMessages.length > 0 && (
               <p className="pb-1 text-center font-serif text-2xs tracking-[0.25em] text-ink-3">
-                {activeThread.title}
+                {topicTitle(activeThread)}
                 <span className="mx-1.5 tracking-normal">·</span>
-                始于 {new Date(activeThread.createdAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                {copy.captionStarted}{' '}
+                {new Date(activeThread.createdAt).toLocaleDateString(
+                  lang === 'en' ? 'en-US' : 'zh-CN',
+                  { month: 'long', day: 'numeric' },
+                )}
               </p>
             )}
             {messages.length >= MAX_MESSAGES && (
               <p className="rounded-lg border border-lineSoft bg-surface/70 px-3 py-2 text-2xs leading-relaxed text-ink-3">
-                这段对话只保留最近 {MAX_MESSAGES} 条，再往下问会挤掉最前面的 —— 想留档请另开一段新对话。
+                {copy.maxNotice(MAX_MESSAGES)}
               </p>
             )}
             {visibleMessages.map((m) => {
@@ -988,14 +1010,14 @@ export default function AskPanel({
                     {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
                   >
                     <p className="text-right">
-                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
+                      <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                         {m.question}
                       </span>
                     </p>
                     <div className="max-w-[95%]">
                       <AnswerAvatar cited={m.cited} model={m.model} source={m.source} />
                       <div
-                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 text-sm leading-[1.9] text-ink-2 shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
+                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
                         data-ask-answer=""
                       >
                         <Markdown text={m.answer} />
@@ -1097,7 +1119,7 @@ export default function AskPanel({
             >
               <span className="sr-only">查证中</span>
               <p className="text-right">
-                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-zhu px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
+                <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                   {pendingQuestion}
                 </span>
               </p>
@@ -1105,7 +1127,7 @@ export default function AskPanel({
                 <AnswerAvatar />
                 {stream?.text ? (
                   /* 流式：模型吐一个字就显示一个字 */
-                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 text-sm leading-[1.9] text-ink-2 shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
+                  <div className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0">
                     <Markdown text={stream.text} />
                     <span
                       aria-hidden="true"
@@ -1114,14 +1136,14 @@ export default function AskPanel({
                   </div>
                 ) : stream?.thinking ? (
                   /* 思考期：把思维链实时显示出来 —— 6–8 秒的空白等待变成看得见的进度 */
-                  <ThinkingBlock text={stream.thinking} />
+                  <ThinkingBlock text={stream.thinking} note={copy.thinkingNote} />
                 ) : (
                   <div className="inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3">
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 motion-reduce:animate-none" />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:150ms] motion-reduce:animate-none" />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3/60 [animation-delay:300ms] motion-reduce:animate-none" />
                     {/* 模型在思考时并没有字可吐，明确说清楚在干嘛 */}
-                    <span className="text-xs text-ink-2">正在思考…</span>
+                    <span className="text-xs text-ink-2">{copy.thinking}</span>
                   </div>
                 )}
               </div>
@@ -1146,7 +1168,7 @@ export default function AskPanel({
                     />
                   </div>
                 ) : stream?.thinking ? (
-                  <ThinkingBlock text={stream.thinking} />
+                  <ThinkingBlock text={stream.thinking} note={copy.thinkingNote} />
                 ) : (
                   <>
                     <div className="flex items-center gap-3">
@@ -1214,15 +1236,15 @@ export default function AskPanel({
                 }}
                 rows={1}
                 maxLength={2000}
-                placeholder={pending ? '正在回答中，可以先把下一句打好…' : '问问感情、事业、今年如何…'}
+                placeholder={pending ? copy.placeholderPending : copy.placeholderIdle}
                 className={`chat-input flex-1 ${inputTall ? '!rounded-2xl' : ''}`}
               />
               <button
                 type="button"
                 onClick={() => submit(question)}
                 disabled={!question.trim()}
-                aria-label={pending ? '回答中，点击先排队' : '发送'}
-                title={pending ? '回答中 —— 点击把这句话排到下一条' : '发送'}
+                aria-label={pending ? copy.sendQueueTitle : copy.send}
+                title={pending ? copy.sendQueueTitle : copy.send}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zhu text-white shadow-[0_6px_16px_rgba(61,90,133,0.28)] transition-colors hover:bg-zhu-deep disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
               >
                 {pending ? (
@@ -1237,7 +1259,7 @@ export default function AskPanel({
             </div>
             {queuedText && (
               <p className="mt-1.5 text-2xs text-zhu" role="status">
-                已排队：「{queuedText}」—— 这条回答结束后自动发送
+                {copy.queued(queuedText)}
               </p>
             )}
           </div>
@@ -1287,7 +1309,7 @@ export default function AskPanel({
                   disabled={pending}
                   className={CHIP_CLASS}
                 >
-                  {p.label}
+                  {labelOf(p)}
                 </button>
               ))}
             </div>

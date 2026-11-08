@@ -19,7 +19,7 @@ import {
 import { useLang } from '@/lib/lang';
 import { QUOTA_COPY } from '@/lib/quotaCopy';
 import { useQuotaStatus } from '@/lib/useQuota';
-import LangToggle from './LangToggle';
+import { AI_COPY } from '@/lib/aiCopy';
 
 type TestState =
   | { phase: 'idle' }
@@ -54,6 +54,7 @@ export default function AiConfigPanel({
   const [lang] = useLang();
   const quota = useQuotaStatus();
   const copy = QUOTA_COPY[lang];
+  const ai = AI_COPY[lang];
 
   useEffect(() => {
     const existing = readUserConfig();
@@ -102,9 +103,9 @@ export default function AiConfigPanel({
       fd.set('baseUrl', cfg.baseUrl);
       const r = await fetch('/api/ai-test', { method: 'POST', body: fd });
       const j = (await r.json()) as { ok: boolean; model?: string; error?: string };
-      setTest(j.ok ? { phase: 'ok', model: j.model ?? cfg.model } : { phase: 'fail', error: j.error ?? '未知错误' });
+      setTest(j.ok ? { phase: 'ok', model: j.model ?? cfg.model } : { phase: 'fail', error: j.error ?? ai.unknownError });
     } catch {
-      setTest({ phase: 'fail', error: '请求失败 —— 网络不通或服务暂不可用' });
+      setTest({ phase: 'fail', error: ai.requestFailed });
     }
   };
 
@@ -119,15 +120,14 @@ export default function AiConfigPanel({
   return (
     <div className="rounded-xl border border-line bg-surface p-4" data-ai-config>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-medium tracking-wide text-ink">AI 设置</h3>
+        <h3 className="text-xs font-medium tracking-wide text-ink">{ai.title}</h3>
         <div className="flex items-center gap-1">
-          <LangToggle />
           <button
             type="button"
             onClick={onClose}
             className="inline-flex min-h-8 items-center rounded-md px-2 py-1 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            收起
+            {ai.collapse}
           </button>
         </div>
       </div>
@@ -139,7 +139,7 @@ export default function AiConfigPanel({
             <p className="text-xs leading-relaxed text-ink">{copy.activeUser(savedCfg.model)}</p>
             {dirty && (
               <p className="mt-1 text-2xs text-zhu">
-                表单有未保存的改动 —— 点「保存配置」才会生效。
+                {ai.unsaved}
               </p>
             )}
           </>
@@ -157,8 +157,8 @@ export default function AiConfigPanel({
       {/* 预设：只是快速填充，不代表「正在用」——没保存过配置时一个都不高亮，避免误会 */}
       <p className="mb-2 text-2xs text-ink-2">
         {hasConfig
-          ? '下面是你已保存的 Key（改动后点保存才生效）：'
-          : '想换成自己的 Key？选个预设、填上 Key、保存：'}
+          ? ai.savedKeyIntro
+          : ai.newKeyIntro}
       </p>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
@@ -181,7 +181,7 @@ export default function AiConfigPanel({
       {/* 类型 */}
       <div className="mb-2">
         <label className="field-label" htmlFor="ai-kind">
-          协议类型
+          {ai.kindLabel}
         </label>
         <select
           id="ai-kind"
@@ -189,9 +189,9 @@ export default function AiConfigPanel({
           onChange={(e) => update({ kind: e.target.value as UserProviderKind })}
           className="field-input"
         >
-          <option value="openai">OpenAI 兼容（含 DeepSeek / 智谱 / Kimi / Ollama）</option>
-          <option value="anthropic">Anthropic（Claude）</option>
-          <option value="echo">echo（不联网本地桩，仅调试）</option>
+          <option value="openai">{ai.kindOpenAi}</option>
+          <option value="anthropic">{ai.kindAnthropic}</option>
+          <option value="echo">{ai.kindEcho}</option>
         </select>
       </div>
 
@@ -199,7 +199,7 @@ export default function AiConfigPanel({
       {cfg.kind !== 'echo' && (
         <div className="mb-2">
           <label className="field-label" htmlFor="ai-base-url">
-            API 根地址
+            {ai.baseUrlLabel}
           </label>
           <input
             id="ai-base-url"
@@ -216,7 +216,7 @@ export default function AiConfigPanel({
       {cfg.kind !== 'echo' && (
         <div className="mb-2">
           <label className="field-label" htmlFor="ai-key">
-            API Key
+            {ai.keyLabel}
           </label>
           <input
             id="ai-key"
@@ -234,7 +234,7 @@ export default function AiConfigPanel({
       {cfg.kind !== 'echo' && (
         <div className="mb-2">
           <label className="field-label" htmlFor="ai-model">
-            模型名
+            {ai.modelLabel}
           </label>
           <input
             id="ai-model"
@@ -251,7 +251,7 @@ export default function AiConfigPanel({
       {cfg.kind !== 'echo' && (
         <div className="mb-3">
           <label className="field-label" htmlFor="ai-max-tokens">
-            单次输出上限（token）
+            {ai.maxTokensLabel}
           </label>
           <input
             id="ai-max-tokens"
@@ -263,7 +263,7 @@ export default function AiConfigPanel({
             className="field-input font-mono text-xs"
           />
           <p className="mt-1 text-2xs leading-relaxed text-ink-2">
-            带思维链的模型（MiniMax-M3 / DeepSeek-R1 / QwQ 等）思考 token 与正文共用这份预算，给小了正文会空 —— 这类模型建议 20000 以上。默认 8000。
+            {ai.maxTokensHint}
           </p>
         </div>
       )}
@@ -276,7 +276,7 @@ export default function AiConfigPanel({
           disabled={cfg.kind !== 'echo' && (!cfg.apiKey.trim() || !cfg.model.trim())}
           className="btn-primary !w-auto !px-4 !py-2 disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {saved ? '已保存' : '保存配置'}
+          {saved ? ai.saved : ai.save}
         </button>
         <button
           type="button"
@@ -285,7 +285,7 @@ export default function AiConfigPanel({
           data-ai-test-button
           className="inline-flex min-h-9 items-center rounded-lg border border-zhu/30 bg-zhu-soft/60 px-3 py-2 text-xs text-zhu transition-colors hover:border-zhu disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
         >
-          {test.phase === 'testing' ? '测试中…' : '测试连接'}
+          {test.phase === 'testing' ? ai.testing : ai.test}
         </button>
         {hasConfig && (
           <button
@@ -293,7 +293,7 @@ export default function AiConfigPanel({
             onClick={clear}
             className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
           >
-            清除，改用{serverAiReady ? '内置 AI' : '默认'}
+            {serverAiReady ? ai.clearBuiltin : ai.clearDefault}
           </button>
         )}
       </div>
@@ -301,12 +301,12 @@ export default function AiConfigPanel({
       {/* 测试结果：直接告诉用户 key 有没有效 */}
       {test.phase === 'ok' && (
         <p className="mt-2.5 rounded-lg border border-hua-lu/30 bg-hua-lu/10 px-3 py-2 text-xs text-hua-lu" data-ai-test-ok role="status">
-          ✓ 连通有效 —— 端点返回了模型 {test.model}。保存后追问就走这个 Key（不限量）。
+          {ai.testOk(test.model)}
         </p>
       )}
       {test.phase === 'fail' && (
         <p className="mt-2.5 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs leading-relaxed text-danger" data-ai-test-fail role="alert">
-          ✗ 没连通：{test.error}
+          {ai.testFail(test.error)}
         </p>
       )}
     </div>

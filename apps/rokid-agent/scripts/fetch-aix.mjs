@@ -54,10 +54,24 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794133305274.aix`,
+    md5: '3bf19fa781f34d822050e71a050ef009',
+    note: '2026-11-08 18:21 重打，8.62 MB；含追问超时修复（120s）+ 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版，眼镜运行时已实测不再打 i18next error、端侧引擎正常出盘）',
+    current: true,
+  },
+  {
+    key: 'broken-intl-shim',
+    file: `${AGENT_ID}-1794132724122.aix`,
+    md5: 'f4242402d678714d32b8ab16a15fbedf',
+    note: '2026-11-08 18:12 那一版 —— 端侧引擎带了第一版坏补丁（写 globalThis.Intl），眼镜上 ReferenceError 直接崩引擎，已作废',
+    current: false,
+  },
+  {
+    key: 'prev-headfix',
     file: `${AGENT_ID}-1794128239691.aix`,
     md5: 'be19541710a792b8d69a330280c555d8',
-    note: '2026-11-08 16:57 重打，含追问超时修复（TIMEOUTS.ask 40s→120s），8.61 MB；包内预览视频已是首帧修复版',
-    current: true,
+    note: '2026-11-08 16:57 重打，8.61 MB；含追问超时修复，包内预览视频已是首帧修复版；引擎还没打 Intl.PluralRules 兜底',
+    current: false,
   },
   {
     key: 'prev-submitted',

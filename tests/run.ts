@@ -36,6 +36,7 @@ const SUITE_FILES = [
   'tests/agent_citation.test.ts',
   'tests/rokid_compliance.test.ts',
   'tests/rokid_copyright.test.ts',
+  'tests/rokid_preview.test.ts',
 ];
 
 /** 一个文件跑完的结果 */

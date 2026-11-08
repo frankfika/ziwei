@@ -412,40 +412,69 @@ export const suite = async (t: Tester): Promise<void> => {
       assert.equal(bundle.hourLabel(0), '子时', '打包产物 hourLabel(0) 应为「子时」');
     });
 
-    await t.test('打包产物在缺 Intl.PluralRules 的眼镜运行时（ink WASM）不打 error 日志', () => {
-      // 眼镜的 ink WASM 运行时没有 Intl.PluralRules，而 iztro → i18next 初始化时会打
-      // 一条 error 级日志（「i18next::pluralResolver: Your environment seems not to be
-      // Intl API compatible…」）。排盘结果不受影响，但设备日志面板里一直挂着这条 error，
-      // 看着像本作品有 bug —— 构建期已注入最小 PluralRules 兜底（见 build-engine.mjs 的
-      // RUNTIME_SHIM）。这里钉死两件事：这条 error 必须消失，且排盘结果一个字都不能变。
-      const probe = `
-        delete Intl.PluralRules;
+    await t.test('打包产物在眼镜运行时（ink WASM 没有 Intl）不打 error 日志、且排盘结果不变', () => {
+      // 眼镜的 ink WASM 运行时**没有 Intl**（2026-11-08 实测），而 iztro → i18next
+      // 初始化时会检查 Intl.PluralRules，于是打一条 error 级日志
+      //（「i18next::pluralResolver: Your environment seems not to be Intl API compatible…」）。
+      // 排盘结果不受影响（i18next 会退回 compatibilityJSON v3），但设备日志面板里
+      // 一直挂着这条 error，看着像本作品有 bug —— 构建期已注入最小 PluralRules 兜底
+      //（见 build-engine.mjs 的 RUNTIME_SHIM）。
+      //
+      // 这里钉死三件事：
+      //  ① 缺 Intl.PluralRules 时没有 error；
+      //  ② **连 Intl 整个都没有**时也不能崩（第一版补丁就是栽在这里：
+      //     它写 globalThis.Intl = {}，在眼镜运行时里写完也解析不出裸标识符 Intl，
+      //     直接 ReferenceError 把端侧引擎整个搞挂 → 回落后端 → 404）；
+      //  ③ 两种情况下排盘结果都跟正常环境一模一样。
+      const probe = (env: string) => `
+        ${env === 'no-intl' ? 'delete globalThis.Intl;' : 'delete Intl.PluralRules;'}
         const errs = [];
+        const fatal = [];
         const orig = console.error;
         console.error = (...a) => { errs.push(a.map(String).join(' ')); };
-        const mod = await import(${JSON.stringify(pathToFileURL(ENGINE_BUNDLE).href)});
+        let summary = '';
+        try {
+          const mod = await import(${JSON.stringify(pathToFileURL(ENGINE_BUNDLE).href)});
+          const c = mod.chart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
+          summary = mod.chartSummary(c);
+        } catch (e) {
+          fatal.push(e && e.message ? e.message : String(e));
+        }
         console.error = orig;
-        const c = mod.chart({ year: 1990, month: 1, day: 1, hour: 0, gender: 'male' });
-        process.stdout.write(JSON.stringify({ errs, summary: mod.chartSummary(c) }));
+        process.stdout.write(JSON.stringify({ errs, fatal, summary }));
       `;
-      const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', probe], {
-        encoding: 'utf8',
-      });
-      const parsed = JSON.parse(stdout) as { errs: string[]; summary: string };
 
-      assert.deepEqual(
-        parsed.errs,
-        [],
-        `眼镜运行时仍打出 error 级日志：${parsed.errs.join(' | ')}\n` +
-          '  重新打包：node apps/rokid-agent/scripts/build-engine.mjs',
-      );
+      for (const env of ['no-pluralrules', 'no-intl'] as const) {
+        const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', probe(env)], {
+          encoding: 'utf8',
+        });
+        const parsed = JSON.parse(stdout) as {
+          errs: string[];
+          fatal: string[];
+          summary: string;
+        };
 
-      const birth = { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' };
-      assert.equal(
-        parsed.summary,
-        bundle.chartSummary(bundle.chart(birth)),
-        '缺 Intl.PluralRules 时排盘结果与正常环境不一致（兜底规则必须等价于 i18next 的 v3 fallback）',
-      );
+        assert.deepEqual(
+          parsed.fatal,
+          [],
+          `${env} 环境下端侧引擎直接崩了：${parsed.fatal.join(' | ')}\n` +
+            '  这会让眼镜回落到服务端排盘（ziwei.secondplanet.cc）并 404 —— ' +
+            '重新打包：node apps/rokid-agent/scripts/build-engine.mjs',
+        );
+        assert.deepEqual(
+          parsed.errs,
+          [],
+          `${env} 环境下仍打出 error 级日志：${parsed.errs.join(' | ')}\n` +
+            '  重新打包：node apps/rokid-agent/scripts/build-engine.mjs',
+        );
+
+        const birth = { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' };
+        assert.equal(
+          parsed.summary,
+          bundle.chartSummary(bundle.chart(birth)),
+          `${env} 环境下排盘结果与正常环境不一致（兜底规则必须等价于 i18next 的 v3 fallback）`,
+        );
+      }
     });
 
     for (const c of GOLDEN_CASES) {

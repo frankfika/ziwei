@@ -61,24 +61,31 @@ export const BUILD_OPTIONS = {
  * 放在构建期而不是源码里：它是对**目标运行时**的兼容补丁，
  * 不是排盘逻辑的一部分；源码与软著打印稿保持零改动。
  */
-export const RUNTIME_SHIM = `/* 运行时兼容补丁：Intl.PluralRules 兜底（Rokid ink WASM 无此 API） */
-(function () {
-  if (typeof Intl === 'undefined') {
-    globalThis.Intl = {};
-  }
-  if (typeof Intl.PluralRules === 'function') return;
+export const RUNTIME_SHIM = `/* 运行时兼容补丁：Intl.PluralRules 兜底（Rokid ink WASM 运行时没有 Intl） */
+/* 说明：这里刻意 **不碰任何全局对象**。
+ * 眼镜运行时里 globalThis.Intl = {} 写了也解析不出裸标识符 Intl（实测 ReferenceError），
+ * 所以改成「模块作用域遮蔽」：本文件顶层的 var Intl 会盖住同文件里 i18next 看到的全局 Intl。
+ * 装不上也不会出错 —— i18next 自己会退回 compatibilityJSON v3（对中文恒为 other），
+ * 最坏结果就是多打一条日志，绝不会把端侧引擎搞崩（2026-11-08 实测踩过这个坑）。 */
+var __zwIntlReal =
+  (typeof globalThis !== 'undefined' && globalThis && globalThis.Intl) ||
+  (typeof self !== 'undefined' && self && self.Intl) ||
+  (typeof global !== 'undefined' && global && global.Intl) ||
+  null;
+var Intl = __zwIntlReal || {};
+if (typeof Intl.PluralRules !== 'function') {
   var SINGLE = {
     zh: 1, ja: 1, ko: 1, vi: 1, th: 1, id: 1, ms: 1, my: 1, km: 1, lo: 1,
     en: 1, de: 1, nl: 1, sv: 1, da: 1, no: 1, nb: 1, fi: 1, et: 1, el: 1,
     es: 1, it: 1, hu: 1, tr: 1, sk: 1, sl: 1, hr: 1, sr: 1, bs: 1, ca: 1,
   };
   var ZERO_ONE = { fr: 1, pt: 1 };
-  function category(locale, n) {
+  var category = function (locale, n) {
     var lang = String(locale || 'en').toLowerCase().split(/[-_]/)[0];
     if (SINGLE[lang]) return n === 1 ? 'one' : 'other';
     if (ZERO_ONE[lang]) return n === 0 || n === 1 ? 'one' : 'other';
     return 'other';
-  }
+  };
   Intl.PluralRules = function PluralRules(locales, options) {
     var type = options && options.type === 'ordinal' ? 'ordinal' : 'cardinal';
     this.locales = locales === undefined ? 'en' : locales;
@@ -90,7 +97,7 @@ export const RUNTIME_SHIM = `/* 运行时兼容补丁：Intl.PluralRules 兜底�
       return category(this.locales, Math.abs(Number(n)));
     };
   };
-})();
+}
 `;
 
 /** esbuild 可执行文件 */

@@ -271,8 +271,8 @@ node apps/rokid-agent/scripts/build-engine.mjs --check  # 只核对指纹
 当前产物指纹（2026-11-06 实测）：
 
 ```
-sha256:e094778c4cd3115f73b7b372dca3ed8f317795e244c771765e1b05d4b835b462
-大小：861.7 KB
+sha256:c28b129dd61858189f2937d0275e2cca1a5ccd03d5590d47ec30f150ece6aa67
+大小：862.4 KB
 ```
 
 指纹只覆盖 banner 之后的正文，banner 里写着同一个值——提审材料里写指纹，就是为了让审核方能确认「真机跑的是哪一份产物」。
@@ -518,7 +518,7 @@ This is not a prediction or advice, and is not medical, legal or investment advi
 
 | # | 项 | 验证方式与结果 |
 |---|---|---|
-| 1 | 端侧排盘引擎打包 | `node apps/rokid-agent/scripts/build-engine.mjs --check` → 指纹 `sha256:e094778c…b462`，861.7 KB |
+| 1 | 端侧排盘引擎打包 | `node apps/rokid-agent/scripts/build-engine.mjs --check` → 指纹 `sha256:c28b129d…aa67`，862.4 KB |
 | 2 | 引文检测与降级 | `npm run citation:selftest` → **25/25 通过**，含真实数据回归（1990 年前 200 盘） |
 | 3 | 引文密度实测 | 本机 `data/` 跨年份 200 盘 → 83.4% 段含受限引文；`inline` 降级后无残留 |
 | 4 | 数据集索引完整性 | `data/index` 1950–2026 共 77 年、674,976 条记录，与 Web/CLI 口径一致 |

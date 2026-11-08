@@ -146,27 +146,38 @@
     **逐字复现同一条 error** ⇒ 它由**本作品的包**发出，不是 Studio 运行时。
 - ✅ **排盘结果本身没受影响**：缺 `Intl.PluralRules` 时 i18next 退回 compatibilityJSON v3，
   排盘输出与原生环境**逐字节一致**（4 生辰 × 5 时点 × 3 层运限 = 50 项比对，0 差异）。
-- ✅ **已修**：构建期注入最小 `Intl.PluralRules` 兜底
-  （`apps/rokid-agent/scripts/build-engine.mjs` 的 `RUNTIME_SHIM`）——
-  只在 `Intl.PluralRules` 缺失时补一个最小实现（原生环境一律不动），
-  判定规则与 i18next 的 v3 fallback 对中文/英文等价 ⇒ **排盘输出不变、日志变干净**。
-  放在构建期而不是源码里：它是对**目标运行时**的兼容补丁，不是排盘逻辑，
-  源码与软著打印稿保持零改动。
+- 🔥 **踩坑：第一版补丁把端侧引擎搞挂了（已修）**。
+  第一版补丁写的是 `globalThis.Intl = {}` + 裸标识符 `Intl`——
+  在**眼镜运行时里 `globalThis.Intl` 写完也解析不出裸标识符 `Intl`**，
+  于是 `typeof Intl.PluralRules` 直接 **ReferenceError: Intl is not defined**，
+  整个 `assets/engine.js` 求值失败 ⇒ 端侧引擎加载失败 ⇒ 回落后端排盘 ⇒
+  **HTTP 404（眼镜端没有后端）**。
+  教训：**眼镜运行时里连 `Intl` 整个都没有**（不是「有 Intl 但缺 PluralRules」），
+  而且 `globalThis` 不是那个作用域的全局对象 —— 兼容补丁**不许碰全局**。
+- ✅ **最终修法**：模块作用域遮蔽，**不碰任何全局对象** ——
+  在产物正文最前面声明 `var Intl = <真实 Intl 或 {}>`，
+  同文件里的 i18next 看到的就是这个变量（而不是全局 `Intl`），
+  缺 `PluralRules` 时补一个最小实现（原生环境一律用原生 Intl，行为零变化）。
+  **装不上也不会崩**：i18next 自己会退回 compatibilityJSON v3，最坏只是多打一条日志。
 - ✅ **新增回归测试一条**（`tests/rokid_agent.test.ts`）：
-  「打包产物在缺 Intl.PluralRules 的眼镜运行时（ink WASM）不打 error 日志」——
-  子进程里删掉 `Intl.PluralRules` 再加载产物，断言 **0 条 error** 且排盘摘要不变。
+  「打包产物在眼镜运行时（ink WASM 没有 Intl）不打 error 日志、且排盘结果不变」——
+  子进程里分别删掉 `Intl.PluralRules` 与**整个 `globalThis.Intl`** 再加载产物，
+  断言 **不抛异常** + **0 条 error** + 排盘摘要与正常环境一致。
 - 📌 **顺带查明一件不是 bug 的事**：仓库里已提交的 `assets/engine.js` 与当前 lockfile
   （iztro 2.6.3）重新打包出来的产物**字节不一致**（旧产物是更早的 iztro 打的），
   但**行为逐项一致**（50 项比对 0 差异 + 9 份金标准盘整对象 deepEqual）——
   所以旧包里的引擎**没有算错**，只是字节不可复现。
 - 📦 **引擎产物指纹变了**（补丁在产物正文最前面，指纹覆盖它）：
-  `sha256:e094778c…b462` / **861.7 KB（882,366 B）**
-  （原 `sha256:b02dc5de…135d` / 859.9 KB）。
+  `sha256:c28b129d…aa67` / **862.4 KB（883,063 B）**
+  （修补前的 `sha256:b02dc5de…135d` / 859.9 KB）。
   README / PROPOSAL / DEVICE-CHECKLIST / HANDOVER / faq / PPT 生成脚本已同步。
 - ⚠️ **软著材料不受影响**：`assets/engine.js` 是打包产物、**不进源程序打印稿**；
-  说明书里的「约 860 KB」在新旧体积下都成立（859.9 KB → 861.7 KB），**无需重生成**。
+  说明书里的「约 860 KB」在新旧体积下都成立（859.9 KB → 862.4 KB），**无需重生成**。
+- 🚨 **作废一个包**：`bcdceff1163f4e6e8dea474d03b5f0c9-1794132724122.aix`（18:12 打的）
+  **含第一版坏补丁，眼镜上端侧引擎会挂 —— 已作废，不要装、不要提审**。
 - 🔁 **待办**：本轮改了 `apps/rokid-agent/`（引擎产物 + 构建脚本），
-  **需要重新导入工程 → 重新打包 → 重新核验**，再由 Frank 拍板要不要重提商店审核。
+  **需要重新导入工程 → 模拟器复验 → 重新打包 → 重新核验**，
+  再由 Frank 拍板要不要重提商店审核。
 
 **2026-11-07 第二轮新增（已实测）**：
 

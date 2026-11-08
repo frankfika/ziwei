@@ -192,7 +192,6 @@ export async function POST(request: Request) {
               send({ type: 'not-covered', message: ev.message });
               return;
             } else {
-            } else {
               // provider 级错误：重试解决不了，直接报（原始报错只进日志）
               console.error('[ask] provider error:', ev.message);
               send({ type: 'error', message: PROVIDER_ERROR_USER_MESSAGE });

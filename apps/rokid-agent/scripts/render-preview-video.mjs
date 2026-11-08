@@ -421,6 +421,14 @@ async function renderVideo(scenes, outFile, fps) {
   const { chromium } = requireGlobal('playwright');
   const browser = await chromium.launch();
   let frameCount = 0;
+  /**
+   * 丢掉最前面 0.45 秒。
+   *
+   * 为什么：时间线的第 0 帧页面还没把盘面画出来，是一张**全黑**的图 ——
+   * 提审页的预览素材缩略图取的就是首帧，黑色缩略图在商店里很难看。
+   * 所以从第 0.45 秒开始取帧（那时盘面已经画完），成片第一帧就是完整盘面。
+   */
+  const startFrame = Math.round(0.45 * fps);
   try {
     const page = await browser.newPage({
       viewport: { width: CANVAS_W, height: CANVAS_H },
@@ -429,7 +437,7 @@ async function renderVideo(scenes, outFile, fps) {
     await page.goto(`file://${htmlPath}`, { waitUntil: 'networkidle' });
 
     const total = Math.round(totalSeconds * fps);
-    for (let i = 0; i < total; i += 1) {
+    for (let i = startFrame; i < total; i += 1) {
       const t = i / fps;
       await page.evaluate((tt) => window.__seek(tt), t);
       await page.screenshot({ path: path.join(framesDir, `f${String(i).padStart(5, '0')}.png`) });
@@ -444,6 +452,8 @@ async function renderVideo(scenes, outFile, fps) {
     [
       '-y',
       '-framerate', String(fps),
+      // 取帧从 startFrame 开始，ffmpeg 要跟着从这一张读，否则找不到 f00000.png
+      '-start_number', String(startFrame),
       '-i', path.join(framesDir, 'f%05d.png'),
       '-c:v', 'libx264',
       '-preset', 'slow',

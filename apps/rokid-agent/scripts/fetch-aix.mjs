@@ -54,10 +54,17 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794105155119.aix`,
+    md5: '5c548ed6260dcae43e4389024894b135',
+    note: '2026-11-08 10:33 重打，含追问超时修复（TIMEOUTS.ask 40s→120s），8.96 MB',
+    current: true,
+  },
+  {
+    key: 'no-timeout-fix',
     file: `${AGENT_ID}-1794100520699.aix`,
     md5: 'a88725d8862ee7a60dca2b74ec59a33b',
-    note: '2026-11-08 按最新代码重打，2.07 MB',
-    current: true,
+    note: '2026-11-08 10:08 那一版 —— 含「追问超时 40s」的老 bug，已作废',
+    current: false,
   },
   {
     key: 'stale',
@@ -138,6 +145,52 @@ function deepEqual(a, b) {
 /** 动态 import 一个 ESM 模块 */
 async function load(absPath) {
   return import(pathToFileURL(absPath).href);
+}
+
+/**
+ * 从 api.js 源码里抠出「追问超时」的毫秒数。
+ *
+ * 为什么用正则抠、而不是 import 进来读 TIMEOUTS.ask：
+ *   包内代码被「资源优化 等级2」压过，数值会变成科学计数法
+ *   （40 秒写成 `ask:4e4`，120 秒写成 `ask:12e4`），
+ *   而且包内文件不一定能被 Node 当 ESM 加载。
+ *   正则 + Number() 对两种写法都成立（Number('4e4') === 40000）。
+ */
+function extractAskTimeout(src) {
+  const m = src.match(/ask\s*:\s*([0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?)/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * 核对「包里的追问超时」与「仓库源码」一致。
+ *
+ * 这条是 2026-11-08 加的：眼镜端 TIMEOUTS.ask 从 40s 提到 120s
+ * （原值比服务端先放弃，实测 /api/agent/ask 真实耗时 41.0s / 49.3s / 16.4s / 23.8s），
+ * 这个修复**必须确认进了包** —— 否则装到眼镜上追问还是会随机失败。
+ */
+function checkAskTimeout(pkgRoot) {
+  const pkgSrc = readFileSync(path.join(pkgRoot, 'lib/api.js'), 'utf8');
+  const repoSrc = readFileSync(path.join(REPO_ROOT, 'apps/rokid-agent/lib/api.js'), 'utf8');
+  const pkgVal = extractAskTimeout(pkgSrc);
+  const repoVal = extractAskTimeout(repoSrc);
+  if (pkgVal === null || repoVal === null) {
+    return { ok: false, message: `追问超时抠不出来：包内 ${pkgVal}，仓库 ${repoVal}` };
+  }
+  if (pkgVal !== repoVal) {
+    return {
+      ok: false,
+      message: `追问超时不一致：包内 ${pkgVal}ms，仓库 ${repoVal}ms —— 包不是最新代码`,
+    };
+  }
+  if (pkgVal < 120000) {
+    return {
+      ok: false,
+      message: `追问超时 ${pkgVal}ms 低于修复后的 120000ms —— 包里是修超时之前的老代码`,
+    };
+  }
+  return { ok: true, value: pkgVal };
 }
 
 /**
@@ -269,6 +322,7 @@ async function main() {
       'lib/birth-source.js',
       'lib/chart-layout.js',
       'lib/chart-source.js',
+      'lib/api.js',
       'assets/engine.js',
       'META-INF/aix/manifest.json',
     ];
@@ -290,6 +344,14 @@ async function main() {
       process.exit(1);
     }
     console.log(`✓ index.ink 行数一致（${pkgInkLines}）`);
+
+    // ── 追问超时必须一致（证明包里带了 2026-11-08 的超时修复）──
+    const askCheck = checkAskTimeout(root);
+    if (!askCheck.ok) {
+      console.error(`\n✗ ${askCheck.message}`);
+      process.exit(1);
+    }
+    console.log(`✓ 追问超时一致（${askCheck.value}ms）—— 包里带了超时修复`);
 
     // ── 行为等价 ──
     const { problems, checks } = await compareBehaviour(root);

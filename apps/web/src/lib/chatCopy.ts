@@ -37,6 +37,8 @@ export interface ChatCopy {
   archivedLabel: string;
   profileAiAria: string;
   conversationsOf: (name?: string) => string;
+  noConversationsHint: string;
+  currentChart: string;
   msgCount: (n: number) => string;
   today: string;
   yesterday: string;
@@ -171,6 +173,8 @@ const ZH: ChatCopy = {
   archivedLabel: '已归档',
   profileAiAria: '档案与 AI',
   conversationsOf: (name) => (name ? `${name}的对话` : '对话'),
+  noConversationsHint: '还没有对话。挑一个话题开始，或自由聊聊。',
+  currentChart: '当前这张盘',
   msgCount: (n) => `${n} 条`,
   today: '今天',
   yesterday: '昨天',
@@ -267,6 +271,8 @@ const EN: ChatCopy = {
   archivedLabel: 'Archived',
   profileAiAria: 'Profiles & AI',
   conversationsOf: (name) => (name ? `${name}’s conversations` : 'Conversations'),
+  noConversationsHint: 'No conversations yet. Pick a topic to start, or just chat.',
+  currentChart: 'Current chart',
   msgCount: (n) => `${n}`,
   today: 'today',
   yesterday: 'yesterday',

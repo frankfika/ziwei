@@ -616,13 +616,7 @@ export default function AskPanel({
       onClick={toggleDeepThink}
       aria-pressed={deepThink}
       title={copy.deepThinkTitle}
-      className={
-        'shrink-0 ' +
-        CHIP_CLASS +
-        (deepThink
-          ? ' border-zhu/50 text-ink'
-          : ' border-line text-ink-2 opacity-70')
-      }
+      className="inline-flex items-center gap-1.5 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
     >
       {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
     </button>
@@ -766,10 +760,14 @@ export default function AskPanel({
                   aria-label={copy.manageAria}
                   className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[72dvh] overflow-y-auto rounded-xl border border-line bg-surface p-3.5 shadow-[0_12px_40px_rgba(28,35,51,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:pb-[max(env(safe-area-inset-bottom),12px)]"
                 >
-                  {/* 这张盘下的全部话题对话 */}
-                  {threads.length > 0 && (
-                    <section aria-label={copy.conversationsOf()}>
-                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
+                  {/* ① 对话：当前盘下的所有话题 */}
+                  <section aria-label={copy.conversationsOf()}>
+                    <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
+                    {threads.length === 0 ? (
+                      <p className="px-1 text-2xs leading-relaxed text-ink-3">
+                        {copy.noConversationsHint}
+                      </p>
+                    ) : (
                       <ul>
                         {threads.map((t) => {
                           const isActive = t.id === activeId;
@@ -797,46 +795,46 @@ export default function AskPanel({
                           );
                         })}
                       </ul>
-                    </section>
-                  )}
+                    )}
 
-                  {/* 已归档：收起成一行，展开后点选即恢复 */}
-                  {archivedThreads.length > 0 && (
-                    <section aria-label={copy.archivedLabel} className="mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowArchived((v) => !v)}
-                        aria-expanded={showArchived}
-                        className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
-                      >
-                        {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
-                      </button>
-                      {showArchived && (
-                        <ul>
-                          {archivedThreads.map((t) => (
-                            <li key={t.id}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  unarchiveThread(t.id);
-                                  handleSelectThread(t.id);
-                                  setSheetOpen(false);
-                                }}
-                                className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
-                              >
-                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
-                                <span className="shrink-0 text-2xs text-ink-3">
-                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
-                                </span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-                  )}
+                    {/* 已归档：收起成一行，展开后点选即恢复 */}
+                    {archivedThreads.length > 0 && (
+                      <section aria-label={copy.archivedLabel} className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowArchived((v) => !v)}
+                          aria-expanded={showArchived}
+                          className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
+                        >
+                          {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
+                        </button>
+                        {showArchived && (
+                          <ul>
+                            {archivedThreads.map((t) => (
+                              <li key={t.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    unarchiveThread(t.id);
+                                    handleSelectThread(t.id);
+                                    setSheetOpen(false);
+                                  }}
+                                  className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
+                                >
+                                  <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
+                                  <span className="shrink-0 text-2xs text-ink-3">
+                                    {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                  </section>
 
-                  {/* 开个新话题：话题即对话，点一张签就开一段新对话 */}
+                  {/* ② 开个新话题：话题即对话，点一张签就开一段新对话 */}
                   <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
                     <p className="mb-1.5 px-1 text-2xs text-ink-3">{copy.newTopic}</p>
                     <div className="flex flex-wrap gap-1.5">
@@ -868,15 +866,16 @@ export default function AskPanel({
                     </div>
                   </section>
 
-                  {/* 宿主页内容：档案切换 / 新建 / 合盘 / AI 状态 / 语言 */}
+                  {/* ③ 当前这张盘：档案信息（宿主页提供） */}
                   {sheetExtra && (
-                    <section aria-label={copy.profileAiAria} className="mt-3 border-t border-lineSoft pt-3">
+                    <section aria-label={copy.currentChart} className="mt-3 border-t border-lineSoft pt-3">
+                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.currentChart}</p>
                       {sheetExtra}
                     </section>
                   )}
 
-                  {/* 深度思考 + 当前对话操作 */}
-                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-lineSoft pt-3">
+                  {/* ④ 当前对话的次要操作 */}
+                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-lineSoft pt-3">
                     {deepThinkChip}
                     {messages.length > 0 && (
                       <button
@@ -884,7 +883,7 @@ export default function AskPanel({
                         onClick={() => {
                           if (window.confirm(copy.clearConfirm)) clear();
                         }}
-                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        className="text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
                         {copy.clearThread}
                       </button>
@@ -897,7 +896,7 @@ export default function AskPanel({
                           handleNewThread();
                         }}
                         title={copy.archiveTitle}
-                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        className="text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
                         {copy.archiveThread}
                       </button>

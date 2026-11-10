@@ -21,7 +21,7 @@
 - **端侧确定性排盘**：十二宫安星、五行局、大限/流年/流月全部由固定规则算出，**不允许模型代算**。
 - **服务端数据集原文检索解读**：13 维解读正文来自 674,976 盘开源数据集（CC BY 4.0），
   **不允许模型凭空生成**。
-- **眼镜原生交互**：头部准星二维选宫 → 抬头低头上下切宫 → 镜腿按键永远兜底。
+- **眼镜原生交互**：头部准星二维选宫 → 抬头低头选宫 → 镜腿手势永远兜底（滑动巡宫 / 轻点确认 / 连点两下切层）。
 - **时间层（运限）**：本命 / 大限 / 流年 / 流月四层可循环切换 —— 这是**复访理由**
   （本命盘静态，运限每月都变）。
 
@@ -54,20 +54,26 @@
 |---|---|
 | `apps/rokid-agent/lib/time-layer.js` | `buildTimeLayers` / `nextLayerKey` / `currentLunarOf` / `detectLayer` / `focusFromQuestion` / `fortuneSiHuaOf` / `fortuneSiHuaText` |
 | `apps/rokid-agent/lib/chart-layout.js` | 运限四化优先渲染、`fortuneShort` 运限宫名小标、`RING_ORDER` + `stepRing` 外圈巡宫、`speakableStars` 朗读文本、宫名归一 |
-| `apps/rokid-agent/pages/index/index.ink` | 上下键切层、中宫 7 行改版、追问带时间层焦点、切层语音播报 |
+| `apps/rokid-agent/pages/index/index.ink` | 手势分发（滑动选宫 / 轻点确认 / 连点两下切层）、中宫 7 行改版、追问带时间层焦点、切层语音播报 |
 | `apps/rokid-agent/lib/chart-source.js` | `resolveChart` 返回 `{ chart, source, engine }`（运限层要端侧引擎） |
-| `tests/rokid_agent.test.ts` | 47 → **67 项**（+17 时间层，+3 按键去抖）；**2026-11-11 起**：按键去抖的 `/lib/key-guard.js` 已被镜腿输入契约 `/lib/temple-input.js` 取代（归一化 + 配对 + `GlobalHook` 延迟确认），G 组整组重写 |
+| `tests/rokid_agent.test.ts` | 47 → **67 项**（+17 时间层，+3 按键去抖）；**2026-11-11 起**：按键去抖的 `/lib/key-guard.js` 已被镜腿输入契约 `/lib/temple-input.js` 取代（归一化 + 配对 + `GlobalHook` 延迟确认 + 方向键配对吸收 + 双击判别），G 组整组重写；**商店驳回后**又补 12 条手势契约用例，并新增 `apps/rokid-agent/scripts/simulate-interaction-chain.mjs`（24 条页面级手势回归） |
 
-**最终键位映射（全模式一致）**：
+**最终手势映射（全模式一致，2026-11-11 按真机实测重做）**：
 
-- **左右键**：沿**盘面外圈**巡宫，十二宫全覆盖。外圈 = 巳午未申酉戌亥子丑寅卯辰，
-  恰好是**十二宫序**的反向；`+1` 恰好等于地支 `+1`，与「抬头低头切宫」同向。
-- **上下键**：切换时间层（本命→大限→流年→流月→本命）。
-  **唯一例外**：端侧引擎没加载（走了服务端兜底、压根没有运限层）时退回纵向选宫。
-- **确认键（Enter）**：听当前宫解读 / 追问。
-- **返回键（Backspace）**：退出。
+⚠️ 镜腿在真机上**只有手势，没有独立按键**：一次滑动发**一对**方向键
+（前滑 `ArrowRight`+`ArrowDown`，后滑 `ArrowLeft`+`ArrowUp`），上下键只是配对键。
+商店 v1.0.11 正是因为旧映射「左右选宫 / 上下切层」在真机上不成立而被驳回。
+
+- **镜腿前后滑动**：沿**盘面外圈**巡宫，十二宫全覆盖。外圈 = 巳午未申酉戌亥子丑寅卯辰，
+  恰好是**十二宫序**的反向；`+1` 恰好等于地支 `+1`，与「抬头低头选宫」同向。
+- **轻点一下镜腿**（`GlobalHook` → 550~600ms 后补发 `Enter`）：听当前宫解读 / 追问。
+- **连点两下镜腿**（`GlobalHook`×2 → 补发 `Backspace`）：切换时间层（本命→大限→流年→流月→本命）。
+  **唯一例外**：端侧引擎没加载（走了服务端兜底、压根没有运限层）时没有反应。
+- **返回键**（裸 `Backspace`）：退出 / 关闭浮层（盘面态是「重新说生辰」）。
 - **准星**（AbsoluteOrientationSensor）二维选宫 = 主交互；
-  **抬头低头**（Accelerometer）上下切宫 = 兜底。
+  **抬头低头**（Accelerometer）俯仰选宫 = 兜底。
+- 四个方向键**一律同义**（`Left`/`Up` 上一档、`Right`/`Down` 下一档），
+  因为真机一次滑动里两个键的**到达顺序不保证**。
 
 **标签与前缀**：大限 `大限 32–41 岁` / 流年 `流年 丙午 2026` / 流月 `流月 九月 戊戌`；
 运限四化带前缀（大限「限禄」、流年流月「流禄」），本命四化在运限层**整层隐藏**
@@ -93,7 +99,7 @@
 | 1 | 流月层标签写「流月 腊月」，而用户当下在九月 | 用了 `chart.lunar.lunarMonth` —— 那是**出生时**的农历月 | 1990-01-01 生 → 农历腊月；今天农历九月廿八（`lunar-javascript` 独立换算核对） |
 | 2 | 人际维度的解读永远取不到（静默退回总览） | 映射表写「交友宫」，引擎盘上却是「仆役宫」（两套叫法） | `chart().palaces[6].name === '仆役宫'` |
 | 3 | 运限层里本命四化盖住运限四化 | `formatStar` 实现是「层四化优先，否则回落本命」 | 单测断言 `formatStar({name:'紫微',siHua:'禄'}, fortune) === '紫微'` |
-| 4 | 界面写着「单击…双击返回」，按了没反应 | 工程里**没有任何 tap/dblclick 处理** | `grep tap\|dblclick` 全工程 0 命中 |
+| 4 | 界面写着「单击…双击返回」，按了没反应 | **已修复（2026-11-11）**：镜腿手势走 `lib/temple-input.js` 契约层，轻点 / 连点两下都有实现 | `lib/temple-input.js` 的 `ACTION.DOUBLE` + `pages/index/index.ink` 的 `_dispatchKey`；单测与 `scripts/simulate-interaction-chain.mjs` 双向钉死 |
 | 5 | 「端侧计算」那行几乎看不见 | `#174526` 深绿，对比度仅 2.1:1 | 实测 computed color |
 | 6 | TTS 把「紫微(限禄)」带括号念出来 | 直接把屏幕文本丢给 TTS | 新增 `speakableStars` |
 
@@ -138,8 +144,8 @@ cd /tmp/aix-gjRL && npx aix check /Users/fangchen/Baidu/GitHub/ziwei/apps/rokid-
 ### 6.2 眼镜真机零验证 —— 最大风险项
 
 「作品完成度」在总分里**被算两遍**（评委榜 20% + 用户使用榜 20%）。
-未验证项：传感器轴向、tilt 的 `axis`/`signFlip`、镜腿 `event.code` 实际键值、
-TTS 音质、**新加的上下键切层与外圈巡宫手感**、运限层实际渲染效果。
+未验证项：传感器轴向、tilt 的 `axis`/`signFlip`、镜腿 `event.code` 实际键值与**各手势的间隔**、
+TTS 音质、**连点两下切层与滑动巡宫的手感**、运限层实际渲染效果。
 
 ### 6.3 生产接口 —— **不再是阻塞**（2026-11-06 22:40 部署完成，2026-11-07 复测通过）
 
@@ -294,7 +300,7 @@ curl -s -X POST -H 'content-type: application/json' \
 1. 三个接口已部署并验证通过（第 6.3 / 第 7 节）；接下来是**在眼镜上实测解读与追问这条链路**（按 `submit-kit/compliance-checklist.md` 第五节逐项过）。
 2. 同时发 `MAIL-TO-ROKID.md` 给官方（先定署名），问「在审期间能否预登记 + 审核时长」。
 3. 启动软著登记（第 9 节第 2 项，周期最长）。
-4. 借真机：按 `submit-kit/compliance-checklist.md` 逐项验（含时间层渲染、上下键手感、外圈巡宫手感），
+4. 借真机：按 `submit-kit/compliance-checklist.md` 逐项验（含时间层渲染、连点两下手感、滑动巡宫手感），
    拍提审用 1 图 + 1 视频。
 5. 认证一过 → 提审上架 → 社区发帖。
 

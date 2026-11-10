@@ -157,6 +157,28 @@ export const suite: SuiteFn = async (t) => {
     if (!runbook.includes('返回键')) throw new Error('SUBMIT-RUNBOOK.md 没写明模拟器缺方向键/返回键');
   });
 
+  // ── ⑧ 预览素材的渲染脚本不得残留旧键位映射 ──
+  // 那套「确认键听解读 / 上下切层 / 左右选宫」正是被商店驳回的映射。
+  // 预览图与预览视频是**烘焙进 PNG/MP4 的像素**，改脚本不重渲染，素材里就还留着。
+  await t.test('预览素材脚本里没有旧键位映射（那套已被商店驳回）', () => {
+    const scripts = [
+      path.join(AGENT_DIR, 'scripts/render-board-preview.mjs'),
+      path.join(AGENT_DIR, 'scripts/render-preview-video.mjs'),
+    ];
+    for (const p of scripts) {
+      if (!existsSync(p)) continue;
+      const text = readFileSync(p, 'utf8');
+      for (const stale of ['确认键听解读', '上下切层', '左右选宫']) {
+        if (text.includes(stale)) {
+          throw new Error(
+            `${path.basename(p)} 仍写着旧键位映射「${stale}」—— 这套映射已被商店驳回，` +
+              `提审素材不能带；改完脚本要重新渲染 PNG/MP4`,
+          );
+        }
+      }
+    }
+  });
+
   // ── ⑥ 文档里出现的每一个 AIX 包名都必须在白名单里 ──
   // 起因：2026-11-08 发现文档里把旧包名写成了 `...03b50c9-...`（少一个 f），
   // 那个地址在 CDN 上是 404 —— 照着文档去取包的人会拿到「文件不存在」。

@@ -1511,6 +1511,29 @@ export const suite = async (t: Tester): Promise<void> => {
       }
     });
 
+    await t.test('中宫提示行不重复（只输出 navHint 一次）', () => {
+      /**
+       * 回归：模板曾写成 `<text class="center-hint">单击听解读　{{navHint}}</text>`，
+       * 而 `navHint` 本身就是「滑动选宫　单击听解读　双击切层」⇒ 渲染出来是
+       * 「单击听解读　滑动选宫　单击听解读　双击切层」—— 同一个手势在提示行里出现两次，
+       * 而且中宫这行只有 220px，重复字会把「双击切层」挤掉。
+       */
+      assert.ok(
+        ink.includes('<text class="center-hint">{{navHint}}</text>'),
+        '中宫提示行应只输出 {{navHint}}，模板里不要再拼一段固定前缀'
+      );
+      assert.ok(
+        !ink.includes('center-hint">单击听解读'),
+        '中宫提示行不该再硬写「单击听解读」前缀'
+      );
+      // 兜底值（引擎就绪前显示的那一档）也必须是新手势口径 ——
+      // 旧值「左右选宫　上下切层」正是被商店驳回的那套映射。
+      assert.ok(
+        !/navHint:\s*'[^']*上下切层/.test(ink),
+        'navHint 兜底值不该再出现「上下切层」'
+      );
+    });
+
     await t.test('时间层接线完整（双击切层 + 运限层渲染）', () => {
       // 只写规范不写代码 = 装饰。这里盯住接线点真的在页面里。
       for (const needle of [

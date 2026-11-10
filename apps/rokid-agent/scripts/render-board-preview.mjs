@@ -87,7 +87,7 @@ async function main() {
       <text class="center-line strong">${esc(activeCell?.name ?? '')}</text>
       <text class="center-role">${esc(activeCell?.fortuneShort ?? '')}</text>
     </view>
-    <text class="center-hint">确认键听解读　左右选宫　上下切层</text>
+    <text class="center-hint">滑动选宫　单击听解读　双击切层</text>
     <text class="center-hint dim">头部准星　端侧计算</text>
   </view>`;
 

@@ -188,7 +188,7 @@ ${cellHtml}
           <text class="center-line strong">${esc(d.selectedName)}</text>
 ${role}
         </view>
-        <text class="center-hint">确认键听解读　${esc(d.navHint)}</text>
+        <text class="center-hint">${esc(d.navHint)}</text>
         <text class="center-hint dim">${esc(d.statusLine)}</text>
 ${d.demoLabel ? `        <text class="center-hint demo">${esc(d.demoLabel)}</text>` : ''}
       </view>

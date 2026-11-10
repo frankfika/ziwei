@@ -164,8 +164,8 @@ export default {
         layerRole: '',
         /** 运限层是否可用（端侧引擎没加载时不可用） */
         layersReady: false,
-        /** 键位提示（随能力变） */
-        navHint: '左右选宫　上下切层',
+        /** 键位提示（随能力变）；引擎就绪前用最保守的一档，见 _navHint() */
+        navHint: '滑动选宫　单击听解读',
         sourceLabel: '',
         sensorLabel: '',
         /** 中宫状态行（传感器通道 + 计算来源），见 _statusLine() */
@@ -782,7 +782,7 @@ _stepPalace(delta) {
 
             this._sensorMode = 'cursor';
             this.setData({
-                sensorLabel: '准星',
+                sensorLabel: '头部准星',
                 navHint: this._navHint(),
                 statusLine: this._statusLine()
             });
@@ -1154,7 +1154,7 @@ _stepPalace(delta) {
                 <text class="center-line strong">{{selectedName}}</text>
                 <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
             </view>
-            <text class="center-hint">单击听解读　{{navHint}}</text>
+            <text class="center-hint">{{navHint}}</text>
             <text class="center-hint dim">{{statusLine}}</text>
             <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
         </view>

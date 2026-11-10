@@ -164,6 +164,7 @@ export const suite: SuiteFn = async (t) => {
     const scripts = [
       path.join(AGENT_DIR, 'scripts/render-board-preview.mjs'),
       path.join(AGENT_DIR, 'scripts/render-preview-video.mjs'),
+      path.join(AGENT_DIR, 'scripts/simulate-first-launch.mjs'),
     ];
     for (const p of scripts) {
       if (!existsSync(p)) continue;

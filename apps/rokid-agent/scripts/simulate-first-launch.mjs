@@ -174,7 +174,7 @@ function renderHtml(page) {
         <text class="center-line strong">${esc(page.data.selectedName)}</text>
 ${role}
       </view>
-      <text class="center-hint">确认键听解读　${esc(page.data.navHint)}</text>
+      <text class="center-hint">${esc(page.data.navHint)}</text>
       <text class="center-hint dim">${esc(page.data.statusLine)}</text>
 ${
   page.data.demoLabel

@@ -118,6 +118,25 @@ async function press(page, code, waitMs = 420) {
   page.onKeyUp({ code, preventDefault() {} });
 }
 
+/**
+ * 双击（= 切时间层）。
+ *
+ * 契约见 `apps/rokid-agent/lib/temple-input.js`：
+ *   双击 = `GlobalHook` ×2（约 200ms 间隔）→ 补发 `Backspace`。
+ *
+ * ⚠️ **两次 GlobalHook 的间隔必须小于 settleMs（300ms）**：
+ * 间隔一旦超过挂起窗口，挂起会先到期 → 误确认一次 → 解读浮层自己弹出来。
+ * （真机双击间隔约 200ms，模拟器这里用 120ms 留足余量。）
+ */
+async function doubleTap(page) {
+  await new Promise((r) => setTimeout(r, 420));
+  page.onKeyUp({ code: 'GlobalHook', preventDefault() {} });
+  await new Promise((r) => setTimeout(r, 120));
+  page.onKeyUp({ code: 'GlobalHook', preventDefault() {} });
+  await new Promise((r) => setTimeout(r, 120));
+  page.onKeyUp({ code: 'Backspace', preventDefault() {} });
+}
+
 async function waitFor(predicate, timeoutMs = 20000, label = '') {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -262,8 +281,16 @@ async function collectScenes() {
   // 场景 F：关掉浮层，切到运限层（运限小标出现 = 四层时间层的证据）
   await press(page, 'Backspace');
   await waitFor(() => page.data.overlay === '', 3000, '浮层关闭');
+  /**
+   * 切层 = **双击**（`GlobalHook`×2 → `Backspace`）。
+   *
+   * ⚠️ 旧写法是「连按 4 次 `ArrowUp`」—— 那套映射（上下键切层）在真机上不成立：
+   * 真机一次滑动发的是**一对**方向键，上下键只是配对键，
+   * 拿它切层等于一次滑动同时触发「切宫 + 切层」两个动作域
+   * —— 正是评审说的「arrow 滑动事件问题 / 焦点切换问题」。
+   */
   for (let i = 0; i < 4; i += 1) {
-    await press(page, 'ArrowUp');
+    await doubleTap(page);
     if (page.data.layerKey === 'liunian') break;
   }
   if (page.data.layerKey !== 'liunian') {

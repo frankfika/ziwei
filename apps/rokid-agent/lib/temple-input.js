@@ -14,7 +14,15 @@
  * 2. **一次滑动 = 先 GlobalHook，50~120ms 后才来方向键**
  *    （FlexiLingo v0.5.74 真机实测）。
  *    所以「把 GlobalHook 当点按」会让一次滑动同时触发「移动 + 确认」。
- *    契约必须是：**GlobalHook 挂起 ~180ms，期间方向键到达就取消这次确认。**
+ *    契约必须是：**GlobalHook 挂起 ~300ms，期间方向键到达就取消这次确认。**
+ *
+ * 2b. **一次单击 = 先 GlobalHook，550~600ms 之后宿主才补发 `Enter`**
+ *    （言值项目真机实测，2026-11 已上架 Rokid 商店）。
+ *    也就是说 **`GlobalHook` 到达 ≠ 点按成立** —— 真机上「滑动」和「单击」的
+ *    头部都是 GlobalHook，只能靠后续事件区分：
+ *      · 50~120ms 内来方向键 ⇒ 滑动；
+ *      · 550~600ms 后来 `Enter` ⇒ 单击（补发的确认键，**不重复执行**）。
+ *    之前按 180ms 挂起 + 350ms 冷却，真机上必然「点一次跳两页」。
  *
  * 3. **GlobalHook 不携带可靠的「单击 / 滑动」分类**（词境项目真机结论）。
  *    所以判定只能靠时序启发式，不能靠字段。
@@ -46,7 +54,15 @@ export const ACTION = Object.freeze({
     CONFIRM: 'confirm',
     BACK: 'back',
     /** 镜腿触摸（真机上「点按」的载体，需要延迟判定才能知道是不是滑动） */
-    TEMPLE: 'temple'
+    TEMPLE: 'temple',
+    /**
+     * **双击**（镜腿双击）。
+     *
+     * 真机与模拟器都是「`GlobalHook` 若干次 → 补发 `Backspace`」，
+     * 与物理返回键（裸 `Backspace`）在键值上分不开 ——
+     * 靠「前置有没有 `GlobalHook`」来区分，见 `doubleTapWindowMs`。
+     */
+    DOUBLE: 'double'
 });
 
 /** 动作 → 界面上的一个字（调试行用，省地方） */
@@ -57,7 +73,8 @@ export const ACTION_GLYPH = Object.freeze({
     [ACTION.RIGHT]: '→',
     [ACTION.CONFIRM]: '确认',
     [ACTION.BACK]: '返回',
-    [ACTION.TEMPLE]: '镜腿'
+    [ACTION.TEMPLE]: '镜腿',
+    [ACTION.DOUBLE]: '双击'
 });
 
 /* ------------------------------------------------------------------ *
@@ -68,11 +85,10 @@ export const ACTION_GLYPH = Object.freeze({
  * 契约参数。
  *
  * - `settleMs` —— GlobalHook 挂起窗口。
- *   取 180ms：FlexiLingo 用 ~180ms，词境用 ~200ms；
- *   真机上滑动到方向键的间隔是 50~120ms，180ms 能稳稳盖住，
- *   又短到用户感觉不到「点按有延迟」。
+ *   取 **300ms**：真机上「滑动 → 方向键」是 50~120ms，
+ *   「单击 → 补发 Enter」是 550~600ms，300 刚好把两者分开。
  * - `cooldownMs` —— 确认后的冷却。
- *   盖住同一次点按的回声上报（GlobalHook + Enter 两种通道同时来）。
+ *   必须盖住补发 `Enter` 的延迟（550~600ms），否则一次点按会执行两次。
  * - `repeatWindowMs` —— 同方向键「按下」事件的最短间隔。
  *   挡滑动轨迹抖动（同一次滑动会连着报好几个 down）；
  *   比它长的两次真实按压都放行。
@@ -81,13 +97,93 @@ export const ACTION_GLYPH = Object.freeze({
  *   超过这个窗口还没等到配对抬起，就当它不存在，下一次按压照常执行。
  */
 export const TEMPLE_DEFAULTS = Object.freeze({
-    settleMs: 180,
-    cooldownMs: 350,
+    /**
+     * GlobalHook 挂起窗口（ms）。
+     *
+     * 取 **300**：真机实测（言值项目，2026-11 已在 Rokid 商店上架）里，
+     * 「单击」= `GlobalHook`，宿主要 **550~600ms 之后才补发 `Enter`**；
+     * 而一次滑动是 `GlobalHook` 之后 **50~120ms** 就来方向键。
+     * 300ms 刚好把两者分开：窗口内来方向键 ⇒ 滑动；窗口内来 Enter ⇒ 单击；
+     * 窗口内什么都没来 ⇒ 也判为单击（Enter 还在路上）。
+     */
+    settleMs: 300,
+    /**
+     * 确认冷却（ms）。
+     *
+     * 取 **1000**：真机单击是「`GlobalHook` → 550~600ms 后补发 `Enter`」，
+     * 如果按 300ms 就确认，补发的 `Enter` 会在 250~300ms 后**再确认一次**
+     * —— 表现就是「点一次跳两页」（言值项目踩过同一个坑，处置是
+     * 「1000ms 内补发的 Enter 忽略」）。
+     */
+    cooldownMs: 1000,
     repeatWindowMs: 150,
+    /**
+     * 镜腿（`GlobalHook`）重复**按下**的回声窗口（ms）。
+     *
+     * ⚠️ 必须比 `repeatWindowMs` **小得多**：
+     * 真机双击 = `GlobalHook` ×2，间隔约 200ms（言值项目实测）。
+     * 如果这里复用方向键的 150ms 抖动窗口，
+     * 间隔 120~150ms 的双击会被当成回声丢掉第一个 ——
+     * 结果就是「双击切层」时灵时不灵。
+     *
+     * 取 **60**：宿主把同一个物理操作重复上报的间隔是毫秒级，
+     * 60ms 足够挡住回声，又远小于真机双击的 200ms。
+     */
+    templeRepeatMs: 60,
     upPairWindowMs: 1000,
     /** 抬起回声窗口：同一个键在这么短时间内的重复抬起是回声，不是第二次按压 */
-    upEchoMs: 120
+    upEchoMs: 120,
+    /**
+     * 方向键配对窗口（ms）。
+     *
+     * ⚠️ **真机一次滑动会发两个方向键**：
+     *   前滑 = `ArrowRight` + `ArrowDown`，后滑 = `ArrowLeft` + `ArrowUp`。
+     * 两个键必须**只算一次方向**，否则一次滑动会连跳两宫
+     * （而且两个键分属两个动作域 —— 「切宫」和「切层」同时触发，
+     *  表现就是评审说的「焦点切换问题 / arrow 滑动事件问题」）。
+     *
+     * 这个窗口只用来限制「配对键迟到多久还算同一次滑动」，
+     * **判定靠配对关系**（Right↔Down / Left↔Up），不靠「窗口内的第二个键」。
+     */
+    dirPairWindowMs: 200,
+    /**
+     * 双击判定窗口（ms）。
+     *
+     * 取 **900**：真机双击是「`GlobalHook` ×2（约 200ms 间隔）→ 补发 `Backspace`」，
+     * 补发的 `Backspace` 比物理返回键晚到（言值项目用 900ms 吞掉「跨页面的补发 Backspace」）。
+     * 所以：**`Backspace` 到达时，若这之前刚有 `GlobalHook`，它就是双击补发的那一个**，
+     * 否则是用户按了物理返回键。
+     */
+    doubleTapWindowMs: 900
 });
+
+/**
+ * 真机一次滑动的**方向键配对**。
+ *
+ * 言值项目真机实测：前滑 = `ArrowRight` + `ArrowDown`，后滑 = `ArrowLeft` + `ArrowUp`。
+ * 两个键必须只算一次方向，否则一次滑动连跳两宫。
+ *
+ * ⚠️ 模拟器只发**一个**方向键（Studio bundle：swipe-up → `ArrowUp`，
+ * swipe-down → `ArrowDown`），所以配对不能靠「时间窗内第二个键」来判 ——
+ * 那会把「快速连续两次同向滑动」也吞掉。必须靠**配对关系**判。
+ */
+const DIR_PARTNER = Object.freeze({
+    [ACTION.RIGHT]: ACTION.DOWN,
+    [ACTION.DOWN]: ACTION.RIGHT,
+    [ACTION.LEFT]: ACTION.UP,
+    [ACTION.UP]: ACTION.LEFT
+});
+
+/**
+ * 两个方向键是不是同一次滑动的配对。
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+function isDirPartner(a, b) {
+    return DIR_PARTNER[a] === b;
+}
 
 /* ------------------------------------------------------------------ *
  * 归一化
@@ -192,6 +288,9 @@ export function rawKeyLabel(event) {
  * @param {number} [opts.repeatWindowMs]
  * @param {number} [opts.upPairWindowMs]
  * @param {number} [opts.upEchoMs]
+ * @param {number} [opts.templeRepeatMs] 镜腿重复下按的回声窗口
+ * @param {number} [opts.dirPairWindowMs] 方向键配对窗口（配对关系之外的兜底）
+ * @param {number} [opts.doubleTapWindowMs] 双击判定窗口
  * @param {() => number} [opts.now] 时钟（测试可注入）
  * @returns {Object}
  */
@@ -201,6 +300,9 @@ export function createInputRouter(opts = {}) {
     const repeatWindowMs = opts.repeatWindowMs ?? TEMPLE_DEFAULTS.repeatWindowMs;
     const upPairWindowMs = opts.upPairWindowMs ?? TEMPLE_DEFAULTS.upPairWindowMs;
     const upEchoMs = opts.upEchoMs ?? TEMPLE_DEFAULTS.upEchoMs;
+    const templeRepeatMs = opts.templeRepeatMs ?? TEMPLE_DEFAULTS.templeRepeatMs;
+    const dirPairWindowMs = opts.dirPairWindowMs ?? TEMPLE_DEFAULTS.dirPairWindowMs;
+    const doubleTapWindowMs = opts.doubleTapWindowMs ?? TEMPLE_DEFAULTS.doubleTapWindowMs;
     const now = typeof opts.now === 'function' ? opts.now : () => Date.now();
     const onAction = typeof opts.onAction === 'function' ? opts.onAction : null;
 
@@ -211,10 +313,31 @@ export function createInputRouter(opts = {}) {
     let templeTimer = null;
     /** 最近一次 GlobalHook 的到达时间（回声抑制用） */
     let lastTempleAt = -Infinity;
+    /** 最近一次 GlobalHook **按下** 的时间（配对抬起判定用） */
+    let templeDownAt = -Infinity;
+    /**
+     * 双击候选的时间戳。
+     *
+     * 只有「第二个 GlobalHook 取消了挂起的单击判定」时才会打标 ——
+     * 这才是真机上双击的指纹（`GlobalHook ×2` → 补发 `Backspace`）。
+     * 单击（`GlobalHook` → 补发 `Enter`）**不打标**，
+     * 所以单击之后按物理返回键不会被误判成双击。
+     */
+    let doubleCandidateAt = -Infinity;
     /** 最近一次**真正执行**的确认的时间 */
     let lastConfirmAt = -Infinity;
     /** 最近一次确认来自哪个通道：'temple'（镜腿点按）/ 'key'（Enter 键） */
     let lastConfirmChannel = '';
+    /** 最近一次**执行**的方向动作的时间（调试用） */
+    let lastDirAt = -Infinity;
+    /**
+     * 方向键配对的挂起状态：`{ first, at }`。
+     *
+     * 一次滑动 = 第一个方向键 + 它的配对键（前滑 `Right`+`Down`，后滑 `Left`+`Up`）。
+     * 挂起状态记着「上一个方向键是哪个、什么时候来的」，
+     * 下一个方向键到达时按**配对关系**判定它是「同一次滑动的另一半」还是「新的一次滑动」。
+     */
+    let dirPairPending = null;
 
     function stateOf(action) {
         let s = keyState.get(action);
@@ -297,18 +420,42 @@ export function createInputRouter(opts = {}) {
         if (echo) return null;
         lastConfirmAt = ts;
         lastConfirmChannel = 'key';
+        /**
+         * 确认动作一发生，**双击候选就作废**。
+         *
+         * 为什么：双击候选的用途是识别「双击补发的那个 Backspace」。
+         * 一旦中间发生了别的动作（点按），那个补发窗口大概率已经过去了，
+         * 还留着候选的话，后面的**物理返回键**会被误判成双击
+         * （盘面态表现是「按返回键却切了层」，而不是回到生辰录入）。
+         */
+        doubleCandidateAt = -Infinity;
         return emitted;
     }
 
     /**
      * 挂起一次镜腿点按，等 settleMs 看看有没有方向键跟上来。
      *
-     * - 已有挂起 → 回声，忽略（一次滑动可能连着报好几个 GlobalHook）。
+     * - 已有挂起 → 这是**第二个 GlobalHook**（双击），取消这次「单击」判定。
      * - 距上一个 GlobalHook 不足 settleMs → 回声，忽略。
      * - 定时器到点时如果刚刚才确认过 → 不重复确认。
      */
     function scheduleTemple(ts) {
-        if (templeTimer) return false; // 回声：已有挂起的点按
+        if (templeTimer) {
+            /**
+             * **第二个 GlobalHook** —— 真机双击的指纹（`GlobalHook ×2`，约 200ms 间隔）。
+             *
+             * 处置：**取消这次「单击」判定**，并打上双击候选标记。
+             *   · 双击随后会补发 `Backspace`，由它执行「双击」动作；
+             *   · 若它其实是同一滑动的回声，方向键马上也会到，同样会取消挂起。
+             *
+             * 不取消的话，挂起窗口到期会**误确认一次** ——
+             * 真机双击会变成「先弹解读浮层、再被 Backspace 关掉」。
+             */
+            cancelTemple();
+            doubleCandidateAt = ts;
+            lastTempleAt = ts;
+            return false;
+        }
         if (ts - lastTempleAt < settleMs) return false; // 回声：太密了
         lastTempleAt = ts;
         templeTimer = setTimeout(() => {
@@ -317,9 +464,55 @@ export function createInputRouter(opts = {}) {
             if (firedAt - lastConfirmAt < cooldownMs) return; // 刚确认过
             lastConfirmAt = firedAt;
             lastConfirmChannel = 'temple';
+            /** 确认一旦发生，双击候选就作废（见 confirmOnce 的说明） */
+            doubleCandidateAt = -Infinity;
             deliver(ACTION.CONFIRM);
         }, settleMs);
         return true;
+    }
+
+    /**
+     * 镜腿触摸（`GlobalHook`）的按下 / 抬起配对。
+     *
+     * ⚠️ **抬起绝对不能取消挂起的单击判定。**
+     *
+     * 宿主对同一个物理操作会**同时**报 keydown 和 keyup
+     * （Studio 模拟器就是这么派发的：keydown → keyup，间隔 1ms）。
+     * 如果把抬起也当成「又一个 GlobalHook」，那么：
+     *   · 按下 → 挂起单击判定；
+     *   · 抬起（1ms 后）→ 被当成第二个 GlobalHook → 取消挂起；
+     *   · 结果：**点按永远不会确认**（真机上则表现为「按了没反应」）。
+     *
+     * 所以抬起只做「配对收尾」：配对上了就什么都不干，
+     * 没配对（宿主只报 keyup）才当成一次完整的点按。
+     *
+     * @param {'down' | 'up'} phase
+     * @param {number} ts
+     */
+    function feedTemple(phase, ts) {
+        if (phase === 'down') {
+            /**
+             * 同一个 GlobalHook 的重复 down（回声）—— 间隔太密，忽略。
+             *
+             * ⚠️ 用 `templeRepeatMs`（60ms）而不是方向键的 `repeatWindowMs`（150ms）：
+             * 真机双击的两个 GlobalHook 间隔约 200ms，
+             * 用 150ms 的窗口会在间隔偏短时把第二个当回声丢掉，
+             * 「双击切层」就变成时灵时不灵。
+             */
+            if (ts - templeDownAt < templeRepeatMs) return null;
+            templeDownAt = ts;
+            scheduleTemple(ts);
+            return null;
+        }
+
+        // phase === 'up'
+        if (ts - templeDownAt < upPairWindowMs) {
+            // 配对的抬起 —— 按下时已经处理过了，不能重复处理
+            return null;
+        }
+        // 宿主只报 keyup —— 这一下才是唯一信号
+        scheduleTemple(ts);
+        return null;
     }
 
     return {
@@ -340,8 +533,8 @@ export function createInputRouter(opts = {}) {
             const ts = now();
 
             if (action === ACTION.TEMPLE) {
-                // 镜腿触摸：挂起等一会儿，看是不是滑动的头
-                scheduleTemple(ts);
+                // 镜腿触摸：挂起等一会儿，看是不是滑动的头（按下/抬起配对在 feedTemple 里）
+                feedTemple(phase, ts);
                 return null;
             }
 
@@ -352,12 +545,91 @@ export function createInputRouter(opts = {}) {
             }
 
             if (action === ACTION.BACK) {
+                /**
+                 * `Backspace` 有两个来源，键值上分不开：
+                 *   · **双击补发**（`GlobalHook` 之后才到）⇒ 双击；
+                 *   · **物理返回键**（裸 `Backspace`）⇒ 返回。
+                 *
+                 * 判据（两个都满足其一才算双击）：
+                 *   ① 到达时还有一个**挂起中**的镜腿判定 ——
+                 *      模拟器的双击就是「GlobalHook 紧跟 Backspace」（Studio bundle：
+                 *      `PDt` 先派发 `GlobalHook`，双击时再派发 `Backspace`）；
+                 *   ② 或者刚刚有**第二个 GlobalHook** 取消了挂起 ——
+                 *      真机双击的指纹（`GlobalHook ×2` → 补发 `Backspace`）。
+                 *
+                 * ⚠️ 单击（`GlobalHook` → 补发 `Enter`）**不满足任何一条**，
+                 * 所以「单击之后按物理返回键」不会被误判成双击。
+                 */
+                const hadPendingTemple = Boolean(templeTimer);
                 cancelTemple();
-                return keyOnce(action, phase, ts);
+                const isDouble =
+                    hadPendingTemple || ts - doubleCandidateAt <= doubleTapWindowMs;
+                if (isDouble) doubleCandidateAt = -Infinity; // 候选只生效一次
+                /**
+                 * ⚠️ **按下/抬起的配对必须挂在原始的 `Backspace` 上**，
+                 * 不能挂在 `DOUBLE` / `BACK` 上。
+                 *
+                 * 为什么：双击的 `Backspace` 抬起到达时，
+                 * 双击候选**已经被消费掉了**（见上面一行），
+                 * 于是抬起会被判成「不是双击」⇒ 判成 `BACK`。
+                 * 如果配对状态按判出来的动作分别记，
+                 * `DOUBLE` 的按下与 `BACK` 的抬起就配不上 ——
+                 * 抬起会**多执行一次返回**。
+                 *
+                 * 症状：双击切层 ⇒ 顺手把浮层也关了（板面态则跳到生辰录入）。
+                 *
+                 * 所以：配对用原始键值，只有**执行出去的动作名**才按双击与否改写。
+                 */
+                const emitted = keyOnce(action, phase, ts);
+                if (emitted === null) return null;
+                return isDouble ? ACTION.DOUBLE : ACTION.BACK;
             }
 
             // 方向键到达 ⇒ 刚才那个 GlobalHook 是滑动的头，不是点按
             cancelTemple();
+
+            /**
+             * 方向键配对吸收（**状态机**，不是单纯的时间窗）。
+             *
+             * 真机一次滑动发**一对**方向键（前滑 `ArrowRight`+`ArrowDown`，
+             * 后滑 `ArrowLeft`+`ArrowUp`）。两个都执行 = 一次滑动跳两宫，
+             * 而且两个键分属两个动作域（「切宫」和「切层」同时触发），
+             * 表现就是评审说的「arrow 滑动事件问题 / 焦点切换问题 / 无法切换」。
+             *
+             * ⚠️ 判据是**配对关系**，不是「时间窗内的第二个方向键」：
+             *   · 模拟器一次滑动只发**一个**方向键（swipe-up → `ArrowUp`），
+             *     纯时间窗会把「快速连续两次同向滑动」吞掉；
+             *   · 真机的配对键是**另一个**方向键（Right↔Down / Left↔Up），
+             *     按配对关系判定既不会漏吸收，也不会误吞新的一次滑动。
+             *
+             * ⚠️ 只在 **down** 阶段判定：
+             *   · 抬起事件必须照常走 keyOnce，否则配对状态悬着，
+             *     下一次同键按压会被当成「重复按下」吞掉；
+             *   · 而且被吸收的那个键，它的抬起会被当成「孤儿抬起」再执行一次。
+             * 所以吸收时**仍然调用 keyOnce 维护配对状态，只是丢弃动作**。
+             */
+            if (phase === 'down') {
+                const pending = dirPairPending;
+                if (!pending) {
+                    dirPairPending = { first: action, at: ts };
+                } else if (ts - pending.at <= dirPairWindowMs) {
+                    if (isDirPartner(pending.first, action)) {
+                        /** 同一次滑动的配对键 ⇒ 吸收 */
+                        dirPairPending = null;
+                        keyOnce(action, phase, ts);
+                        return null;
+                    }
+                    /** 不是配对键 ⇒ 新的一次滑动，重新起头 */
+                    dirPairPending = { first: action, at: ts };
+                } else {
+                    /**
+                     * 配对窗口已过：上一个方向键的配对键没来（或来晚了）。
+                     * 这一下按**独立的一次方向输入**执行，且不再起头 ——
+                     * 否则迟到的配对键会被当成新滑动的头，把下一次滑动整个吞掉。
+                     */
+                    dirPairPending = null;
+                }
+            }
             return keyOnce(action, phase, ts);
         },
 

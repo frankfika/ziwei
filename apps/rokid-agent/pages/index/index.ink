@@ -1,7 +1,7 @@
 <script def>
 {
     "navigationBarTitleText": "紫微星盘",
-    "description": "展示紫微斗数十二宫命盘：宫位、主星与四化，可切换本命、大限、流年、流月四层运限。用户抬头低头转头用准星选宫，按确认键听该宫解读，也可以基于这张盘追问。",
+    "description": "展示紫微斗数十二宫命盘：宫位、主星与四化，可切换本命、大限、流年、流月四层运限。镜腿滑动选宫（也可用准星或抬头低头），单击听该宫解读，双击切时间层，也可以基于这张盘追问。",
     "schema": {
         "data": {
             "type": "object",
@@ -44,7 +44,6 @@ import {
     buildBoard,
     markActive,
     cellAt,
-    neighborBranch,
     stepRing,
     dimensionOfPalace,
     speakableStars,
@@ -102,6 +101,39 @@ const PRESET_QUESTIONS = Object.freeze([
     '事业上什么时候适合变动',
     '和伴侣的相处要注意什么'
 ]);
+
+/** 四个方向动作 */
+const DIRECTION_ACTIONS = Object.freeze([
+    ACTION.UP,
+    ACTION.DOWN,
+    ACTION.LEFT,
+    ACTION.RIGHT
+]);
+
+/**
+ * 是不是方向动作。
+ *
+ * @param {string} action
+ * @returns {boolean}
+ */
+function isDirectionAction(action) {
+    return DIRECTION_ACTIONS.indexOf(action) >= 0;
+}
+
+/**
+ * 是不是「往上一档」的方向。
+ *
+ * ⚠️ 真机一次滑动发的是**一对**方向键（后滑 = `Left`+`Up`），
+ * 两个键的到达顺序**不保证**。
+ * 所以 `Left`/`Up` 必须同义、`Right`/`Down` 必须同义 ——
+ * 只有这样，滑动的方向才与到达顺序无关，一次滑动才走一档。
+ *
+ * @param {string} action
+ * @returns {boolean}
+ */
+function isPrevDirection(action) {
+    return action === ACTION.UP || action === ACTION.LEFT;
+}
 
 export default {
     data: {
@@ -175,7 +207,7 @@ export default {
         noticeLabel: '',
         voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
         /** 录入浮层的键位提示（返回键语义随「有没有盘」变） */
-        inputHint: '确认键开始识别　返回键退出',
+        inputHint: '单击开始识别　返回键退出',
         heardText: '',
         readingTitle: '',
         readingDimension: '',
@@ -200,11 +232,22 @@ export default {
          * 镜腿输入路由（真机契约层）。
          *
          * `onAction` 只接**异步**动作 —— 镜腿点按的延迟确认
-         * （GlobalHook 挂起 ~180ms 后才敢确认）是在定时器里触发的，
+         * （GlobalHook 挂起 ~300ms 后才敢确认）是在定时器里触发的，
          * 没有返回值可拿，只能走回调。
          */
         this._input = createInputRouter({
-            onAction: (action) => this._dispatchKey(action)
+            onAction: (action) => {
+                /**
+                 * **异步动作**（镜腿点按的延迟确认）走这里 ——
+                 * 它是在契约层的定时器里触发的，没有返回值可拿。
+                 *
+                 * 补一条日志：真机上「点一下没反应」到底是
+                 * 「延迟确认没触发」还是「触发了但页面没响应」，
+                 * 看这条日志就能分开。
+                 */
+                console.info(`[ziwei-agent] input 延迟确认 → ${action}`);
+                this._dispatchKey(action);
+            }
         });
         this._sensorMode = 'none';
         this._readingCache = null;
@@ -318,18 +361,49 @@ export default {
         }
 
         const emitted = this._input.feed(action, phase);
+
+        /**
+         * **真机日志自证**：把「设备报了什么 → 归一化成什么 → 最终执行了什么」打全。
+         *
+         * 为什么要打这一行：样机到手之前，真机的键值/时序全靠推断；
+         * 有了这行日志，上机连着 logcat 一看就知道
+         * 设备到底报的是 `code` 还是 `key`、方向键是一对还是只有一个、
+         * `GlobalHook` 与补发的 `Enter` 差多少毫秒。
+         *
+         * `（吸收）` 表示这一次被契约层吃掉了（配对键、回声、冷却）——
+         * 「按了没反应」和「被吞了」在界面上长得一样，日志能区分。
+         */
+        console.info(
+            `[ziwei-agent] input ${phase} raw=${raw || '-'} action=${action} ` +
+                (emitted ? `→ ${emitted}` : '→ （吸收）')
+        );
+
         if (emitted) this._dispatchKey(emitted);
     },
 
     /**
      * 动作分发 —— 页面交互的唯一入口。
      *
-     * 键位语义（真机上「上下/左右」到底怎么用，靠这里统一）：
-     *   · 盘面态：左右 = 选宫（沿十二宫外圈巡宫），上下 = 切时间层；
-     *     端侧引擎没加载（没有层可切）时，上下**退回选宫**。
-     *   · 解读浮层：上下 = 翻解读原文，确认 = 追问，返回 = 关闭。
-     *   · 追问浮层：上下 = 换预设问题，左右 = 翻答案原文。
-     *   · 录入浮层：确认 = 开始识别，返回 = 回到盘面（没有盘时才退出应用）。
+     * 键位语义（**全部按真机手势实测表**对齐，见 DEVICE-CHECKLIST §1.5）：
+     *
+     * | 手势 | 真机键值 | 盘面态 | 解读浮层 | 追问浮层 |
+     * |---|---|---|---|---|
+     * | 前滑 | `ArrowRight`+`ArrowDown` | 下一宫 | 往下翻 | 往下翻 |
+     * | 后滑 | `ArrowLeft`+`ArrowUp` | 上一宫 | 往上翻 | 往上翻 |
+     * | 单击 | `GlobalHook`→`Enter` | 打开解读 | 打开追问 | 发送追问 |
+     * | 双击 | `GlobalHook`×2→`Backspace` | 切时间层 | 关闭浮层 | 换预设问题 |
+     * | 返回 | 裸 `Backspace` | 重新说生辰 | 关闭浮层 | 关闭浮层 |
+     *
+     * ⚠️ **为什么四个方向键一律同义**：
+     * 真机一次滑动发的是**一对**方向键（前滑 `Right`+`Down`，后滑 `Left`+`Up`），
+     * 上下键从来不是独立手势 —— 只是配对键。
+     * 所以「上下切层、左右选宫」那套旧映射在真机上等于
+     * **一次滑动同时触发两个动作域**（切宫 + 切层），
+     * 表现就是评审说的「arrow 滑动事件问题 / 焦点切换问题 / 无法切换」。
+     *
+     * ⚠️ **为什么上下键的方向也是同义的**：
+     * 真机一次滑动里两个键的**到达顺序不保证**，
+     * 只有「`Left`/`Up` 一律上一档、`Right`/`Down` 一律下一档」才与顺序无关。
      *
      * @param {string} action
      */
@@ -339,34 +413,64 @@ export default {
         if (overlay === 'input') {
             if (action === ACTION.CONFIRM) this._startVoiceInput();
             else if (action === ACTION.BACK) this._closeInput();
+            /**
+             * 双击在录入浮层**没有动作**：
+             * 这一层只有「开始识别」和「取消重录」两件事，
+             * 双击（换一个）在这里没有可换的东西。
+             */
             return;
         }
 
         if (overlay === 'reading') {
-            if (action === ACTION.BACK) this._closeOverlay();
+            if (action === ACTION.BACK || action === ACTION.DOUBLE) this._closeOverlay();
             else if (action === ACTION.CONFIRM) this._openAsk();
-            else if (action === ACTION.UP || action === ACTION.DOWN) {
-                this._scrollReading(action === ACTION.UP ? -1 : 1);
+            /**
+             * 解读浮层：四个方向键一律翻页。
+             * 长解读必须读得完 —— 宿主的方向键默认只滚根视图（固定 480×352，滚不动），
+             * 所以滚动由页面自己管（`scroll-top` 绑定）。
+             */
+            else if (isDirectionAction(action)) {
+                this._scrollReading(isPrevDirection(action) ? -1 : 1);
             }
             return;
         }
 
         if (overlay === 'ask') {
             if (action === ACTION.BACK) this._closeOverlay();
+            /**
+             * 追问浮层：双击 = **换预设问题**。
+             *
+             * 为什么不是「翻答案」：真机上只剩一条方向轴（滑动），
+             * 而答案是长文本 —— 必须让给滑动去翻。
+             * 换问题就交给双击（语义上「换一个」）。
+             */
+            else if (action === ACTION.DOUBLE) this._cyclePreset(1);
             else if (action === ACTION.CONFIRM) this._submitAsk(this.data.askQuestion);
-            else if (action === ACTION.UP || action === ACTION.DOWN) {
-                this._cyclePreset(action === ACTION.UP ? -1 : 1);
-            } else if (action === ACTION.LEFT || action === ACTION.RIGHT) {
-                this._scrollAsk(action === ACTION.LEFT ? -1 : 1);
+            else if (isDirectionAction(action)) {
+                this._scrollAsk(isPrevDirection(action) ? -1 : 1);
             }
             return;
         }
 
-        if (action === ACTION.UP) this._vertical(-1);
-        else if (action === ACTION.DOWN) this._vertical(1);
-        else if (action === ACTION.LEFT) this._select(stepRing(this.data.selectedBranch, -1));
-        else if (action === ACTION.RIGHT) this._select(stepRing(this.data.selectedBranch, 1));
-        else if (action === ACTION.CONFIRM) this._openReading();
+        /**
+         * 盘面态：**四个方向键一律选宫**。
+         *
+         * 理由见上面的表格 —— 真机上下键只是滑动的配对键，不是独立手势。
+         */
+        if (action === ACTION.LEFT || action === ACTION.UP) {
+            this._stepPalace(-1);
+        } else if (action === ACTION.RIGHT || action === ACTION.DOWN) {
+            this._stepPalace(1);
+        } else if (action === ACTION.CONFIRM) this._openReading();
+        /**
+         * **双击 = 切时间层**。
+         *
+         * 为什么不给方向键：方向键整条让给选宫了（真机只有一维手势）。
+         * 为什么不给倾斜通道：倾斜通道是**准星不可用时的兜底**，职责是选宫。
+         * 双击是唯一「镜腿 + 真机可测 + 模拟器可测」的独立手势，
+         * 拿它做「换一层」最稳（同一族项目（言值）也是这个用法）。
+         */
+        else if (action === ACTION.DOUBLE) this._cycleLayer(1);
         /**
          * 返回键 = 回到上一步 = 重新说生辰（再按一次返回键才退出应用）。
          *
@@ -477,7 +581,7 @@ export default {
                 hourNote: '',
                 noticeLabel: '',
                 /** 排盘失败 = 没有盘，返回键只能退出应用 */
-                inputHint: '确认键开始识别　返回键退出',
+                inputHint: '单击开始识别　返回键退出',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
@@ -546,10 +650,19 @@ export default {
     },
 
     /**
-     * 上下键切层。
+     * 切时间层。
      *
-     * 只在**有层可切**时切：传感器全废（没有准星也没有抬头低头）时，
-     * 上下键必须留给选宫 —— 那时候选宫是更基本的需要。
+     * ⚠️ **入口是镜腿双击，不是方向键**。
+     *
+     * 真机的镜腿手势只有一维：前滑 = `ArrowRight`+`ArrowDown` 一对，
+     * 后滑 = `ArrowLeft`+`ArrowUp` 一对 —— 上下键**只是滑动的配对键**，
+     * 从来不是独立手势。所以方向键整条让给选宫（核心交互），
+     * 切层交给**双击**（`GlobalHook`×2 → 补发 `Backspace`）。
+     *
+     * 为什么不用倾斜通道：那条通道只在准星不可用时才启动，
+     * 职责是替准星做选宫；切层已经被双击独占。
+     *
+     * ⚠️ 双击没有方向，所以只能**向前循环**（本命 → 大限 → 流年 → 流月 → 本命）。
      */
     _cycleLayer(delta) {
         if (!this._layersReady) return;
@@ -562,25 +675,17 @@ export default {
     },
 
     /**
- * 上下键当前是「切层」还是「选宫」。
- *
- * 左右键沿盘面外圈巡宫，十二宫**全部可达**，所以上下键可以整条让给时间层
- * （那是这个作品的主功能，不能没有）。
- * 唯一例外：端侧引擎没加载时压根没有运限层可切，这时上下键退回纵向选宫。
- *
- * @returns {boolean}
- */
-_verticalIsLayer() {
-    return this._layersReady;
-},
-
-/**
  * 键位提示（界面文案必须跟实际能力一致，不能承诺做不到的事）。
+ *
+ * 现在的映射（与真机手势一一对应）：
+ *   · 滑动（前后）= 选宫
+ *   · 单击 = 听解读 / 追问
+ *   · 双击 = 切时间层（运限层不可用时没有这一项，所以不写）
  *
  * @returns {string}
  */
 _navHint() {
-    return this._verticalIsLayer() ? '左右选宫　上下切层' : '左右选宫　上下选宫';
+    return this._layersReady ? '滑动选宫　单击听解读　双击切层' : '滑动选宫　单击听解读';
 },
 
 /**
@@ -631,16 +736,15 @@ _scrollAsk(delta) {
 },
 
 /**
- * 上下键：切层 or 选宫（纵向）。
+ * 沿盘面外圈走一宫。
  *
- * @param {number} delta -1 上 / +1 下
+ * 十二宫按「巳午未申酉戌亥子丑寅卯辰」排布（见 `lib/chart-layout.js`），
+ * `stepRing(branch, ±1)` 就是相邻宫 —— 与抬头低头的方向一致。
+ *
+ * @param {number} delta -1 上一宫 / +1 下一宫
  */
-_vertical(delta) {
-    if (this._verticalIsLayer()) {
-        this._cycleLayer(delta);
-        return;
-    }
-    this._select(neighborBranch(this.data.selectedBranch, 0, delta));
+_stepPalace(delta) {
+    this._select(stepRing(this.data.selectedBranch, delta));
 },
 
     /* ---------------------------------------------------------------- *
@@ -691,7 +795,7 @@ _vertical(delta) {
         if (this._sensorMode === 'tilt') return;
         this._sensorMode = 'tilt';
         this.setData({
-            sensorLabel: '抬头',
+            sensorLabel: '抬头选宫',
             navHint: this._navHint(),
             statusLine: this._statusLine()
         });
@@ -706,13 +810,27 @@ _vertical(delta) {
                     z: sensor.z
                 });
                 this._tilt = res.state;
-                if (res.changed) this._select(res.branch);
+                /**
+                 * 抬头/低头 = **选宫**（沿盘面外圈走一宫）。
+                 *
+                 * 为什么不是切层：
+                 *   · 这条通道只在**准星不可用时**才启动（`_fallbackToTilt`），
+                 *     职责就是替准星做空间选宫；
+                 *   · 切层已经由**双击**独占（唯一不占用方向轴的手势），
+                 *     倾斜再切层就变成两个入口抢同一个动作；
+                 *   · 准星与倾斜都用「相对盘面外圈」移动，语义一致。
+                 *
+                 * ⚠️ 用 `res.direction`（±1）走 `stepRing`，
+                 * 不能直接用 `res.branch` —— 那是倾斜自己的计数器，
+                 * 与当前选中的宫无关。
+                 */
+                if (res.changed) this._stepPalace(res.direction);
             });
             sensor.start();
         } catch (err) {
             this._sensorMode = 'none';
             this.setData({
-                sensorLabel: '镜腿',
+                sensorLabel: '镜腿选宫',
                 navHint: this._navHint(),
                 statusLine: this._statusLine()
             });
@@ -942,8 +1060,8 @@ _vertical(delta) {
              * 有盘 = 取消这次重录、回盘面；没盘 = 退出应用。
              */
             inputHint: this._chartJson
-                ? '确认键开始识别　返回键回盘面'
-                : '确认键开始识别　返回键退出'
+                ? '单击开始识别　返回键回盘面'
+                : '单击开始识别　返回键退出'
         });
     },
 
@@ -1036,7 +1154,7 @@ _vertical(delta) {
                 <text class="center-line strong">{{selectedName}}</text>
                 <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
             </view>
-            <text class="center-hint">确认键听解读　{{navHint}}</text>
+            <text class="center-hint">单击听解读　{{navHint}}</text>
             <text class="center-hint dim">{{statusLine}}</text>
             <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
         </view>
@@ -1059,7 +1177,7 @@ _vertical(delta) {
             </scroll-view>
             <text class="overlay-note" ink:if="{{readingCitation}}">{{readingCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">上下键翻页　确认键追问　返回键退出</text>
+            <text class="overlay-hint">滑动翻页　单击追问　返回键退出</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'ask'}}">
@@ -1072,7 +1190,7 @@ _vertical(delta) {
             </scroll-view>
             <text class="overlay-note" ink:if="{{askCitation}}">{{askCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">上下键选问题　左右键看答案　确认键发送　返回键退出</text>
+            <text class="overlay-hint">滑动看答案　双击换问题　单击发送　返回键退出</text>
         </view>
     </view>
 </page>

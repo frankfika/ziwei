@@ -1490,27 +1490,54 @@ export const suite = async (t: Tester): Promise<void> => {
   } else {
     const ink = fs.readFileSync(INK_PAGE, 'utf8');
 
-    await t.test('界面文案不得承诺没实现的交互', () => {
-      // 工程里**没有任何 tap / dblclick 处理**，文案却写着「单击」「双击」——
-      // 用户按了没反应，这是失效承诺，比没有提示更糟。
-      assert.ok(!ink.includes('单击'), '界面文案不该出现「单击」（工程没有 tap 处理）');
-      assert.ok(!ink.includes('双击'), '界面文案不该出现「双击」（工程没有双击处理）');
-      // 实际实现的交互要写清楚
-      assert.ok(ink.includes('确认键'), '界面应写明确认键的用法');
+    await t.test('界面文案与真机契约一致（滑动 / 单击 / 双击 都接得上）', () => {
+      /**
+       * 这条断言**方向变了**。
+       *
+       * 之前断言「界面不该出现单击/双击」，依据是「工程里没有任何 tap / dblclick 处理」。
+       * 现在单击与双击**都有实现了**：
+       *   · 单击 = `GlobalHook` → 补发 `Enter` ⇒ ACTION.CONFIRM
+       *   · 双击 = `GlobalHook`×2 → 补发 `Backspace` ⇒ ACTION.DOUBLE
+       * 所以现在的契约是：**文案说的手势必须真的接得上**。
+       */
+      assert.ok(ink.includes('单击'), '界面应写明单击的用法');
+      assert.ok(ink.includes('双击'), '界面应写明双击的用法');
+      assert.ok(ink.includes('ACTION.CONFIRM'), '单击必须在页面里真的被分发');
+      assert.ok(ink.includes('ACTION.DOUBLE'), '双击必须在页面里真的被分发');
       assert.ok(ink.includes('返回键'), '界面应写明返回键的用法');
+      // 旧文案已经作废：真机上下键只是滑动的配对键，不是独立手势
+      for (const stale of ['确认键听解读', '上下键翻页', '上下键选问题', '确认键开始识别']) {
+        assert.ok(!ink.includes(stale), `界面不该再出现旧文案「${stale}」`);
+      }
     });
 
-    await t.test('时间层接线完整（上下键切层 + 运限层渲染）', () => {
+    await t.test('时间层接线完整（双击切层 + 运限层渲染）', () => {
       // 只写规范不写代码 = 装饰。这里盯住接线点真的在页面里。
       for (const needle of [
         '_cycleLayer',
-        '_verticalIsLayer',
+        'ACTION.DOUBLE',
         'buildTimeLayers',
         'fortuneShort',
         'layerTitle',
       ]) {
         assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
       }
+      // 旧的「上下键切层」通道已删除 —— 真机上上下键只是滑动的配对键，
+      // 拿它切层等于一次滑动同时触发「切宫 + 切层」两个动作域。
+      assert.ok(!ink.includes('_verticalIsLayer'), '不应再保留「上下键切层」的通道');
+    });
+
+    await t.test('盘面态方向键只做选宫（不兼做切层）', () => {
+      // 真机一次滑动发**一对**方向键（前滑 Right+Down，后滑 Left+Up），
+      // 上下键从来不是独立手势。旧映射「左右选宫、上下切层」在真机上等于
+      // 一次滑动同时触发两个动作域 —— 评审说的「arrow 滑动事件问题 / 焦点切换问题」。
+      const dispatchIdx = ink.indexOf('_dispatchKey(action) {');
+      assert.ok(dispatchIdx > 0, '应能找到 _dispatchKey');
+      const seg = ink.slice(dispatchIdx, dispatchIdx + 6000);
+      assert.ok(seg.includes('ACTION.LEFT || action === ACTION.UP'), '上下左右一律走选宫');
+      assert.ok(seg.includes('ACTION.RIGHT || action === ACTION.DOWN'), '上下左右一律走选宫');
+      assert.ok(seg.includes('_stepPalace'), '方向键应走 _stepPalace（沿外圈巡宫）');
+      assert.ok(seg.includes('ACTION.DOUBLE'), '切层应走双击，而不是方向键');
     });
 
     await t.test('首启兜底接线完整（示例盘 + 重新说生辰入口）', () => {
@@ -1539,6 +1566,7 @@ export const suite = async (t: Tester): Promise<void> => {
         'onKeyUp',
         '_feedKey',
         '_dispatchKey',
+        'ACTION.DOUBLE',
       ]) {
         assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
       }
@@ -1609,6 +1637,23 @@ export const suite = async (t: Tester): Promise<void> => {
 
     const A = ti.ACTION;
 
+    /**
+     * 契约层有**两种投递方式**，收集动作时两个都要收：
+     *   · 同步动作（方向键 / 确认 / 返回）→ 由 `feed()` 的**返回值**给出；
+     *   · 异步动作（镜腿点按的延迟确认）→ 走 `onAction` 回调。
+     * 只收一个会误判成「没动作」。
+     */
+    function collectingRouter(got: string[]) {
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      const feed = router.feed.bind(router);
+      router.feed = (action: string, phase: 'down' | 'up') => {
+        const out = feed(action, phase);
+        if (out) got.push(out);
+        return out;
+      };
+      return router;
+    }
+
     await t.test('归一化：标准键值 → 页面动作', () => {
       assert.equal(ti.normalizeKey({ code: 'ArrowUp' }), A.UP);
       assert.equal(ti.normalizeKey({ code: 'ArrowDown' }), A.DOWN);
@@ -1643,25 +1688,190 @@ export const suite = async (t: Tester): Promise<void> => {
       assert.equal(ti.rawKeyLabel(null), '');
     });
 
-    await t.test('滑动 = GlobalHook 先到、方向键后到 ⇒ 只出方向键、不确认', async () => {
+    /* ---- 真机手势实测表（言值项目，已上架）↓ ---- */
+
+    await t.test('真机前滑 = ArrowRight + ArrowDown ⇒ 只走一档、不确认', async () => {
       const got: string[] = [];
-      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      const router = collectingRouter(got);
       router.feed(A.TEMPLE, 'down');
-      await sleep(80);
-      const emitted = router.feed(A.LEFT, 'down');
+      await sleep(60);
+      const first = router.feed(A.RIGHT, 'down');
+      await sleep(20);
+      const second = router.feed(A.DOWN, 'down');
       await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
-      assert.equal(emitted, A.LEFT, '方向键应立即生效');
-      assert.deepEqual(got, [], '滑动不应产生确认');
+      assert.equal(first, A.RIGHT, '第一个方向键立即生效');
+      assert.equal(second, null, '配对键必须被吸收（否则一次滑动跳两宫）');
+      assert.deepEqual(got, [A.RIGHT], '整段手势只产生一次动作，而且不是确认');
     });
 
-    await t.test('点按 = 只有 GlobalHook ⇒ 延迟后确认一次', async () => {
+    await t.test('真机后滑 = ArrowLeft + ArrowUp ⇒ 只走一档、不确认', async () => {
+      const got: string[] = [];
+      const router = collectingRouter(got);
+      router.feed(A.TEMPLE, 'down');
+      await sleep(60);
+      const first = router.feed(A.LEFT, 'down');
+      await sleep(20);
+      const second = router.feed(A.UP, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.equal(first, A.LEFT);
+      assert.equal(second, null, '配对键必须被吸收');
+      assert.deepEqual(got, [A.LEFT], '整段手势只产生一次动作，而且不是确认');
+    });
+
+    await t.test('真机单击 = GlobalHook → 600ms → Enter ⇒ 只确认一次', async () => {
       const got: string[] = [];
       const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
       router.feed(A.TEMPLE, 'down');
-      assert.deepEqual(got, [], '挂起期间不能立刻确认');
-      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
-      assert.deepEqual(got, [A.CONFIRM], '挂起窗口过后确认一次');
+      await sleep(600);
+      router.feed(A.CONFIRM, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.cooldownMs + 120);
+      assert.equal(
+        got.filter((a) => a === A.CONFIRM).length,
+        1,
+        '补发的 Enter 是同一次点按的回声，不能再确认一次（否则「点一次跳两页」）',
+      );
     });
+
+    await t.test('真机双击 = GlobalHook ×2 → Backspace ⇒ double、且不确认', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      await sleep(60);
+      router.feed(A.TEMPLE, 'down');
+      await sleep(60);
+      const emitted = router.feed(A.BACK, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.equal(emitted, A.DOUBLE, 'GlobalHook 之后的 Backspace 是双击补发');
+      assert.equal(got.filter((a) => a === A.CONFIRM).length, 0, '双击不能确认');
+    });
+
+    await t.test('双击的 Backspace 抬起不能再执行一次返回', async () => {
+      /**
+       * 这条钉的是一次**真实踩到**的 bug：
+       * 双击的 `Backspace` 抬起到达时，双击候选已经被消费掉了，
+       * 于是抬起被判成「不是双击」⇒ 判成 `BACK`。
+       * 如果按下/抬起的配对按判出来的动作分别记，
+       * `DOUBLE` 的按下与 `BACK` 的抬起就配不上 ——
+       * **抬起会多执行一次返回**。
+       *
+       * 症状：双击切层 ⇒ 顺手把浮层也关了（板面态则跳到生辰录入）。
+       */
+      const got: string[] = [];
+      const router = collectingRouter(got);
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      const down = router.feed(A.BACK, 'down');
+      const up = router.feed(A.BACK, 'up');
+      assert.equal(down, A.DOUBLE);
+      assert.equal(up, null, '抬起必须被配对吸收');
+      assert.deepEqual(got, [A.DOUBLE], '整段双击只产生一个动作');
+    });
+
+    await t.test('确认动作作废双击候选（之后的返回键仍是返回）', async () => {
+      const got: string[] = [];
+      const router = collectingRouter(got);
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      router.feed(A.BACK, 'down'); // 双击
+      await sleep(300);
+      router.feed(A.CONFIRM, 'down'); // 中间发生了一次确认
+      await sleep(200);
+      assert.equal(
+        router.feed(A.BACK, 'down'),
+        A.BACK,
+        '确认之后，物理返回键不能再被判成双击（否则「按返回键却切了层」）',
+      );
+    });
+
+    await t.test('双击间隔 120ms 也要认得出来（镜腿回声窗口比方向键抖动窗口窄）', async () => {
+      // 镜腿的回声窗口必须比方向键的 150ms 抖动窗口窄，
+      // 否则间隔偏短的双击会被当成回声丢掉第一个 ——
+      // 「双击切层」就变成时灵时不灵。
+      const router = ti.createInputRouter({});
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      router.feed(A.TEMPLE, 'down');
+      router.feed(A.TEMPLE, 'up');
+      await sleep(120);
+      assert.equal(router.feed(A.BACK, 'down'), A.DOUBLE);
+    });
+
+    await t.test('模拟器双击 = GlobalHook → Backspace ⇒ double', async () => {
+      const router = ti.createInputRouter({});
+      router.feed(A.TEMPLE, 'down');
+      const emitted = router.feed(A.BACK, 'down');
+      assert.equal(emitted, A.DOUBLE);
+    });
+
+    await t.test('模拟器单击 = GlobalHook → Enter ⇒ 只确认一次', async () => {
+      const got: string[] = [];
+      const router = collectingRouter(got);
+      router.feed(A.TEMPLE, 'down');
+      const emitted = router.feed(A.CONFIRM, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.cooldownMs + 120);
+      assert.equal(emitted, A.CONFIRM);
+      assert.deepEqual(got, [A.CONFIRM], '单击只确认一次');
+    });
+
+    await t.test('GlobalHook 的抬起不能取消挂起的单击判定', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      await sleep(20);
+      /** 宿主对同一个物理操作同时报 keydown 和 keyup（Studio 模拟器就是 1ms 内两次） */
+      router.feed(A.TEMPLE, 'up');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.deepEqual(
+        got,
+        [A.CONFIRM],
+        '抬起只是配对收尾；若被当成第二个 GlobalHook，点按就永远不确认',
+      );
+    });
+
+    await t.test('物理返回键（裸 Backspace）⇒ back，不是 double', () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.BACK, 'down'), A.BACK);
+    });
+
+    await t.test('单击之后按物理返回键 ⇒ back，不是 double', async () => {
+      const router = ti.createInputRouter({});
+      router.feed(A.TEMPLE, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 80);
+      assert.equal(
+        router.feed(A.BACK, 'down'),
+        A.BACK,
+        '单击的 GlobalHook 不能把后来的物理返回键变成双击',
+      );
+    });
+
+    await t.test('快速连续两次同向滑动（模拟器只发一个方向键）⇒ 两次都生效', async () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.UP, 'down'), A.UP);
+      await sleep(250);
+      assert.equal(
+        router.feed(A.UP, 'down'),
+        A.UP,
+        '同向的第二次滑动不能被配对窗口吞掉（判据是配对关系，不是时间窗）',
+      );
+    });
+
+    await t.test('配对窗口内的同向滑动（180ms）也算两次', async () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.UP, 'down'), A.UP);
+      await sleep(180);
+      assert.equal(router.feed(A.UP, 'down'), A.UP, '同键不是配对键 ⇒ 新的一次滑动');
+    });
+
+    /* ---- 通用契约 ↓ ---- */
 
     await t.test('按下 + 抬起配对 ⇒ 只执行一次', () => {
       const got: string[] = [];

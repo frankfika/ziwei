@@ -1,6 +1,6 @@
 {
   "name": "@ziwei/cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "紫微助手命令行工具 —— 排盘 + 13 维解读",

@@ -1,6 +1,6 @@
 {
   "name": "ziwei-assistant",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "紫微助手 — 排盘引擎 + v4.0 解读数据集检索的最小可用产品",

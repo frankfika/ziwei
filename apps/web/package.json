@@ -1,6 +1,6 @@
 {
   "name": "@ziwei/web",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "紫微助手 Web 界面 —— 排盘 + 13 维解读",
   "scripts": {

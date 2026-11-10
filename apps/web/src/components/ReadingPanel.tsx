@@ -111,7 +111,7 @@ export default function ReadingPanel({
   }
 
   return (
-    <div>
+    <div className="reading-stage">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-3">
         <h2 className="text-sm tracking-[0.2em] text-ink">{copy.panelTitle}</h2>
         <p className="text-2xs tabular-nums text-ink-3">{copy.dimCount(dimensions.length)}</p>

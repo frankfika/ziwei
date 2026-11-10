@@ -9,6 +9,7 @@
 
 import Link from 'next/link';
 import BirthForm from '@/components/BirthForm';
+import Seal from '@/components/Seal';
 import { FORM_COPY } from '@/lib/formCopy';
 import { useLang } from '@/lib/lang';
 
@@ -23,9 +24,13 @@ export default function NewChartClient({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <h1 className="mb-6 font-serif text-[1.45rem] leading-snug text-ink sm:text-[1.6rem]">
-        {copy.pageTitle}
-      </h1>
+      {/* 标题 + 朱砂印：与首页 hero / 开盘仪式的印同源，排盘是开盘仪式的入口 */}
+      <div className="mb-6 flex items-center gap-3">
+        <h1 className="font-serif text-[1.45rem] leading-snug text-ink sm:text-[1.6rem]">
+          {copy.pageTitle}
+        </h1>
+        <Seal />
+      </div>
 
       <BirthForm indexedYears={indexedYears} />
 

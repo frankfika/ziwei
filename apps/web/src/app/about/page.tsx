@@ -5,6 +5,7 @@ import { getService } from '@/lib/service';
 import { SHICHEN_NAMES, SHICHEN_RANGES } from '@/lib/birth';
 import { langFromCookie } from '@/lib/langServer';
 import { SITE_COPY } from '@/lib/siteCopy';
+import Seal from '@/components/Seal';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,11 @@ export default async function AboutPage() {
     <div className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
       <header className="mb-10">
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">ABOUT</p>
-        <h1 className="text-3xl font-semibold tracking-[0.12em] text-ink">{copy.aboutTitle}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="font-serif text-3xl font-semibold tracking-[0.12em] text-ink">{copy.aboutTitle}</h1>
+          {/* 朱砂印落款：与首页 hero / 开盘仪式的印同源 */}
+          <Seal />
+        </div>
         <p className="mt-4 text-[15px] leading-[1.9] text-ink-2">{copy.aboutIntro}</p>
       </header>
 

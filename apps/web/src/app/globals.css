@@ -33,15 +33,23 @@
     .palace-breathe,
     .palace-breathe::after,
     .palace-cell.is-selected,
-    .palace-cell.is-selected::after {
+    .palace-cell.is-selected::after,
+    .star-atlas-rotor,
+    .star-twinkle {
       animation: none !important;
     }
 
     /* 一次性动效：压成 ≤80ms 的瞬时变化，保留终态（不能 animation:none，否则会停在起始态） */
     .sanfang-fade,
     .tab-crossfade,
-    .chart-submit {
+    .chart-submit,
+    .open-reveal,
+    .seal-stamp,
+    .hero-atlas,
+    .hero-title,
+    .hero-seal {
       animation-duration: 80ms !important;
+      animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
     }
   }
@@ -122,6 +130,18 @@
       radial-gradient(1px 1px at 92% 80%, rgba(61, 90, 133, 0.1) 100%, transparent 0);
   }
 
+  /* 解读页氛围：比 chat-stage 更淡 —— 单环 + 稀疏星点，阅读是主体
+     （ReadingPanel 外层挂；追问 tab 不挂，避免两个 tab 抢戏） */
+  .reading-stage {
+    background-image:
+      radial-gradient(circle 260px at 50% 38%, transparent 98.6%, rgba(61, 90, 133, 0.04) 99%, transparent 100%),
+      radial-gradient(1px 1px at 12% 18%, rgba(61, 90, 133, 0.12) 100%, transparent 0),
+      radial-gradient(1px 1px at 86% 12%, rgba(61, 90, 133, 0.1) 100%, transparent 0),
+      radial-gradient(1px 1px at 68% 30%, rgba(61, 90, 133, 0.08) 100%, transparent 0),
+      radial-gradient(1px 1px at 30% 70%, rgba(61, 90, 133, 0.08) 100%, transparent 0),
+      radial-gradient(1px 1px at 90% 74%, rgba(61, 90, 133, 0.1) 100%, transparent 0);
+  }
+
   .btn-primary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zhu/40 px-5 py-3
       text-sm font-medium tracking-wide2 text-white transition-colors duration-150
@@ -184,10 +204,12 @@
 }
 
 .palace-cell.is-selected {
-  background-color: #e7ecf3; /* zhu-soft */
+  /* 暖金底 + 金边 + 金晕：选中是全盘唯一的鎏金块，
+     与三方四正的黛青 tint（辅助层）、命宫的淡金常亮边（锚点层）分三层 */
+  background-color: rgba(168, 121, 47, 0.1);
   box-shadow:
-    inset 0 0 0 1px rgba(61, 90, 133, 0.45), /* zhu / 45 */
-    0 0 24px rgba(61, 90, 133, 0.18); /* zhu-glow 收轻 */
+    inset 0 0 0 1px rgba(168, 121, 47, 0.5), /* 鎏金描边（star-miao） */
+    0 0 24px rgba(168, 121, 47, 0.22); /* 鎏金光晕 */
 }
 
 /* 呼吸光单独一层（::after）：只让光晕呼吸，不压暗宫内文字；
@@ -200,7 +222,7 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: inset 0 0 20px rgba(61, 90, 133, 0.18); /* zhu-glow 收轻 */
+  box-shadow: inset 0 0 20px rgba(168, 121, 47, 0.22); /* 鎏金呼吸（star-miao） */
   animation: palace-breathe 1.8s ease-in-out infinite alternate;
 }
 
@@ -210,6 +232,14 @@
 
 .palace-cell.is-sanfang {
   background-color: var(--sanfang-tint); /* zhu-soft / 90 —— 只底色 */
+}
+
+/* 命宫常亮淡金：整张盘的锚点。选中时让位给 is-selected 的全套鎏金 shadow，
+   所以用 :not(.is-selected) 限定（同优先级下声明在后，否则会盖掉选中态） */
+.palace-cell.is-ming-gong:not(.is-selected) {
+  box-shadow:
+    inset 0 0 0 1px rgba(168, 121, 47, 0.35),
+    inset 0 0 14px rgba(168, 121, 47, 0.08);
 }
 
 /* 时间轴叠加层：流年命宫鎏金描边，大限命宫紫描边 */
@@ -305,6 +335,110 @@
 /* 可直接挂的 class —— 时长取自 DURATION.*，缓动取自 EASE.standard
    （恒星呼吸 .palace-breathe 的声明在「宫卡材质」段，和 ::after 光晕规则放在一起） */
 
+/* ── 开盘仪式（排盘结果初次呈现）──────────────────────────────────────
+   十二宫从内向外错峰浮现，中宫最后落定；首尾各加 160ms 与 240ms 的余量。
+   ⚠️ 参数对应 ChartBoard：perStep 60ms / 高亮 200ms / 中宫 0.88s —
+      CSS 改一处要改 ChartBoard 的 OPEN_STEP_MS / OPEN_HL_MS / OPEN_CENTER_MS。 */
+@keyframes open-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.open-reveal {
+  animation: open-reveal 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 钤印：盖下去的 240ms——缩 1.2 → 回弹 0.95 → 归位 1.0，朱砂印只出现在开盘仪式 */
+@keyframes seal-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.2) rotate(3deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.95) rotate(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(3deg);
+  }
+}
+
+.seal-stamp {
+  animation: seal-stamp 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── 首页 hero 分层入场（HomeChat 空态）──────────────────────────────
+   星图先亮 → 竖排主题词浮起 → 钤印最后盖下。三段各留一拍，像翻开一页图谱。 */
+@keyframes hero-atlas {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-title {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-atlas {
+  animation: hero-atlas 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-title {
+  animation: hero-title 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+  /* 纸色晕影：把盘心的鎏金紫微星从字底下"挖"出来，
+     否则竖排标题正好从星上穿过，看起来像个杂点 */
+  text-shadow:
+    0 0 6px #f6f2e9,
+    0 0 12px #f6f2e9,
+    0 0 22px rgba(246, 242, 233, 0.92);
+}
+
+.hero-seal {
+  animation: seal-stamp 240ms cubic-bezier(0.22, 1, 0.36, 1) 760ms both;
+}
+
+/* 宫格 hover 微光：鎏金描边淡入。
+   走独立的 ::before 层，不碰 box-shadow / background-color ——
+   否则会盖掉流年（大限）的鎏金/紫描边和命宫的常亮金边 */
+.palace-cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(168, 121, 47, 0.4);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.palace-cell:hover::before {
+  opacity: 1;
+}
+
+/* 中宫局名：鎏金晕染（title 是全盘视觉重心，给它一点光） */
+.ju-glow {
+  text-shadow: 0 0 18px rgba(168, 121, 47, 0.28);
+}
+
 /* 三方淡入（DURATION.sanfang = 220ms）：淡入的是底色本身，宫内星名不跟着闪 */
 .sanfang-fade {
   animation: sanfang-fade 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -313,6 +447,36 @@
 /* 解读维切换溶化（DURATION.tab = 180ms） */
 .tab-crossfade {
   animation: tab-crossfade 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── 观星星图（首页 hero，StarAtlas.tsx）──────────────────────────────
+   缓转层 120s 一圈（整图同转，环上看不出、星官位置缓慢漂移）；
+   呼吸星 3.2s 错峰明灭。reduced-motion 一并关掉（见上方媒体查询）。 */
+@keyframes star-atlas-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.star-atlas-rotor {
+  /* 缓转层只有星官（不含环垣），bbox 中心不在盘心 —— 用 view-box 坐标系定原点 */
+  transform-box: view-box;
+  transform-origin: 200px 200px;
+  animation: star-atlas-spin 120s linear infinite;
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.star-twinkle {
+  animation: star-twinkle 3.2s ease-in-out infinite;
 }
 
 /* 排盘骨架淡入（DURATION.skeleton = 200ms）；
@@ -325,6 +489,15 @@
   body {
     background: #fff !important;
     color: #24211d;
+  }
+
+  /* 开盘/钤印是一次性进场动效：打印定格在终态，不参与分页与渲染 */
+  .open-reveal,
+  .seal-stamp,
+  .hero-atlas,
+  .hero-title,
+  .hero-seal {
+    animation: none !important;
   }
 
   /* 深色主题打印兜底：纸面一律白底深字 */

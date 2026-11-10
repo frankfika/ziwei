@@ -12,7 +12,7 @@ export default async function NotFound() {
     <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
       <div className="panel mx-auto max-w-lg border-zhu/25 p-6 sm:p-8">
         <p className="mb-2 text-2xs tracking-[0.3em] text-ink-3">404</p>
-        <h1 className="text-xl font-semibold tracking-[0.12em] text-ink">{copy.notFoundTitle}</h1>
+        <h1 className="font-serif text-xl font-semibold tracking-[0.12em] text-ink">{copy.notFoundTitle}</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-2">
           {copy.notFoundBody}
         </p>

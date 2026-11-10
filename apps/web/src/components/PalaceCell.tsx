@@ -173,7 +173,7 @@ export default function PalaceCell({
       onClick={() => onSelect(palace.branch)}
       aria-pressed={selected}
       aria-label={ariaLabel}
-      className={`palace-cell group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${stateClass} ${layerMark}`}
+      className={`palace-cell group relative flex h-full w-full break-inside-avoid flex-col items-start gap-1 p-2 text-left transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zhu ${stateClass} ${layerMark} ${palace.isMingGong ? 'is-ming-gong' : ''}`}
     >
       {/* 宫名 · 干支 · 大限 */}
       <div className="flex w-full items-baseline justify-between gap-2">

@@ -7,6 +7,7 @@ import { SI_HUA_TABLE } from '@ziwei/chart-engine';
 import type { ChartJSON } from '@ziwei/chart-engine';
 import { SHICHEN_NAMES } from '@/lib/birth';
 import SynastryForm from '@/components/SynastryForm';
+import Seal from '@/components/Seal';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '双人合盘 · Synastry' };
@@ -62,7 +63,10 @@ export default async function SynastryPage({
       p ? { year: String(p.year), month: String(p.month), day: String(p.day) } : {};
     return (
       <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
-        <h1 className="mb-2 font-serif text-title font-semibold text-ink">{copy.synTitle}</h1>
+        <div className="mb-2 flex items-center gap-3">
+          <h1 className="font-serif text-title font-semibold text-ink">{copy.synTitle}</h1>
+          <Seal />
+        </div>
         <p className="mb-6 text-2xs leading-relaxed text-ink-3">{copy.synIntro}</p>
         <SynastryForm
           initialA={a ? { name: a.name, gender: a.gender, ...toParts(a), hour: String(a.hour) } : undefined}

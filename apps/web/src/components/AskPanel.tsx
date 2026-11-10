@@ -834,36 +834,21 @@ export default function AskPanel({
                     )}
                   </section>
 
-                  {/* ② 开个新话题：话题即对话，点一张签就开一段新对话 */}
+                  {/* ② 开个新话题：话题芯片在空态卡片里已有，这里只给一个干净的入口 */}
                   <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
-                    <p className="mb-1.5 px-1 text-2xs text-ink-3">{copy.newTopic}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {presets.map((p) => (
-                        <button
-                          key={p.question}
-                          type="button"
-                          onClick={() => {
-                            submitInTopic(p.label, p.question, p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined);
-                            setSheetOpen(false);
-                          }}
-                          disabled={pending}
-                          className="rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {labelOf(p)}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleNewThread();
-                          setSheetOpen(false);
-                        }}
-                        disabled={pending}
-                        className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-3 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {copy.freeChat}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleNewThread();
+                        setSheetOpen(false);
+                        window.requestAnimationFrame(() => textareaRef.current?.focus());
+                      }}
+                      disabled={pending}
+                      className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line px-3 py-2.5 text-left text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span aria-hidden="true">＋</span>
+                      {copy.newChatTitle}
+                    </button>
                   </section>
 
                   {/* ③ 当前这张盘：档案信息（宿主页提供） */}

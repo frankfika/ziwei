@@ -44,7 +44,6 @@ export interface ChatCopy {
   yesterday: string;
   archived: (n: number) => string;
   newTopic: string;
-  freeChat: string;
   clearThread: string;
   clearConfirm: string;
   archiveThread: string;
@@ -180,7 +179,6 @@ const ZH: ChatCopy = {
   yesterday: '昨天',
   archived: (n) => `已归档 ${n}`,
   newTopic: '开个新话题',
-  freeChat: '自由聊聊',
   clearThread: '清空当前对话',
   clearConfirm: '清空当前这段对话？其他对话会保留。',
   archiveThread: '归档这段对话',
@@ -278,7 +276,6 @@ const EN: ChatCopy = {
   yesterday: 'yesterday',
   archived: (n) => `Archived ${n}`,
   newTopic: 'Start a topic',
-  freeChat: 'Just chat',
   clearThread: 'Clear this chat',
   clearConfirm: 'Clear the current conversation? Other conversations are kept.',
   archiveThread: 'Archive this chat',

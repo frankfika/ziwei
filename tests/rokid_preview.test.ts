@@ -57,6 +57,10 @@ const BROKEN_SHIM_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794132724122.aix';
 const OLD_TIMEOUT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794100520699.aix';
 /** 更早的那一版（修「模拟器出不了盘」之前的代码） */
 const STALE_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794011125685.aix';
+/** 2026-11-11 16:25 重打（提示行去重 + 代码修复） */
+const DEDUP_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794327908594.aix';
+/** 2026-11-11 16:33 重打（含重出的 3 张 Studio 截图素材）—— 拟提审版 */
+const HANDOFF_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794328393796.aix';
 /** 文档里允许出现的 AIX 包名白名单 —— 出了这个集合就是笔误 */
 const KNOWN_AIX = new Set([
   CURRENT_AIX,
@@ -66,6 +70,8 @@ const KNOWN_AIX = new Set([
   BROKEN_SHIM_AIX,
   OLD_TIMEOUT_AIX,
   STALE_AIX,
+  DEDUP_AIX,
+  HANDOFF_AIX,
 ]);
 /** 取包脚本 */
 const FETCH_SCRIPT = path.join(AGENT_DIR, 'scripts/fetch-aix.mjs');

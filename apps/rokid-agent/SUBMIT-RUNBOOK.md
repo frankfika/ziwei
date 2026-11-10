@@ -89,6 +89,114 @@
 新增 `apps/rokid-agent/scripts/simulate-interaction-chain.mjs`（**24 条页面级手势回归**，直接驱动 `.ink` 页面跑真机手势序列）；
 `npm run typecheck` 全过；合规门禁通过。
 
+### ⚠️ 2026-11-11 第十九轮 · 提审前扫尾（文案去重 + 后端热修 + 重打包重提审）
+
+**背景**：第十八轮把交互链路重做后，第十八/十九轮又做了三件「不点按钮也必须做完」的事 ——
+① **提示行重复文案**；② **提审素材里烘焙着旧键位**；③ **生产后端 `/api/agent/*` 三个路由在生产上不见了**。
+
+#### ① 中宫提示行重复 + 三处旧口径
+
+模板写死 `<text class="center-hint">单击听解读　{{navHint}}</text>`，而 `navHint` 本身就是
+「滑动选宫　单击听解读　双击切层」⇒ 眼镜上渲染成
+「**单击听解读　滑动选宫　单击听解读　双击切层**」，同一手势出现两次，且中宫只有 220 px，
+重复字会把「双击切层」挤掉。改成只输出 `{{navHint}}`。
+
+同批清掉的旧口径（**全都在用户可见或对外素材里**）：
+
+| 位置 | 旧文案 | 处理 |
+|---|---|---|
+| `pages/index/index.ink` `navHint` 兜底值 | 上下选宫　上下切层 | 改「滑动选宫　单击听解读」 |
+| `pages/index/index.ink` `sensorLabel`（准星档） | 准星 | 改「**头部准星**」（与 `DEVICE-CHECKLIST` A6/D2 和盘面预览图对齐 —— 上机验收时按文档找标签要能找得到） |
+| `scripts/render-board-preview.mjs` | 确认键听解读　左右选宫　上下切层 | 改「滑动选宫　单击听解读　双击切层」 |
+| `scripts/render-preview-video.mjs` | 确认键听解读　{{navHint}} | 改只输出 `{{navHint}}` |
+| `scripts/simulate-first-launch.mjs` | 确认键听解读　{{navHint}} | 改只输出 `{{navHint}}` |
+| `submit-kit/preview/board-first-launch.png` | **烘焙**「确认键听解读　左右选宫　上下切层」 | 重出 |
+| `submit-kit/preview/sim-reading.png` | 烘焙「确认键追问　返回键退出」 | 用当前工程在 Studio 重截（解读浮层 + 真实后端 13 维正文） |
+| `submit-kit/preview/sim-ask.png` | 烘焙「确认键发送」 | 用当前工程在 Studio 重截（追问浮层 + 真实后端回答） |
+
+⚠️ **教训**：预览图 / 预览视频是**像素**，改脚本不重渲染，素材里就一直带着旧映射 ——
+「文案改了」不等于「素材改了」。现在有回归钉死：
+`tests/rokid_preview.test.ts` 的「预览素材脚本里没有旧键位映射」覆盖三个渲染脚本。
+
+#### ② 生产后端 `/api/agent/*` 三个路由在生产上不见了（第十九轮 00:1x 实测发现）
+
+排查过程（全部实测，不猜）：
+
+1. 重出预览视频时后端返回兜底文案「解读暂时取不到」⇒ 直连 `POST https://ziwei.secondplanet.cc/api/agent/reading` → **404 text/html**。
+2. `www.secondplanet.cc` 上同路径回 **404 application/json** ⇒ 两台机器不是同一个服务。
+3. SSH 上服务器查 `/opt/ziwei/apps/web/src/app/api/` ⇒ 只有 `account / ai-test / ask / auth / checkout / pay / quota`，
+   **没有 `agent/`**；容器内 `.next/server/app/api/` 同样没有 ⇒ 路由**根本没进生产构建**。
+4. 根因：`apps/web/src/app/api/agent/{chart,reading,ask}` **只存在于 Rokid 分支**（`git ls-files` 在 main 上为空），
+   而 2026-11-08 23:12 的 rsync 部署来自**主仓** ⇒ 新镜像构建时这三个路由不存在 ⇒
+   **从 2026-11-09 00:02 起，商店 v1.0.11 提交上去的包在真机上根本取不到解读与追问**。
+
+**热修（只动 5 个文件，其余生产代码一行不碰）**：
+
+```
+apps/web/src/app/api/agent/chart/route.ts     （新增）
+apps/web/src/app/api/agent/reading/route.ts   （新增）
+apps/web/src/app/api/agent/ask/route.ts       （新增）
+apps/web/src/lib/agentCitation.ts             （新增）
+apps/web/src/lib/citations.ts                 （主仓版 + agent 增量的超集）
+packages/ask/src/service.ts                   （主仓版 + extraSystem 增量的超集）
+```
+
+流程按 `deploy/README.md` §9.2：先 `docker tag ziwei-assistant:compact ziwei-assistant:rollback-<时间戳>`
+（回滚 tag）→ 服务器上 `docker build` → 临时容器 3002 冒烟 → 切生产容器 → 公网复测。
+
+**复测结果（公网，`https://ziwei.secondplanet.cc`）**：
+
+| 接口 | 状态 | 内容 |
+|---|---|---|
+| `/api/agent/chart` | **200** | 十二宫 JSON |
+| `/api/agent/reading` | **200** | `status: ok`、`citationMode: inline`、13 个维度 |
+| `/api/agent/ask` | **200** | 真实回答正文 |
+
+⚠️ **别把主仓工作区直接 rsync 上生产**：2026-11-11 实测主仓工作区有一份**未提交的半成品重构**
+（`AskPanel.tsx` 改成归档版、`chatCopy.ts` 还是删除版），主仓自身 `tsc --noEmit` 就是红的。
+
+#### ③ 重打 AIX（两个包，最终提交的是第二个）
+
+| 包名 | 大小 | MD5 | 说明 |
+|---|---|---|---|
+| `…-1794327908594.aix` | 8.33 MB | `9da88de8420ebdf2b0b6281443644f13` | 含提示行去重与代码修复 |
+| **`…-1794328393796.aix`** | **8.47 MB** | **`a342332061cd1ca804a1b4cde146c2f8`** | **最终提交版**（含重出的 3 张素材图） |
+
+`npm run aix:fetch -- --url … --expect-md5 …` 核验全绿：
+关键文件齐备 9 项、index.ink 行数 1484、追问超时 120000 ms、出生参数 9/9、运限三层 8/8、
+晚子时口径一致、十二宫外圈巡宫一致 ⇒ **包内代码与仓库源码行为完全一致**。
+解包直查：提示行 `<text class="center-hint">{{navHint}}</text>`、`sensorLabel` 三个取值、
+`temple-input.js` 常量 `settleMs:300 / cooldownMs:1e3 / templeRepeatMs:60 / dirPairWindowMs:200 / doubleTapWindowMs:900`、
+`_verticalIsLayer` 与旧键位映射**零残留**（`index.ink` 里那两处「上下切层 / 左右选宫」在**注释**里，是解释旧映射为何作废）。
+
+#### ④ 模拟器三手势实测（重新导入工程后跑在新包同源代码上）
+
+| 手势 | 输入日志 | 结果 |
+|---|---|---|
+| 向前滑动 | `GlobalHook down/up →（吸收）` → `ArrowUp down → up` → `ArrowUp up →（吸收）` | **只走一档**，无误确认 |
+| 单击 | `GlobalHook down/up →（吸收）` → `Enter down → confirm` → `Enter up →（吸收）` | **只确认一次**（不跳两页） |
+| 双击（解读浮层内） | `GlobalHook down/up →（吸收）` → `Backspace down → **double**` → `Backspace up →（吸收）` | 浮层关闭、**层未切换** |
+| 双击（盘面态） | 同上 → `double` | **层切换成功**：本命盘 → **大限 32–41 岁**（含运限四化 + TTS 播报） |
+
+中宫提示行实测渲染为「**滑动选宫　单击听解读　双击切层**」（无重复）、状态行「**头部准星　端侧计算**」。
+解读浮层拿到**后端真实 13 维正文**（引文已降级），追问浮层拿到**后端真实回答** ⇒ 后端热修在设备运行时链路生效。
+
+#### ⑤ 提审表单本轮实际填的内容（2026-11-11）
+
+| 字段 | 内容 | 字数 |
+|---|---|---|
+| 功能介绍 | 按 `store-description.md` §二 短版口径重写（「轻点一下镜腿，就听那一宫的解读」，**无确认键 / 上下键字样**） | **495 / 500** |
+| 开场白 | 重写（「轻点一下镜腿……连点两下镜腿，可以在本命、大限、流年、流月四层之间切换」）—— 旧版写的是「上下键还能……四层之间切换」，**正是被驳回的那套映射** | **100 / 500** |
+| 更新日志 | 三点（键位映射按真机手势重做 / 镜腿点按不再重复执行 / 界面提示改手势口径 + 素材重出），**故意不写版本号** | **279 / 1000** |
+| 预览素材 | 旧素材（2 张盘图 + 1 视频，**都烘焙着旧键位**）全部删除 → 换新：图标 / 本命盘 / 流年盘 / 解读浮层截图 + 新预览视频（**4 图 1 视频**，共 5 个，满足「3-5 个且至少 1 图 1 视频」） | — |
+
+**⚠️ 2026-11-11 实测坑**：`upload_files` 上传后报 `FILE_UPLOAD_NOT_OBSERVED: selected file count did not match`
+—— **这是误报**：Element Plus 的 `el-upload` 处理完会把 `<input type=file>` 清空，
+运行时再去读 `files.length` 就对不上了。**实际文件已经落地**（截图可见），
+所以别因为这个报错就重传 —— 重传会产生重复素材（实测：同一张盘图被传了两次，要手工删一个再补）。
+另：Studio 的上传 input 有两个（一个 `accept=".jpg,.jpeg,.png,.gif"`，一个 `accept=".jpg,.jpeg,.png,.mp4" multiple`），
+**mp4 走第二个**；同一个 dropzone 的 ref 都能用。
+
 **⚠️ 2026-11-09 实测修正（第十三轮）**：
 
 - ✅ **策划案过审**：`作品策划案通过时间：2026-11-09 19:08:14`，第 1 次提交 / 5.77 MB / 审核通过。

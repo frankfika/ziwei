@@ -46,7 +46,7 @@
 ## 二、中文短版（字段受限时用）
 
 ```
-说出生辰，眼镜里立刻出现一张按传统规则算出的十二宫盘；抬头低头用准星点中哪一宫，按确认键，就听那一宫的解读。
+说出生辰，眼镜里立刻出现一张按传统规则算出的十二宫盘；抬头低头用准星点中哪一宫，轻点一下镜腿，就听那一宫的解读。
 
 紫微星盘是跑在 Rokid AI Glasses 上的 AIUI 智能体。十二宫的宫位、主星、安星、五行局、大限由确定性规则算出，不经过模型，端侧内置约 860 KB 的单文件引擎，断网也能出盘，同一生辰在任何设备上结果一致，可以复算复核。盘面分本命、大限、流年、流月四层，连点两下镜腿循环切换，每层给出这一层的命宫落位与四化引动，同样在端侧算。解读文字来自 674,976 张盘面 × 13 个维度的公开数据集，按宫位检索原文，模型只负责把原文讲成一段话。
 
@@ -96,7 +96,7 @@ This project uses the "Ziwei Doushu Open Interpretation Dataset v4.0" (674,976 c
 ## 四、英文短版（字段受限时用）
 
 ```
-Say your birth date and time. Your glasses compute a twelve-palace Ziwei Doushu chart from deterministic traditional rules, then you look up and down to aim a crosshair at a palace and press the confirm key to hear that palace's interpretation read aloud.
+Say your birth date and time. Your glasses compute a twelve-palace Ziwei Doushu chart from deterministic traditional rules, then you look up and down to aim a crosshair at a palace and tap the temple to hear that palace's interpretation read aloud.
 
 Ziwei Star Chart is an AIUI agent for Rokid AI Glasses. The twelve palaces, their main stars, the star placements, the five-element frame and the decade limits are computed by fixed rules, not by a language model. A single-file charting engine of about 860 KB ships inside the app, so the chart works offline and the same birth data always yields the same chart on any device. The chart has four layers - natal, decade, yearly and monthly - that you cycle through with a double tap on the temple; each layer gives structural placement, that is where that layer's Life palace lands and which palaces the four transformations touch, and it is computed on the device as well. Interpretation text is retrieved verbatim from a public dataset of 674,976 charts across 13 dimensions; the model only organises the retrieved text.
 

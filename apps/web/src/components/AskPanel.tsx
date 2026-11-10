@@ -273,14 +273,11 @@ export default function AskPanel({
   const {
     messages,
     append,
-    clear,
     threads,
-    archivedThreads,
     activeId,
     newThread,
     selectThread,
-    archiveThread,
-    unarchiveThread,
+    deleteThread,
   } = useAskThread(identity);
   const [question, setQuestion] = useState('');
   /** 界面语言：界面骨架走 chatCopy；问句发给模型仍用中文（数据集是中文原文） */
@@ -345,7 +342,6 @@ export default function AskPanel({
 
   /** 对话抽屉：话题列表 / 新话题 / 档案 / AI 设置入口，都收在这里 */
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
   const headerTitle = activeThread ? topicTitle(activeThread) : copy.newChatTitle;
 
@@ -441,21 +437,18 @@ export default function AskPanel({
   }, [stream]);
 
   /** 话题即对话：点话题芯片 = 切到（或新建）这个话题的专属对话再发问。
-      生成中的回答还在写旧话题，此时不切换，排队即可 —— 免得排队的句子落到新话题里 */
+      例外：刚从「新对话」落到草稿态时，即使这个话题聊过也另起一条 —— 不然点了「新对话」
+      又被拽回旧对话，等于没法开新对话。生成中的回答还在写旧话题时不切换，排队即可 */
   function submitInTopic(label: string, q: string, focus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' }) {
     if (busyRef.current) {
       submit(q, focus);
       return;
     }
-    const existing = threads.find((t) => t.title === label);
-    const inTopic = threads.some((t) => t.id === activeId && t.title === label);
+    const draft = activeId === '__draft__';
+    const existing = !draft ? threads.find((t) => t.title === label) : undefined;
+    const inTopic = !draft && threads.some((t) => t.id === activeId && t.title === label);
     if (!inTopic) {
-      const archived = archivedThreads.find((t) => t.title === label);
-      if (archived) {
-        // 这个话题聊过又归档了：恢复它接着聊
-        unarchiveThread(archived.id);
-        handleSelectThread(archived.id);
-      } else if (existing) {
+      if (existing) {
         handleSelectThread(existing.id);
       } else {
         handleNewThread();
@@ -772,7 +765,7 @@ export default function AskPanel({
                         {threads.map((t) => {
                           const isActive = t.id === activeId;
                           return (
-                            <li key={t.id}>
+                            <li key={t.id} className="flex items-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -780,7 +773,7 @@ export default function AskPanel({
                                   setSheetOpen(false);
                                 }}
                                 aria-current={isActive || undefined}
-                                className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                className={`flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
                                   isActive
                                     ? 'bg-zhu-soft text-ink'
                                     : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
@@ -791,46 +784,21 @@ export default function AskPanel({
                                   {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
                                 </span>
                               </button>
+                              <button
+                                type="button"
+                                aria-label={`${copy.deleteThread}：${topicTitle(t)}`}
+                                title={copy.deleteThread}
+                                onClick={() => {
+                                  if (window.confirm(copy.deleteThreadConfirm)) deleteThread(t.id);
+                                }}
+                                className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                              >
+                                ✕
+                              </button>
                             </li>
                           );
                         })}
                       </ul>
-                    )}
-
-                    {/* 已归档：收起成一行，展开后点选即恢复 */}
-                    {archivedThreads.length > 0 && (
-                      <section aria-label={copy.archivedLabel} className="mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setShowArchived((v) => !v)}
-                          aria-expanded={showArchived}
-                          className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
-                        >
-                          {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
-                        </button>
-                        {showArchived && (
-                          <ul>
-                            {archivedThreads.map((t) => (
-                              <li key={t.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    unarchiveThread(t.id);
-                                    handleSelectThread(t.id);
-                                    setSheetOpen(false);
-                                  }}
-                                  className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
-                                >
-                                  <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
-                                  <span className="shrink-0 text-2xs text-ink-3">
-                                    {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
-                                  </span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </section>
                     )}
                   </section>
 
@@ -862,30 +830,6 @@ export default function AskPanel({
                   {/* ④ 当前对话的次要操作 */}
                   <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-lineSoft pt-3">
                     {deepThinkChip}
-                    {messages.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(copy.clearConfirm)) clear();
-                        }}
-                        className="text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        {copy.clearThread}
-                      </button>
-                    )}
-                    {activeId && activeId !== '__draft__' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          archiveThread(activeId);
-                          handleNewThread();
-                        }}
-                        title={copy.archiveTitle}
-                        className="text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        {copy.archiveThread}
-                      </button>
-                    )}
                   </section>
                 </div>
               </>
@@ -1356,11 +1300,11 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(copy.clearConfirm)) clear();
+                if (activeId && window.confirm(copy.deleteThreadConfirm)) deleteThread(activeId);
               }}
-              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              {copy.nonBareClear}
+              {copy.nonBareDelete}
             </button>
           </div>
         )}

@@ -29,8 +29,6 @@ export interface AskThread {
   createdAt: number;
   updatedAt: number;
   messages: AskMessage[];
-  /** 归档时间：归档后不再出现在对话列表，收进「已归档」分组；选中即恢复 */
-  archivedAt?: number;
 }
 
 interface ThreadsFile {
@@ -133,14 +131,10 @@ export function useAskThread(identity: string) {
 
   const active = file.threads.find((t) => t.id === file.activeId) ?? null;
   const messages = active?.messages ?? [];
-  /** 有内容的对话才进切换列表（空草稿不占位）；已归档的收进单独分组 */
-  const visible = file.threads.filter((t) => t.messages.length > 0);
-  const threads = visible
-    .filter((t) => !t.archivedAt)
+  /** 有内容的对话才进切换列表（空草稿不占位） */
+  const threads = file.threads
+    .filter((t) => t.messages.length > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  const archivedThreads = visible
-    .filter((t) => t.archivedAt)
-    .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
 
   const append = useCallback(
     (msg: Omit<AskMessage, 'id' | 'at'>, title?: string) => {
@@ -197,54 +191,19 @@ export function useAskThread(identity: string) {
     [identity],
   );
 
-  /** 清空当前对话的消息（对话本身保留，继续聊还在这一条里） */
-  const clear = useCallback(() => {
-    setFile((prev) => {
-      const next = {
-        threads: prev.threads.map((t) =>
-          t.id === prev.activeId ? { ...t, messages: [] } : t,
-        ),
-        activeId: prev.activeId,
-      };
-      writeFile(identity, next);
-      return next;
-    });
-  }, [identity]);
-
-  /**
-   * 归档一条对话：从列表里收起来（数据仍在，可在「已归档」分组找回，选中即恢复）。
-   * 归档的正是当前对话时，自动切到最近一条其它对话；没有就落到空草稿。
-   */
-  const archiveThread = useCallback(
+  /** 删除一条对话。删的正是当前对话时，自动切到最近一条其它对话；没有就落到空草稿 */
+  const deleteThread = useCallback(
     (id: string) => {
       setFile((prev) => {
-        const now = Date.now();
-        const threads = prev.threads.map((t) =>
-          t.id === id ? { ...t, archivedAt: now } : t,
-        );
+        const threads = prev.threads.filter((t) => t.id !== id);
         let activeId = prev.activeId;
         if (prev.activeId === id) {
-          const next = threads
-            .filter((t) => t.messages.length > 0 && !t.archivedAt)
-            .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-          activeId = next?.id ?? '__draft__';
+          activeId =
+            threads
+              .filter((t) => t.messages.length > 0)
+              .sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id ?? '__draft__';
         }
         const next = { threads, activeId };
-        writeFile(identity, next);
-        return next;
-      });
-    },
-    [identity],
-  );
-
-  /** 恢复归档：清掉归档标记（切到这条对话由调用方负责） */
-  const unarchiveThread = useCallback(
-    (id: string) => {
-      setFile((prev) => {
-        const threads = prev.threads.map((t) =>
-          t.id === id ? { ...t, archivedAt: undefined } : t,
-        );
-        const next = { threads, activeId: prev.activeId };
         writeFile(identity, next);
         return next;
       });
@@ -256,13 +215,10 @@ export function useAskThread(identity: string) {
     messages,
     loaded,
     append,
-    clear,
     threads,
-    archivedThreads,
     activeId: file.activeId,
     newThread,
     selectThread,
-    archiveThread,
-    unarchiveThread,
+    deleteThread,
   };
 }

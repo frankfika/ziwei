@@ -42,7 +42,7 @@ export default function HomeChat({
 }) {
   const [lang] = useLang();
   const copy = CHAT_COPY[lang];
-  const { history, ready } = useHistory();
+  const { history, ready, remove } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
@@ -143,11 +143,22 @@ export default function HomeChat({
   );
 
   const sheetExtra = (
-    <p className="px-1 text-2xs text-ink-2">
-      {name && <span className="font-medium text-ink">{name}</span>}
-      {name && ' · '}
-      {detailLabel(selected!.form)}
-    </p>
+    <div className="px-1">
+      <p className="text-2xs text-ink-2">
+        {name && <span className="font-medium text-ink">{name}</span>}
+        {name && ' · '}
+        {detailLabel(selected!.form)}
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(copy.deleteChartConfirm)) remove(selected!.id);
+        }}
+        className="mt-1.5 text-2xs text-ink-3 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+      >
+        {copy.deleteChart}
+      </button>
+    </div>
   );
 
   return (

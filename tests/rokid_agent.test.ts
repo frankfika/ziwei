@@ -58,7 +58,7 @@ const ENGINE_BUNDLE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'assets', 'eng
 const LAYOUT_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'chart-layout.js');
 const CURSOR_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'head-cursor.js');
 const PARSER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-parser.js');
-const KEY_GUARD_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'key-guard.js');
+const TEMPLE_INPUT_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'temple-input.js');
 const TIMELAYER_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'time-layer.js');
 const BIRTH_SOURCE_MODULE = path.join(REPO_ROOT, 'apps', 'rokid-agent', 'lib', 'birth-source.js');
 
@@ -257,6 +257,11 @@ async function loadModule<T>(absPath: string): Promise<T> {
 /** 浮点近似相等 */
 function approx(actual: number, expected: number, eps = 1e-9): boolean {
   return Math.abs(actual - expected) <= eps;
+}
+
+/** 等待若干毫秒（镜腿输入契约有时序，必须用真实时钟） */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** 四元数：绕 Z 轴（左右转头）转 deg 度 */
@@ -1522,44 +1527,189 @@ export const suite = async (t: Tester): Promise<void> => {
       // 出生参数解析只允许有一个来源，否则两份校验迟早会跑偏
       assert.ok(!ink.includes('_resolveBirth'), '出生参数解析应只有 lib/birth-source.js 一个来源');
     });
+
+    await t.test('镜腿输入接线完整（GlobalHook / 双向事件 / 统一入口）', () => {
+      // 这几条是真机交互失效的根，钉死它们不被悄悄改回去：
+      for (const needle of [
+        'temple-input.js',
+        'createInputRouter',
+        'normalizeKey',
+        'rawKeyLabel',
+        'onKeyDown',
+        'onKeyUp',
+        '_feedKey',
+        '_dispatchKey',
+      ]) {
+        assert.ok(ink.includes(needle), `index.ink 里应有「${needle}」的接线`);
+      }
+      // 旧的「同 code 150ms 去抖」闸门已被镜腿输入契约取代
+      assert.ok(!ink.includes('shouldAcceptKey'), '不应再直接调用 key-guard 的同码去抖');
+      assert.ok(!ink.includes('_keyGuard'), '不应再保留 _keyGuard 状态');
+    });
+
+    await t.test('所有分支之前就接管默认行为（preventDefault 必须在最前）', () => {
+      // 官方默认行为：Backspace 关应用 / 方向键滚根视图 / Enter 进导航模式。
+      // 只要漏掉一次，浮层态按返回键就会连应用一起退掉。
+      const upIdx = ink.indexOf('onKeyUp(event)');
+      assert.ok(upIdx > 0, '应能找到 onKeyUp');
+      const feedIdx = ink.indexOf('_feedKey(event,', upIdx);
+      assert.ok(feedIdx > upIdx, 'onKeyUp 应把事件交给统一入口');
+      const guardIdx = ink.indexOf('preventDefault', feedIdx);
+      assert.ok(guardIdx > feedIdx, 'preventDefault 应在统一入口里');
+      // 统一入口里，preventDefault 必须在归一化之后、分发之前
+      const normIdx = ink.indexOf('normalizeKey(event)', feedIdx);
+      assert.ok(normIdx > feedIdx && normIdx < guardIdx, '先归一化，再接管默认行为');
+      const dispatchIdx = ink.indexOf('_dispatchKey(emitted)', feedIdx);
+      assert.ok(dispatchIdx > guardIdx, '接管默认行为之后才分发动作');
+    });
+
+    await t.test('录入浮层的返回键不退出应用（已有盘时回盘面）', () => {
+      assert.ok(ink.includes('_closeInput'), '应走 _closeInput 而不是直接 finish()');
+      const closeIdx = ink.indexOf('_closeInput() {');
+      assert.ok(closeIdx > 0, '应能找到 _closeInput');
+      const seg = ink.slice(closeIdx, closeIdx + 700);
+      assert.ok(seg.includes('_chartJson'), '判据应是「有没有盘」（_chartJson）');
+      assert.ok(seg.includes('this.finish()'), '没有盘时才退出应用');
+    });
   }
 
   /* ---------------------------------------------------------------- *
-   * G. key-guard.js —— 镜腿按键去抖（真机 GlobalHook 滑动误报防线）
+   * G. temple-input.js —— 镜腿输入契约（真机 GlobalHook / 方向键时序）
+   *
+   * 为什么这组必须是回归：镜腿上的按键**不是标准键盘**。
+   * · GlobalHook 是 Rokid Glasses 专属键值（= 触摸镜腿按键），
+   *   页面不认它 ⇒ 唯一的确认动作彻底失灵；
+   * · 一次滑动 = 先 GlobalHook、50~120ms 后才来方向键，
+   *   把 GlobalHook 当点按就会「移动 + 确认」一起触发；
+   * · 宿主可能一次物理操作同时报 keydown 和 keyup。
+   *
+   * 这些结论来自真机实测（见 DEVICE-CHECKLIST §3），
+   * 源码里推不出来，只能钉死。
    * ---------------------------------------------------------------- */
-  if (!fs.existsSync(KEY_GUARD_MODULE)) {
-    t.skip('镜腿按键去抖（G 组全部用例）', `缺少 ${path.relative(REPO_ROOT, KEY_GUARD_MODULE)}`);
+  if (!fs.existsSync(TEMPLE_INPUT_MODULE)) {
+    t.skip('镜腿输入契约（G 组全部用例）', `缺少 ${path.relative(REPO_ROOT, TEMPLE_INPUT_MODULE)}`);
   } else {
-    const kg = await loadModule<{
-      shouldAcceptKey(
-        guard: { lastCode: string | null; lastTs: number },
-        code: string,
-        now: number,
-        windowMs?: number,
-      ): boolean;
-      KEY_REPEAT_WINDOW_MS: number;
-    }>(KEY_GUARD_MODULE);
+    const ti = await loadModule<{
+      ACTION: Record<string, string>;
+      TEMPLE_DEFAULTS: {
+        settleMs: number;
+        cooldownMs: number;
+        repeatWindowMs: number;
+        upPairWindowMs: number;
+        upEchoMs: number;
+      };
+      normalizeKey(event: unknown): string | null;
+      rawKeyLabel(event: unknown): string;
+      createInputRouter(opts?: Record<string, unknown>): {
+        feed(action: string, phase: 'down' | 'up'): string | null;
+        hasPendingTemple(): boolean;
+        cancel(): void;
+      };
+    }>(TEMPLE_INPUT_MODULE);
 
-    await t.test('同一按键在窗口内的重复上报被丢弃', () => {
-      const g = { lastCode: null as string | null, lastTs: 0 };
-      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1000), true, '首次按键应接受');
-      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1040), false, '40ms 内同 code 应丢弃');
-      assert.equal(
-        kg.shouldAcceptKey(g, 'ArrowRight', 1000 + kg.KEY_REPEAT_WINDOW_MS),
-        true,
-        '满窗口后的真实连按应重新接受',
-      );
+    const A = ti.ACTION;
+
+    await t.test('归一化：标准键值 → 页面动作', () => {
+      assert.equal(ti.normalizeKey({ code: 'ArrowUp' }), A.UP);
+      assert.equal(ti.normalizeKey({ code: 'ArrowDown' }), A.DOWN);
+      assert.equal(ti.normalizeKey({ code: 'ArrowLeft' }), A.LEFT);
+      assert.equal(ti.normalizeKey({ code: 'ArrowRight' }), A.RIGHT);
+      assert.equal(ti.normalizeKey({ code: 'Enter' }), A.CONFIRM);
+      assert.equal(ti.normalizeKey({ code: 'Backspace' }), A.BACK);
     });
 
-    await t.test('不同按键不受去抖影响', () => {
-      const g = { lastCode: null as string | null, lastTs: 0 };
-      assert.equal(kg.shouldAcceptKey(g, 'ArrowRight', 1000), true);
-      assert.equal(kg.shouldAcceptKey(g, 'ArrowUp', 1010), true, '换键应接受，不能被上一键的去抖窗口吞掉');
+    await t.test('归一化：GlobalHook 是 Rokid Glasses 的镜腿按键', () => {
+      assert.equal(ti.normalizeKey({ code: 'GlobalHook' }), A.TEMPLE);
     });
 
-    await t.test('空 code 直接拒绝', () => {
-      const g = { lastCode: null as string | null, lastTs: 0 };
-      assert.equal(kg.shouldAcceptKey(g, '', 1000), false, '没有 code 的事件不该产生动作');
+    await t.test('归一化：code 缺失时用 key / keyCode 兜底', () => {
+      assert.equal(ti.normalizeKey({ key: 'ArrowLeft' }), A.LEFT);
+      assert.equal(ti.normalizeKey({ key: 'Up' }), A.UP);
+      assert.equal(ti.normalizeKey({ keyCode: 37 }), A.LEFT);
+      assert.equal(ti.normalizeKey({ keyCode: 13 }), A.CONFIRM);
+      assert.equal(ti.normalizeKey({ keyCode: 8 }), A.BACK);
+    });
+
+    await t.test('归一化：认不出来的键返回 null（不产生动作）', () => {
+      assert.equal(ti.normalizeKey({ code: 'KeyQ' }), null);
+      assert.equal(ti.normalizeKey({}), null);
+      assert.equal(ti.normalizeKey(null), null);
+    });
+
+    await t.test('原始键值可见（真机自证 DEVICE-CHECKLIST §1.5 T2）', () => {
+      assert.equal(ti.rawKeyLabel({ code: 'GlobalHook' }), 'GlobalHook');
+      assert.equal(ti.rawKeyLabel({ key: 'ArrowLeft' }), 'ArrowLeft');
+      assert.equal(ti.rawKeyLabel({ keyCode: 37 }), '37');
+      assert.equal(ti.rawKeyLabel(null), '');
+    });
+
+    await t.test('滑动 = GlobalHook 先到、方向键后到 ⇒ 只出方向键、不确认', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      await sleep(80);
+      const emitted = router.feed(A.LEFT, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.equal(emitted, A.LEFT, '方向键应立即生效');
+      assert.deepEqual(got, [], '滑动不应产生确认');
+    });
+
+    await t.test('点按 = 只有 GlobalHook ⇒ 延迟后确认一次', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      assert.deepEqual(got, [], '挂起期间不能立刻确认');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.deepEqual(got, [A.CONFIRM], '挂起窗口过后确认一次');
+    });
+
+    await t.test('按下 + 抬起配对 ⇒ 只执行一次', () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      const down = router.feed(A.CONFIRM, 'down');
+      const up = router.feed(A.CONFIRM, 'up');
+      assert.equal(down, A.CONFIRM);
+      assert.equal(up, null, '配对的抬起不再执行');
+      assert.deepEqual(got, []);
+    });
+
+    await t.test('宿主只报 keyup（没有配对的 down）⇒ 照样执行', () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.LEFT, 'up'), A.LEFT);
+    });
+
+    await t.test('滑动抖动（短时间连报同键 down）⇒ 只执行一次', () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.LEFT, 'down'), A.LEFT);
+      assert.equal(router.feed(A.LEFT, 'down'), null, '抖动应被丢弃');
+    });
+
+    await t.test('同一次点按走两条通道（GlobalHook + Enter）⇒ 只确认一次', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 80);
+      router.feed(A.CONFIRM, 'up');
+      await sleep(ti.TEMPLE_DEFAULTS.cooldownMs + 80);
+      assert.equal(got.filter((a) => a === A.CONFIRM).length, 1, '回声只能确认一次');
+    });
+
+    await t.test('用户连点两次确认（间隔超过冷却）⇒ 两次都要生效', async () => {
+      const got: string[] = [];
+      const router = ti.createInputRouter({ onAction: (a: string) => got.push(a) });
+      router.feed(A.TEMPLE, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 60);
+      await sleep(ti.TEMPLE_DEFAULTS.cooldownMs + 120);
+      router.feed(A.TEMPLE, 'down');
+      await sleep(ti.TEMPLE_DEFAULTS.settleMs + 120);
+      assert.equal(got.filter((a) => a === A.CONFIRM).length, 2, '真实连点不能被吞');
+    });
+
+    await t.test('方向键真实连按（间隔 250ms）⇒ 两次都要生效', async () => {
+      const router = ti.createInputRouter({});
+      assert.equal(router.feed(A.LEFT, 'up'), A.LEFT);
+      await sleep(250);
+      assert.equal(router.feed(A.LEFT, 'up'), A.LEFT, '同键连按不该被回声窗口吞掉');
     });
   }
 

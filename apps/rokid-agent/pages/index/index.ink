@@ -56,7 +56,12 @@ import {
     createTiltState,
     updateTilt,
 } from '../../lib/head-cursor.js';
-import { shouldAcceptKey } from '../../lib/key-guard.js';
+import {
+    ACTION,
+    createInputRouter,
+    normalizeKey,
+    rawKeyLabel
+} from '../../lib/temple-input.js';
 import {
     TIME_LAYER_NAMES,
     buildTimeLayers,
@@ -72,20 +77,23 @@ import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
 import { listenOnce } from '../../lib/voice-input.js';
 
-const KeyCode = Object.freeze({
-    UP: 'ArrowUp',
-    DOWN: 'ArrowDown',
-    LEFT: 'ArrowLeft',
-    RIGHT: 'ArrowRight',
-    CONFIRM: 'Enter',
-    BACK: 'Backspace'
-});
-
-/** 传感器采样频率（Hz）与首帧超时 */
+/**
+ * 传感器采样频率（Hz）与首帧超时
+ */
 const SENSOR = Object.freeze({
     FREQUENCY: 30,
     FIRST_FRAME_TIMEOUT_MS: 1500
 });
+
+/**
+ * 解读/追问长文本的滚动步长（像素）。
+ *
+ * 为什么自己管滚动：宿主给方向键的默认行为是「滚动根视图」，
+ * 而根视图是固定 480×352 + overflow:hidden，滚不动；
+ * 页面接管方向键之后（preventDefault），scroll-view 更不会被宿主带动。
+ * 长文本不自己翻页，用户就永远读不完一整段解读。
+ */
+const SCROLL_STEP_PX = 60;
 
 /** 快捷问题（语音不可用时的兜底，也保证演示路径是确定的） */
 const PRESET_QUESTIONS = Object.freeze([
@@ -131,6 +139,19 @@ export default {
         /** 中宫状态行（传感器通道 + 计算来源），见 _statusLine() */
         statusLine: '',
         /**
+         * 最近一次输入的**原始键值**（例：`ArrowLeft`、`GlobalHook`、`Enter`）。
+         *
+         * 为什么把它显示出来：真机上报的到底是 `code` 还是 `key`、
+         * 镜腿点按是不是只有 `GlobalHook` —— 这些**源码里读不出来**，
+         * 只有真机能回答（DEVICE-CHECKLIST §1.5 T2）。
+         * 显示原始值，上机第一分钟就能看到答案，不用靠猜。
+         */
+        lastInput: '',
+        /** 解读原文的滚动位置（scroll-view 的 scroll-top 绑定） */
+        readingScrollTop: 0,
+        /** 追问答案的滚动位置（scroll-view 的 scroll-top 绑定） */
+        askScrollTop: 0,
+        /**
          * 示例盘标注。
          *
          * 拿不到任何出生信息时会先亮一张内置示例盘（见 lib/birth-source.js），
@@ -153,6 +174,8 @@ export default {
          */
         noticeLabel: '',
         voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
+        /** 录入浮层的键位提示（返回键语义随「有没有盘」变） */
+        inputHint: '确认键开始识别　返回键退出',
         heardText: '',
         readingTitle: '',
         readingDimension: '',
@@ -173,7 +196,16 @@ export default {
     onLoad(query) {
         this._cursor = createCursorState();
         this._tilt = createTiltState();
-        this._keyGuard = { lastCode: null, lastTs: 0 };
+        /**
+         * 镜腿输入路由（真机契约层）。
+         *
+         * `onAction` 只接**异步**动作 —— 镜腿点按的延迟确认
+         * （GlobalHook 挂起 ~180ms 后才敢确认）是在定时器里触发的，
+         * 没有返回值可拿，只能走回调。
+         */
+        this._input = createInputRouter({
+            onAction: (action) => this._dispatchKey(action)
+        });
         this._sensorMode = 'none';
         this._readingCache = null;
         this._citationLabel = '';
@@ -201,6 +233,8 @@ export default {
 
     onUnload() {
         this._stopSensors();
+        /** 清掉挂起的镜腿确认定时器，别让回调打到已销毁的页面上 */
+        if (this._input) this._input.cancel();
         stopSpeaking();
     },
 
@@ -214,36 +248,125 @@ export default {
         }
     },
 
+    /**
+     * 按键**按下**。
+     *
+     * 为什么同时挂 onKeyDown 和 onKeyUp：
+     * 镜腿滑动是一个**手势**，真机有可能只报 keydown（手指还没抬起），
+     * keyup 迟迟不来；只挂 onKeyUp 的页面在真机上就是「按了没反应」。
+     * 官方事件文档也把 onKeyDown 的用途写成「按下瞬间的焦点移动或状态反馈」。
+     *
+     * 一次物理操作只执行一次，靠 lib/temple-input.js 的按下/抬起配对保证。
+     */
+    onKeyDown(event) {
+        this._feedKey(event, 'down');
+    },
+
+    /**
+     * 按键**抬起**。
+     *
+     * ⚠️ `preventDefault()` 必须在**所有分支之前**无条件调用。
+     *
+     * 官方事件文档写明 keyup 的宿主默认行为：
+     *   · `Backspace` → 返回上一页或请求关闭应用
+     *   · `ArrowUp` / `ArrowDown` → 滚动根视图
+     *   · `Enter` → 进入导航模式或激活当前目标
+     *
+     * 之前这段代码把 `preventDefault()` 放在函数**末尾**，
+     * 而且解读/追问/录入三个浮层分支都提前 `return` 了 —— 于是：
+     *   · 在解读或追问浮层按返回键 → 浮层关了，**应用也一起退了**；
+     *   · 在浮层按确认键 → 同时**进入宿主导航模式**，
+     *     之后方向键被导航层吃掉，表现为「滑动切不动 / 无法产生交互」。
+     */
     onKeyUp(event) {
-        const code = event && event.code;
-        if (!code) return;
-        // 同 code 在 150ms 内的重复上报（GlobalHook 滑动误报）直接丢弃
-        if (!shouldAcceptKey(this._keyGuard, code, Date.now())) return;
+        this._feedKey(event, 'up');
+    },
 
-        if (this.data.overlay === 'input') {
-            if (code === KeyCode.CONFIRM) this._startVoiceInput();
-            else if (code === KeyCode.BACK) this.finish();
+    /**
+     * 按键统一入口：归一化 → 接管默认行为 → 交给输入路由。
+     *
+     * @param {Object} event 宿主派发的按键事件
+     * @param {'down' | 'up'} phase
+     */
+    _feedKey(event, phase) {
+        const action = normalizeKey(event);
+        if (!action) return;
+
+        /**
+         * 只在 keyup 阶段接管默认行为。
+         *
+         * 官方把默认行为挂在 keyup 上；而在 keydown 里调 preventDefault()
+         * 有可能让宿主不再投递 keyup —— 那样配对状态永远悬着，
+         * 下一次同键按压会被当成「重复按下」吞掉。
+         */
+        if (phase === 'up' && typeof event.preventDefault === 'function') {
+            try {
+                event.preventDefault();
+            } catch (err) {
+                /* 宿主不支持就算了，不能因此把按键整个丢掉 */
+            }
+        }
+
+        /**
+         * 最近输入的原始键值 —— 真机上机第一分钟就能看到设备到底报了什么，
+         * 不用再靠猜（DEVICE-CHECKLIST §1.5 T2）。
+         */
+        const raw = rawKeyLabel(event);
+        if (raw && raw !== this.data.lastInput) {
+            const short = raw.length > 12 ? raw.slice(0, 12) : raw;
+            this.setData({ lastInput: short, statusLine: this._statusLine(undefined, short) });
+        }
+
+        const emitted = this._input.feed(action, phase);
+        if (emitted) this._dispatchKey(emitted);
+    },
+
+    /**
+     * 动作分发 —— 页面交互的唯一入口。
+     *
+     * 键位语义（真机上「上下/左右」到底怎么用，靠这里统一）：
+     *   · 盘面态：左右 = 选宫（沿十二宫外圈巡宫），上下 = 切时间层；
+     *     端侧引擎没加载（没有层可切）时，上下**退回选宫**。
+     *   · 解读浮层：上下 = 翻解读原文，确认 = 追问，返回 = 关闭。
+     *   · 追问浮层：上下 = 换预设问题，左右 = 翻答案原文。
+     *   · 录入浮层：确认 = 开始识别，返回 = 回到盘面（没有盘时才退出应用）。
+     *
+     * @param {string} action
+     */
+    _dispatchKey(action) {
+        const overlay = this.data.overlay;
+
+        if (overlay === 'input') {
+            if (action === ACTION.CONFIRM) this._startVoiceInput();
+            else if (action === ACTION.BACK) this._closeInput();
             return;
         }
 
-        if (this.data.overlay === 'reading') {
-            if (code === KeyCode.BACK) this._closeOverlay();
-            else if (code === KeyCode.CONFIRM) this._openAsk();
+        if (overlay === 'reading') {
+            if (action === ACTION.BACK) this._closeOverlay();
+            else if (action === ACTION.CONFIRM) this._openAsk();
+            else if (action === ACTION.UP || action === ACTION.DOWN) {
+                this._scrollReading(action === ACTION.UP ? -1 : 1);
+            }
             return;
         }
 
-        if (this.data.overlay === 'ask') {
-            if (code === KeyCode.BACK) this._closeOverlay();
-            else if (code === KeyCode.CONFIRM) this._submitAsk(this.data.askQuestion);
-            else if (code === KeyCode.UP || code === KeyCode.DOWN) this._cyclePreset(code === KeyCode.UP ? -1 : 1);
+        if (overlay === 'ask') {
+            if (action === ACTION.BACK) this._closeOverlay();
+            else if (action === ACTION.CONFIRM) this._submitAsk(this.data.askQuestion);
+            else if (action === ACTION.UP || action === ACTION.DOWN) {
+                this._cyclePreset(action === ACTION.UP ? -1 : 1);
+            } else if (action === ACTION.LEFT || action === ACTION.RIGHT) {
+                this._scrollAsk(action === ACTION.LEFT ? -1 : 1);
+            }
             return;
         }
 
-        if (code === KeyCode.UP) this._vertical(-1);
-        else if (code === KeyCode.DOWN) this._vertical(1);
-        else if (code === KeyCode.LEFT) this._select(stepRing(this.data.selectedBranch, -1));
-        else if (code === KeyCode.RIGHT) this._select(stepRing(this.data.selectedBranch, 1));
-        else if (code === KeyCode.CONFIRM) this._openReading();
+        if (action === ACTION.UP) this._vertical(-1);
+        else if (action === ACTION.DOWN) this._vertical(1);
+        else if (action === ACTION.LEFT) this._select(stepRing(this.data.selectedBranch, -1));
+        else if (action === ACTION.RIGHT) this._select(stepRing(this.data.selectedBranch, 1));
+        else if (action === ACTION.CONFIRM) this._openReading();
         /**
          * 返回键 = 回到上一步 = 重新说生辰（再按一次返回键才退出应用）。
          *
@@ -251,11 +374,7 @@ export default {
          * 语音录入只在「还没排出盘」时可达，一旦语音失败一次，用户就被锁死在
          * 第一张盘上，只能退出重开。
          */
-        else if (code === KeyCode.BACK) this._openInput();
-
-        if (typeof event.preventDefault === 'function') {
-            event.preventDefault();
-        }
+        else if (action === ACTION.BACK) this._openInput();
     },
 
     /* ---------------------------------------------------------------- *
@@ -357,6 +476,8 @@ export default {
                 demoLabel: '',
                 hourNote: '',
                 noticeLabel: '',
+                /** 排盘失败 = 没有盘，返回键只能退出应用 */
+                inputHint: '确认键开始识别　返回键退出',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
@@ -463,7 +584,7 @@ _navHint() {
 },
 
 /**
- * 中宫状态行：传感器通道 + 计算来源。
+ * 中宫状态行：传感器通道 + 计算来源 + 最近一次输入的原始键值。
  *
  * 为什么不用模板里的 `{{sensorLabel}}　{{sourceLabel}}`：
  * 传感器标签为空时（例如模拟器没有传感器），那行会留下一个前导全角空格，
@@ -472,11 +593,41 @@ _navHint() {
  * 所以状态**独占一行**才是对的。
  *
  * @param {string} [sourceLabel] 传了就用传值，否则用 data 里已有的
+ * @param {string} [lastInput] 传了就用传值，否则用 data 里已有的
  * @returns {string}
  */
-_statusLine(sourceLabel) {
-    const parts = [this.data.sensorLabel, sourceLabel || this.data.sourceLabel].filter(Boolean);
+_statusLine(sourceLabel, lastInput) {
+    const parts = [
+        this.data.sensorLabel,
+        sourceLabel || this.data.sourceLabel,
+        lastInput !== undefined ? lastInput : this.data.lastInput
+    ].filter(Boolean);
     return parts.join('　');
+},
+
+/**
+ * 解读原文翻页 —— **自己管滚动**，不靠宿主。
+ *
+ * 宿主的默认行为是「ArrowUp/ArrowDown 滚动根视图」，
+ * 而根视图固定 480×352 且 overflow:hidden，滚不动；
+ * 页面接管方向键之后（preventDefault），scroll-view 更不会被宿主带动。
+ * 长文本不自己翻页，用户就永远读不完一整段解读。
+ *
+ * @param {number} delta -1 往上 / +1 往下
+ */
+_scrollReading(delta) {
+    const next = Math.max(0, this.data.readingScrollTop + delta * SCROLL_STEP_PX);
+    this.setData({ readingScrollTop: next });
+},
+
+/**
+ * 追问答案翻页（与解读原文同一套机制）。
+ *
+ * @param {number} delta -1 往上 / +1 往下
+ */
+_scrollAsk(delta) {
+    const next = Math.max(0, this.data.askScrollTop + delta * SCROLL_STEP_PX);
+    this.setData({ askScrollTop: next });
 },
 
 /**
@@ -527,7 +678,7 @@ _vertical(delta) {
 
             this._sensorMode = 'cursor';
             this.setData({
-                sensorLabel: '头部准星',
+                sensorLabel: '准星',
                 navHint: this._navHint(),
                 statusLine: this._statusLine()
             });
@@ -540,7 +691,7 @@ _vertical(delta) {
         if (this._sensorMode === 'tilt') return;
         this._sensorMode = 'tilt';
         this.setData({
-            sensorLabel: '抬头选宫',
+            sensorLabel: '抬头',
             navHint: this._navHint(),
             statusLine: this._statusLine()
         });
@@ -561,7 +712,7 @@ _vertical(delta) {
         } catch (err) {
             this._sensorMode = 'none';
             this.setData({
-                sensorLabel: '镜腿选宫',
+                sensorLabel: '镜腿',
                 navHint: this._navHint(),
                 statusLine: this._statusLine()
             });
@@ -624,7 +775,9 @@ _vertical(delta) {
             readingTitle: `${cell.name}　${cell.stemName}${cell.branchName}`,
             readingDimension: `本命${cell.name} · ${dimensionLabel}${roleText}`,
             readingText: '',
-            readingLoading: true
+            readingLoading: true,
+            /** 换一段解读就从头读起 */
+            readingScrollTop: 0
         });
 
         speak(
@@ -721,7 +874,8 @@ _vertical(delta) {
             overlay: 'ask',
             askQuestion: question,
             askAnswer: '',
-            askFocus: this._focusLabel(question)
+            askFocus: this._focusLabel(question),
+            askScrollTop: 0
         });
     },
 
@@ -736,7 +890,14 @@ _vertical(delta) {
         const q = (question || '').trim();
         if (!q || this.data.askLoading) return;
 
-        this.setData({ askLoading: true, askQuestion: q, askAnswer: '', askFocus: this._focusLabel(q) });
+        this.setData({
+            askLoading: true,
+            askQuestion: q,
+            askAnswer: '',
+            askFocus: this._focusLabel(q),
+            /** 新问题从头看起 */
+            askScrollTop: 0
+        });
         try {
             const res = await requestAsk(this._birth, q, [], this._focusFor(q));
             const answer = (res && res.answer) || '这一问暂时没有回答。';
@@ -775,8 +936,44 @@ _vertical(delta) {
             overlay: 'input',
             needInput: true,
             heardText: '',
-            voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女'
+            voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
+            /**
+             * 返回键的语义跟着「有没有盘」走：
+             * 有盘 = 取消这次重录、回盘面；没盘 = 退出应用。
+             */
+            inputHint: this._chartJson
+                ? '确认键开始识别　返回键回盘面'
+                : '确认键开始识别　返回键退出'
         });
+    },
+
+    /**
+     * 生辰录入浮层的返回键。
+     *
+     * 之前这里直接 `this.finish()` —— 退出应用，于是
+     * 「盘面态按返回键重新说生辰」这条路径进去就出不来了：
+     * 用户想取消，整个应用被关掉。
+     *
+     * 分两种情况：
+     *   · **已经有盘**（`_chartJson` 有值）→ 回到盘面，这是「取消这次重录」；
+     *   · **还没有盘**（首次启动必须录入，语音解析失败）→ 才退出应用，
+     *     因为这时候没有别的地方可退。
+     *
+     * 判据用 `_chartJson` 而不是 `data.ready`：`ready` 在排盘失败的分支里
+     * 也会被置成 true，拿它当「有没有盘」的判据会把用户留在一个空屏上。
+     */
+    _closeInput() {
+        if (this._chartJson) {
+            this.setData({
+                overlay: '',
+                needInput: false,
+                heardText: '',
+                errorText: '',
+                voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女'
+            });
+            return;
+        }
+        this.finish();
     },
 
     async _startVoiceInput() {
@@ -850,32 +1047,32 @@ _vertical(delta) {
             <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
             <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
             <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
-            <text class="overlay-hint">确认键开始识别　返回键退出</text>
+            <text class="overlay-hint">{{inputHint}}</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'reading'}}">
             <text class="overlay-title">{{readingTitle}}</text>
             <text class="overlay-body dim">{{readingDimension}}</text>
-            <scroll-view class="reading-scroll" scroll-y="{{true}}">
+            <scroll-view class="reading-scroll" scroll-y="{{true}}" scroll-top="{{readingScrollTop}}">
                 <text class="reading-text" ink:if="{{!readingLoading}}">{{readingText}}</text>
                 <text class="reading-text dim" ink:if="{{readingLoading}}">正在检索解读原文……</text>
             </scroll-view>
             <text class="overlay-note" ink:if="{{readingCitation}}">{{readingCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">确认键追问　返回键退出</text>
+            <text class="overlay-hint">上下键翻页　确认键追问　返回键退出</text>
         </view>
 
         <view class="overlay" ink:if="{{overlay === 'ask'}}">
             <text class="overlay-title">追问</text>
             <text class="overlay-body strong">{{askQuestion}}</text>
             <text class="overlay-body dim" ink:if="{{askFocus}}">{{askFocus}}</text>
-            <scroll-view class="reading-scroll" scroll-y="{{true}}">
+            <scroll-view class="reading-scroll" scroll-y="{{true}}" scroll-top="{{askScrollTop}}">
                 <text class="reading-text" ink:if="{{!askLoading}}">{{askAnswer}}</text>
                 <text class="reading-text dim" ink:if="{{askLoading}}">正在推演……</text>
             </scroll-view>
             <text class="overlay-note" ink:if="{{askCitation}}">{{askCitation}}</text>
             <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">上下键选问题　确认键发送　返回键退出</text>
+            <text class="overlay-hint">上下键选问题　左右键看答案　确认键发送　返回键退出</text>
         </view>
     </view>
 </page>

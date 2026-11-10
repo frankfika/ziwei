@@ -125,7 +125,7 @@ const SOURCE_FILES = [
   'packages/rokid-agent/lib/tts.js',
   'packages/rokid-agent/lib/voice-input.js',
   'packages/rokid-agent/lib/storage.js',
-  'packages/rokid-agent/lib/key-guard.js',
+  'packages/rokid-agent/lib/temple-input.js',
   'packages/rokid-agent/lib/chart-source.js',
   'packages/rokid-agent/lib/birth-source.js',
   'packages/rokid-agent/pages/index/index.ink',

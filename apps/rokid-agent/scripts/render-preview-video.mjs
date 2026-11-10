@@ -106,12 +106,14 @@ function makePage(def) {
 /**
  * 按一次键。
  *
- * ⚠️ 必须间隔开：`index.ink` 的 `onKeyUp` 里有同键去抖
- * （`shouldAcceptKey`，150ms 窗口内**相同 code 的重复上报直接丢弃**）——
- * 连发两次 Enter，第二次会被静默吞掉（表现为「追问发不出去」）。
- * 所以每次按键前先睡 220ms。
+ * ⚠️ 必须间隔开：`index.ink` 的按键处理里有**同键回声抑制**
+ * （`lib/temple-input.js` 的 `upEchoMs` = 120ms，窗口内同键的重复抬起直接丢弃），
+ * 连发两次会被静默吞掉。
+ * 另外镜腿点按的确认冷却是 `cooldownMs` = 350ms —— 连着按两次「确认」
+ * （打开解读 → 打开追问）必须拉开超过这个间隔，否则第二次会被当成回声丢掉。
+ * 所以每次按键前先睡 420ms。
  */
-async function press(page, code, waitMs = 220) {
+async function press(page, code, waitMs = 420) {
   await new Promise((r) => setTimeout(r, waitMs));
   page.onKeyUp({ code, preventDefault() {} });
 }

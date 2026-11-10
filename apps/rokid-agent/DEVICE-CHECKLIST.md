@@ -20,7 +20,7 @@
 |---|---|---|
 | **准星通道** | 绝对方向传感器 → 四元数 → 欧拉角 → 4×4 网格 → 十二宫，连续二维光标 | `lib/head-cursor.js` `updateCursor()`；页面 `_startSensors()` |
 | **倾斜通道** | 加速度计重力方向 → 带符号倾角 → 一次切一宫（抬头/低头） | `lib/head-cursor.js` `updateTilt()` |
-| **镜腿键** | 上/下/左/右/确认/返回，代码里 `event.code` 取 `ArrowUp`/`ArrowDown`/`ArrowLeft`/`ArrowRight`/`Enter`/`Backspace` | `pages/index/index.ink` `KeyCode`（第 75 行）、`onKeyUp()` |
+| **镜腿键** | 上/下/左/右/确认/返回。代码里**不直接认键值**，统一走 `lib/temple-input.js` 归一化：`event.code`/`event.key`/数字 `keyCode` 三路兜底 → 动作 `up`/`down`/`left`/`right`/`confirm`/`back`；`GlobalHook` 单独识别为「镜腿触摸」，挂起 ~180 ms 判定是点按还是滑动 | `apps/rokid-agent/lib/temple-input.js`、`pages/index/index.ink` `onKeyDown()` / `onKeyUp()` / `_feedKey()` / `_dispatchKey()` |
 
 ### 0.2 现场记录表（每组做完就填，验收时交这份表）
 
@@ -237,7 +237,7 @@ node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
 | E13 | 浮层里按【**返回**】 | 关闭浮层回盘面（**不是退出应用**） |
 | E14 | **盘面态**按【**返回**】 | 回到「说出你的生辰」浮层 |
 | E15 | 在录入浮层再按【**返回**】 | **退出应用**（两级返回：回上一步 → 再退一步才退出） |
-| E16 | **手势误报测试**：手掌/手指在镜腿、太阳穴附近**快速滑动 20 次**，然后正常戴好不动 30 秒 | 不应出现误选宫、误触发确认、误开解读浮层。防线是 `lib/key-guard.js` 同 code **150 ms** 去抖——**它只挡同 code 重复，不挡不同 code 的误报** |
+| E16 | **手势误报测试**：手掌/手指在镜腿、太阳穴附近**快速滑动 20 次**，然后正常戴好不动 30 秒 | 不应出现**误触发确认**、误开解读浮层。防线是 `lib/temple-input.js` 的镜腿契约：`GlobalHook` **挂起 ~180 ms**，期间方向键到达就**取消这次确认**（滑动判定），重复 `GlobalHook` 视为回声。⚠️ **注意**：滑动**本来就应该**产生一次方向键（选宫），那是正常交互；「误报」指**不该出现的确认**（浮层自己弹出来） |
 | E17 | 连按测试：快速连按【下】5 次（间隔 <150 ms） | 只有第一次生效（或前几次），不应连切 5 层 |
 
 **通过标准**
@@ -245,7 +245,7 @@ node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
 - E3–E6 四层全部能按出来，标题正确，无空白层
 - E9–E13 解读 / 追问两级浮层可进可出，焦点行正确
 - E14–E15 两级返回语义正确
-- E16 无误触发；E17 去抖生效
+- E16 无误触发确认（滑动本身产生一次选宫是正常的）；E17 配对去重生效
 
 **不通过怎么办**：走不满 12 宫 → §3 第 6、7 条；切层没反应 → §3 第 3 条；返回直接退出应用 → §3 第 18 条；手势误报 → §3 第 10 条。
 
@@ -340,7 +340,7 @@ node apps/rokid-agent/scripts/simulate-first-launch.mjs --no-png
 | 7 | 准星压在格子边缘来回跳 | 边缘保护带不够 | `lib/head-cursor.js` `CURSOR_DEFAULTS.edgeGuard`（0.2） | 调到 0.25–0.3 |
 | 8 | 准星**左右反向**（抬头能找到、转头方向反） | 准星通道**没有**方向翻转开关，只有两个范围参数 | `lib/head-cursor.js` `CURSOR_DEFAULTS.yawRangeDeg`（22）/ `pitchRangeDeg`（16）；方向在 `updateCursor()` 里由 `yawDeg` 的符号决定 | 改范围调灵敏度；**改方向要动 `updateCursor()` 里 `yawDeg` 的符号**（准星通道无 `signFlip` 字段，别去改倾斜通道的） |
 | 9 | 状态行显示「**镜腿选宫**」 | 准星与加速度计两条通道都失败 | 页面 `_fallbackToTilt()` / `_sensorMode` | 属严重降级：查宿主传感器能力开关（**位置待确认**）；同时确认 §1.5 T1 |
-| 10 | 滑动镜腿附近时误选宫 / 误开解读 | 镜腿手势 GlobalHook 与按键走同一上报通道，误上报按键 | `lib/key-guard.js` `KEY_REPEAT_WINDOW_MS`（150 ms） | 调到 250–300 ms。**注意：它只挡「同 code 150 ms 内重复」，挡不住「不同 code 的误报」**——后者只能靠交互规避（选宫不依赖手势） |
+| 10 | 滑动时**误开解读浮层**（滑一下结果浮层自己弹出来） | 一次滑动 = 先 `GlobalHook`、50~120 ms 后才来方向键（真机实测）。`GlobalHook` = 触摸镜腿按键，若直接当点按处理，一次滑动就会「移动 + 确认」一起触发 | `lib/temple-input.js`：`GlobalHook` 挂起 ~180 ms，**方向键到达即取消确认**；重复 `GlobalHook` 视为回声抑制 | ⚠️ **2026-11-11 修正**：旧文档把 `GlobalHook` 当成「滑动时的误报」，方向是**反的**——官方定义它是「触摸镜腿按键」，**不处理它则镜腿点按（唯一的确认动作）彻底失灵**。旧防线 `key-guard.js`（同码 150 ms 去抖）已删除 |
 | 11 | 解读/追问一直转圈，最后白屏或超时 | `wx.request` 未命中走了 `fetch` 兜底；或眼镜→手机链路不稳 | `lib/api.js` `TIMEOUTS.reading`（10000）/ `TIMEOUTS.ask`（40000）/ `chart`（8000）；`postJson()` 里 `wx.request` 优先、`fetch` 兜底 | 先用 §G7 在手机端验证接口可达；再把对应超时调小（`reading` 10000→6000 之类），**只影响等待时间，不影响兜底文案** |
 | 12 | 追问要等太久，演示节奏崩 | 追问超时设得大 | `lib/api.js` `TIMEOUTS.ask`（40000） | 调到 15000–20000；兜底文案已有（§G3） |
 | 13 | 没声音 / 叠声 / 语速异常 | 走的是 Web 风格分支；播报时长靠估算 | `lib/tts.js`：`wx.speech.playTTS` → `speechSynthesis.speak`；抑制时长 `min(15000, 1200 + len×180)` | 无声：确认运行时给的是哪条路径（T4）；叠声：把估算系数调大（如 `1200 + len×220`） |

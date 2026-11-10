@@ -56,7 +56,7 @@
 | `apps/rokid-agent/lib/chart-layout.js` | 运限四化优先渲染、`fortuneShort` 运限宫名小标、`RING_ORDER` + `stepRing` 外圈巡宫、`speakableStars` 朗读文本、宫名归一 |
 | `apps/rokid-agent/pages/index/index.ink` | 上下键切层、中宫 7 行改版、追问带时间层焦点、切层语音播报 |
 | `apps/rokid-agent/lib/chart-source.js` | `resolveChart` 返回 `{ chart, source, engine }`（运限层要端侧引擎） |
-| `tests/rokid_agent.test.ts` | 47 → **67 项**（+17 时间层，+3 按键去抖 `/lib/key-guard.js`） |
+| `tests/rokid_agent.test.ts` | 47 → **67 项**（+17 时间层，+3 按键去抖）；**2026-11-11 起**：按键去抖的 `/lib/key-guard.js` 已被镜腿输入契约 `/lib/temple-input.js` 取代（归一化 + 配对 + `GlobalHook` 延迟确认），G 组整组重写 |
 
 **最终键位映射（全模式一致）**：
 

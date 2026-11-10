@@ -186,6 +186,7 @@ async function main() {
       ['准星 / 抬头低头', '选宫：连续二维光标；抬头低头切换相邻宫'],
       ['左右键', '沿盘面外圈巡宫，十二宫全覆盖'],
       ['上下键', '切换时间层：本命 → 大限 → 流年 → 流月'],
+      ['镜腿点按', '确认当前宫位 —— 滑动会先触发点按信号，页面按 180 ms 判定为滑动，不误确认'],
       ['确认键', '听该宫解读 / 进入追问'],
       ['返回键', '盘面态回生辰录入层（重新说生辰），再按一次退出'],
     ];
@@ -193,7 +194,7 @@ async function main() {
       x: 0.72, y: 4.88, w: 11.9, colW: [3.2, 8.7],
       fontFace: FONT, fontSize: 11.5, color: DIM,
       border: { type: 'solid', color: '24305A', pt: 1 },
-      fill: { color: INK2 }, valign: 'middle', rowH: 0.3, margin: 0.06,
+      fill: { color: INK2 }, valign: 'middle', rowH: 0.26, margin: 0.05,
     });
     foot(s, 4);
   }
@@ -279,7 +280,7 @@ async function main() {
     bg(s);
     title(s, '09 · 完成度与提交', '已验证的 / 未验证的，如实分开写', '「作品完成度」在评委榜与用户榜各占一次 —— 真机验证是权重最高也最容易补齐的缺口');
     card(s, 0.72, 2.3, 5.85, 2.4, '已验证', '· 端侧引擎打包，产物指纹 sha256:c28b129d…aa67，862.4 KB\n· 9 份金标准盘与源码引擎整对象 deepEqual（67 例）\n· 引文检测与降级自测 25 例全过，含真实数据回归\n· 后端三接口已上线生产域名并实测 200\n· 回归网 13 文件 / 163 例全绿；类型检查 9 包全过', GREEN);
-    card(s, 6.82, 2.3, 5.85, 2.4, '未验证（如实列出）', '· 全链路从未在 Rokid AI Glasses 真机上跑过\n· 绝对方向传感器在真机是否可用、加速度计轴向与方向\n· 镜腿手势 GlobalHook 在滑动时是否误上报\n· TTS 音质 / 语速 / 打断\n· 运限层在真机上的渲染与切换手感', 'FFB86B');
+    card(s, 6.82, 2.3, 5.85, 2.4, '未验证（如实列出）', '· 全链路从未在 Rokid AI Glasses 真机上跑过\n· 绝对方向传感器在真机是否可用、加速度计轴向与方向\n· 镜腿按键的真实键值与时序（代码侧已按真机契约实现，待实测确认）\n· TTS 音质 / 语速 / 打断\n· 运限层在真机上的渲染与切换手感', 'FFB86B');
     s.addText('初赛提交材料清单', { x: 0.72, y: 4.86, w: 11.9, h: 0.3, fontFace: FONT, fontSize: 13, bold: true, color: WHITE });
     const rows = [
       [{ text: '材料', options: { bold: true, color: 'C7CEE0' } }, { text: '状态', options: { bold: true, color: 'C7CEE0' } }, { text: '说明', options: { bold: true, color: 'C7CEE0' } }],

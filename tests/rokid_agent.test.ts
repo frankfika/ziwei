@@ -472,7 +472,7 @@ export const suite = async (t: Tester): Promise<void> => {
             '  重新打包：node apps/rokid-agent/scripts/build-engine.mjs',
         );
 
-        const birth = { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' };
+        const birth = { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' as const };
         assert.equal(
           parsed.summary,
           bundle.chartSummary(bundle.chart(birth)),

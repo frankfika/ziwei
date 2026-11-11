@@ -105,6 +105,11 @@ export interface FormCopy {
   filledBack: (label: string) => string;
   /** 表单已有内容、回填将覆盖时的确认 */
   overwriteConfirm: string;
+  /** 删除档案后的撤销条 */
+  removedProfile: (label: string) => string;
+  /** 清空星册后的撤销条 */
+  clearedLibrary: (n: number) => string;
+  undo: string;
   // ── 日期下拉 ──────────────────────────────────────────
   ariaYear: string;
   ariaMonth: string;
@@ -186,6 +191,9 @@ const ZH: FormCopy = {
   renamePrompt: '给这张盘起个名字（如「妈妈的盘」）',
   filledBack: (label) => `已载入「${label}」，可修改后重新排盘`,
   overwriteConfirm: '表单里已有填写内容，载入这张盘会覆盖，继续？',
+  removedProfile: (label) => `已删除「${label}」`,
+  clearedLibrary: (n) => `已清空 ${n} 张盘`,
+  undo: '撤销',
   ariaYear: '出生年份',
   ariaMonth: '出生月份',
   ariaDay: '出生日期',
@@ -272,6 +280,9 @@ const EN: FormCopy = {
   renamePrompt: 'Name this chart (e.g. “Mom’s chart”)',
   filledBack: (label) => `Loaded “${label}” — edit it and cast again`,
   overwriteConfirm: 'The form has input already — loading this chart will overwrite it. Continue?',
+  removedProfile: (label) => `Deleted “${label}”`,
+  clearedLibrary: (n) => `Cleared ${n} charts`,
+  undo: 'Undo',
   ariaYear: 'Birth year',
   ariaMonth: 'Birth month',
   ariaDay: 'Birth day',

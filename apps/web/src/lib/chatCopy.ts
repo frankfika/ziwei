@@ -59,6 +59,8 @@ export interface ChatCopy {
   emptyTrash: string;
   emptyTrashConfirm: string;
   deletedToast: (title: string) => string;
+  /** 删除档案（星盘）后的撤销条 */
+  deletedProfile: (label: string) => string;
   undo: string;
   // 长会话
   showEarlier: (n: number) => string;
@@ -213,6 +215,7 @@ const ZH: ChatCopy = {
   emptyTrash: '清空',
   emptyTrashConfirm: '清空已删除的对话？清空后无法恢复。',
   deletedToast: (title) => `已删除「${title}」`,
+  deletedProfile: (label) => `已删除档案「${label}」`,
   undo: '撤销',
   showEarlier: (n) => `显示更早的 ${n} 条`,
   backToBottom: '回到底部',
@@ -327,6 +330,7 @@ const EN: ChatCopy = {
   emptyTrash: 'Clear',
   emptyTrashConfirm: 'Clear all deleted conversations? This cannot be undone.',
   deletedToast: (title) => `Deleted “${title}”`,
+  deletedProfile: (label) => `Deleted profile “${label}”`,
   undo: 'Undo',
   showEarlier: (n) => `Show ${n} earlier`,
   backToBottom: 'Back to bottom',

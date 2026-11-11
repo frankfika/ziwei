@@ -1,16 +1,28 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { BirthFormState } from '@/lib/birth';
 import { GENDER_LABEL, SHICHEN_NAMES, formatClock, formatDate, resolveForm } from '@/lib/birth';
+import { dropAskThreads, restoreAskThreads, trashAskThreads } from '@/lib/askThreads';
 
 const STORAGE_KEY = 'ziwei_history';
+/** 已删除档案的回收站 key（删除可撤销，30 天后才真正清除） */
+const BIN_KEY = 'ziwei_history_bin';
 /** 星册最多存的张数（超出时挤掉最早的，界面会提示） */
 export const MAX_ENTRIES = 50;
+/** 回收站容量：超出后挤掉最早删的 */
+const BIN_MAX = 10;
+/** 回收站保留期：30 天 */
+const BIN_RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface HistoryEntry {
   id: string;
   label: string;
   form: BirthFormState;
   savedAt: number;
+}
+
+/** 回收站里的档案：多了删除时间 */
+export interface BinnedEntry extends HistoryEntry {
+  deletedAt: number;
 }
 
 /** 与命盘页 URL 参数一致的身份串（排盘日 + 时辰序号 + 性别） */
@@ -105,6 +117,47 @@ function writeStore(list: HistoryEntry[]): void {
   }
 }
 
+function readBin(): BinnedEntry[] {
+  try {
+    const raw = localStorage.getItem(BIN_KEY);
+    if (!raw) return [];
+    const list: unknown = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    // 惰性清除：超过保留期的条目真正销毁（连同其对话存档）
+    const cutoff = Date.now() - BIN_RETAIN_MS;
+    const valid = list.filter((e): e is BinnedEntry => !!e && typeof e.id === 'string' && !!e.form);
+    const kept = valid.filter((e) => (e.deletedAt ?? 0) > cutoff);
+    if (kept.length !== valid.length) {
+      for (const e of valid) {
+        if (!kept.includes(e)) dropAskThreads(chartIdentity(e.form));
+      }
+      try {
+        localStorage.setItem(BIN_KEY, JSON.stringify(kept));
+      } catch {
+        /* 忽略 */
+      }
+    }
+    return kept;
+  } catch {
+    return [];
+  }
+}
+
+function writeBin(list: BinnedEntry[]): void {
+  try {
+    localStorage.setItem(BIN_KEY, JSON.stringify(list));
+    window.dispatchEvent(new Event(HISTORY_EVENT));
+  } catch {
+    /* 忽略写入失败 */
+  }
+}
+
+/** 档案 → 回收站：连同这张盘的本机对话一起收（可整体恢复） */
+function binEntry(entry: HistoryEntry, bin: BinnedEntry[]): BinnedEntry[] {
+  trashAskThreads(chartIdentity(entry.form));
+  return [{ ...entry, deletedAt: Date.now() }, ...bin.filter((e) => e.id !== entry.id)].slice(0, BIN_MAX);
+}
+
 /** 同一张盘（排盘日 + 时辰序号 + 性别）只保留一条，新的排在最前 */
 function nextList(prev: HistoryEntry[], entry: HistoryEntry): HistoryEntry[] {
   const identity = chartIdentity(entry.form);
@@ -120,12 +173,14 @@ function nextList(prev: HistoryEntry[], entry: HistoryEntry): HistoryEntry[] {
  */
 export function useHistory() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [bin, setBin] = useState<BinnedEntry[]>([]);
   /** 首次读盘完成。挂载第一帧 history 恒为 []，不能拿它判断"用户没有档案" */
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const reread = () => {
       setHistory(readStore());
+      setBin(readBin());
       setReady(true);
     };
     reread();
@@ -157,10 +212,40 @@ export function useHistory() {
     setHistory(updated);
   }, []);
 
-  const remove = useCallback((id: string) => {
+  /** 删除 = 进回收站（连同本机对话），可撤销；返回被删的条目供界面提示 */
+  const remove = useCallback((id: string): HistoryEntry | null => {
+    const victim = readStore().find((e) => e.id === id) ?? null;
+    if (!victim) return null;
     const updated = readStore().filter((e) => e.id !== id);
     writeStore(updated);
+    const nextBin = binEntry(victim, readBin());
+    writeBin(nextBin);
     setHistory(updated);
+    setBin(nextBin);
+    return victim;
+  }, []);
+
+  /** 从回收站恢复：档案回到星册最前，本机对话一并还原 */
+  const restore = useCallback((id: string): void => {
+    const victim = readBin().find((e) => e.id === id) ?? null;
+    if (!victim) return;
+    const { deletedAt: _d, ...entry } = victim;
+    restoreAskThreads(chartIdentity(entry.form));
+    const updated = [entry, ...readStore()].slice(0, MAX_ENTRIES);
+    writeStore(updated);
+    const nextBin = readBin().filter((e) => e.id !== id);
+    writeBin(nextBin);
+    setHistory(updated);
+    setBin(nextBin);
+  }, []);
+
+  /** 彻底删除回收站里的一张盘（连同对话存档，不可恢复） */
+  const destroy = useCallback((id: string): void => {
+    const victim = readBin().find((e) => e.id === id) ?? null;
+    if (victim) dropAskThreads(chartIdentity(victim.form));
+    const nextBin = readBin().filter((e) => e.id !== id);
+    writeBin(nextBin);
+    setBin(nextBin);
   }, []);
 
   const rename = useCallback((id: string, label: string) => {
@@ -171,10 +256,18 @@ export function useHistory() {
     setHistory(updated);
   }, []);
 
-  const clear = useCallback(() => {
+  /** 清空 = 全部进回收站（可整体撤销）；返回被清的条目 */
+  const clear = useCallback((): HistoryEntry[] => {
+    const victims = readStore();
+    if (victims.length === 0) return [];
     writeStore([]);
+    let nextBin = readBin();
+    for (const v of victims) nextBin = binEntry(v, nextBin);
+    writeBin(nextBin);
     setHistory([]);
+    setBin(nextBin);
+    return victims;
   }, []);
 
-  return { history, ready, save, remove, rename, clear };
+  return { history, bin, ready, save, remove, restore, destroy, rename, clear };
 }

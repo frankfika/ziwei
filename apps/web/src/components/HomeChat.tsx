@@ -17,8 +17,7 @@ import Seal from './Seal';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useLang } from '@/lib/lang';
 import { CHAT_COPY } from '@/lib/chatCopy';
-import { useHistory, chartKey, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
-import { dropAskThreads } from '@/lib/askThreads';
+import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
 import { INTENT_CHIPS } from '@/lib/topicChips';
@@ -46,9 +45,10 @@ export default function HomeChat({
 }) {
   const [lang] = useLang();
   const copy = CHAT_COPY[lang];
-  const { history, ready, remove } = useHistory();
+  const { history, ready, remove, restore } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  /** 浮层提示：纯文本自动消失；带 undo 的留更久（删除档案的撤销条） */
+  const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
@@ -68,10 +68,10 @@ export default function HomeChat({
     }
   }, []);
 
-  // 浮层提示自动消失；卸载时清掉定时器
+  // 浮层提示自动消失（撤销条留 6 秒，给人反应时间）；卸载时清掉定时器
   useEffect(() => {
     if (!toast) return;
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), toast.undo ? 6000 : 2200);
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
@@ -89,32 +89,35 @@ export default function HomeChat({
       /* 忽略写入失败 */
     }
     const entry = history.find((e) => e.id === id);
-    if (entry) setToast(copy.switchedTo(shortLabel(entry)));
+    if (entry) setToast({ text: copy.switchedTo(shortLabel(entry)) });
   };
 
-  /** 删除当前档案：级联删对话（不留孤儿数据），并清掉持久化选择 */
+  /** 删除当前档案：进回收站（连同本机对话），撤销条可一键还原，不再弹确认框 */
   const removeSelected = () => {
     if (!selected) return;
-    if (!window.confirm(copy.deleteChartConfirm)) return;
     const removedId = selected.id;
-    if (resolved?.ok && resolved.resolved) {
-      dropAskThreads(
-        chartKey({
-          year: resolved.resolved.year,
-          month: resolved.resolved.month,
-          day: resolved.resolved.day,
-          hour: resolved.resolved.hour,
-          gender: selected.form.gender,
-        }),
-      );
-    }
-    remove(removedId);
+    const victim = remove(removedId);
     try {
       if (localStorage.getItem(SELECT_KEY) === removedId) localStorage.removeItem(SELECT_KEY);
     } catch {
       /* 忽略 */
     }
     setSelectedId((prev) => (prev === removedId ? null : prev));
+    if (victim) {
+      setToast({
+        text: copy.deletedProfile(victim.label),
+        undo: () => {
+          restore(victim.id);
+          setSelectedId(victim.id);
+          try {
+            localStorage.setItem(SELECT_KEY, victim.id);
+          } catch {
+            /* 忽略 */
+          }
+          setToast(null);
+        },
+      });
+    }
   };
 
   const resolved = useMemo(
@@ -278,14 +281,23 @@ export default function HomeChat({
         </>
       )}
 
-      {/* 切换档案的浮层确认：换人即换线程，必须有一眼可见的反馈 */}
+      {/* 浮层确认：换人 / 删除档案（带撤销），必须有一眼可见的反馈 */}
       {toast && (
         <div
           role="status"
           className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-5"
         >
-          <span className="max-w-full truncate rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]">
-            {toast}
+          <span className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]">
+            <span className="truncate">{toast.text}</span>
+            {toast.undo && (
+              <button
+                type="button"
+                onClick={toast.undo}
+                className="shrink-0 font-medium text-white underline underline-offset-2 transition-colors hover:text-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                {copy.undo}
+              </button>
+            )}
           </span>
         </div>
       )}

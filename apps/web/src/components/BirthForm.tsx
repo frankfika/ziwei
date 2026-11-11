@@ -50,15 +50,24 @@ function isPristine(form: BirthFormState): boolean {
   );
 }
 
-/** 底部浮层提示（回填成功等瞬态确认）：自动消失，不打断操作 */
-function Toast({ text }: { text: string }) {
+/** 底部浮层提示（回填成功 / 删除撤销等瞬态确认）：自动消失，不打断操作 */
+function Toast({ text, undo, undoLabel }: { text: string; undo?: () => void; undoLabel?: string }) {
   return (
     <div
       role="status"
       className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-5 md:bottom-10"
     >
-      <span className="max-w-full truncate rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]">
-        {text}
+      <span className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]">
+        <span className="truncate">{text}</span>
+        {undo && undoLabel && (
+          <button
+            type="button"
+            onClick={undo}
+            className="shrink-0 font-medium text-white underline underline-offset-2 transition-colors hover:text-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            {undoLabel}
+          </button>
+        )}
       </span>
     </div>
   );
@@ -121,13 +130,14 @@ export default function BirthForm({
   const [form, setForm] = useState<BirthFormState>(() => ({ ...EMPTY_FORM, ...initialForm }));
   const [formPending, setFormPending] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(!!errorText);
-  const [toast, setToast] = useState<string | null>(null);
+  /** 浮层提示：纯文本短驻；带撤销的留更久 */
+  const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 移动端星册默认折叠；桌面端恒展开 */
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [lang] = useLang();
   const copy = FORM_COPY[lang];
-  const { history, save, remove, rename, clear } = useHistory();
+  const { history, save, remove, restore, rename, clear } = useHistory();
   const indexedSet = useMemo(() => new Set(indexedYears), [indexedYears]);
   const yearNum = Number(form.year);
   // 年份可键入：输入到一半（不足 4 位）不提示，免得边打字边闪「未覆盖」
@@ -143,10 +153,10 @@ export default function BirthForm({
 
   const resolved = useMemo(() => resolveForm(form), [form]);
 
-  // 浮层提示自动消失；卸载时清掉定时器
+  // 浮层提示自动消失（撤销条留 6 秒，给人反应时间）；卸载时清掉定时器
   useEffect(() => {
     if (!toast) return;
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), toast.undo ? 6000 : 2200);
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
@@ -193,7 +203,7 @@ export default function BirthForm({
     if (!isPristine(form) && !window.confirm(copy.overwriteConfirm)) return;
     setForm({ ...EMPTY_FORM, ...entry.form });
     setAttemptedSubmit(false);
-    setToast(copy.filledBack(entry.label));
+    setToast({ text: copy.filledBack(entry.label) });
     // app-shell 布局下页面滚动发生在 main 里（window 不滚）
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
   };
@@ -536,8 +546,16 @@ export default function BirthForm({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(copy.libraryClearConfirm)) {
-                  clear();
+                if (!window.confirm(copy.libraryClearConfirm)) return;
+                const victims = clear();
+                if (victims.length > 0) {
+                  setToast({
+                    text: copy.clearedLibrary(victims.length),
+                    undo: () => {
+                      for (const v of victims) restore(v.id);
+                      setToast(null);
+                    },
+                  });
                 }
               }}
               className="inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
@@ -638,7 +656,18 @@ export default function BirthForm({
                         type="button"
                         aria-label={copy.remove(entry.label)}
                         title={copy.removeTitle}
-                        onClick={() => remove(entry.id)}
+                        onClick={() => {
+                          const victim = remove(entry.id);
+                          if (victim) {
+                            setToast({
+                              text: copy.removedProfile(victim.label),
+                              undo: () => {
+                                restore(victim.id);
+                                setToast(null);
+                              },
+                            });
+                          }
+                        }}
                         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm text-ink-2 transition-colors hover:bg-zhu-soft/40 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
                       >
                         <span aria-hidden="true">×</span>
@@ -652,7 +681,7 @@ export default function BirthForm({
         )}
       </aside>
 
-      {toast && <Toast text={toast} />}
+      {toast && <Toast text={toast.text} undo={toast.undo} undoLabel={copy.undo} />}
     </div>
   );
 }

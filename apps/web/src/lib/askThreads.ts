@@ -68,10 +68,42 @@ function legacyKey(identity: string): string {
   return `ziwei_ask:${identity}`;
 }
 
-/** 删除档案时级联清掉这张盘的全部对话（含回收站） */
+/** 档案进回收站时，对话存档暂存到这个 key（恢复档案时整体搬回） */
+function binKey(identity: string): string {
+  return `ziwei_ask2_bin:${identity}`;
+}
+
+/** 档案删除时级联处理对话：暂存到回收站 key（不销毁，恢复档案可整体还原） */
+export function trashAskThreads(identity: string): void {
+  try {
+    const raw = localStorage.getItem(storageKey(identity));
+    if (raw !== null) {
+      localStorage.setItem(binKey(identity), raw);
+      localStorage.removeItem(storageKey(identity));
+    }
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/** 档案恢复时把暂存的对话搬回原 key */
+export function restoreAskThreads(identity: string): void {
+  try {
+    const raw = localStorage.getItem(binKey(identity));
+    if (raw !== null) {
+      localStorage.setItem(storageKey(identity), raw);
+      localStorage.removeItem(binKey(identity));
+    }
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/** 彻底清掉这张盘的全部对话（含暂存区） */
 export function dropAskThreads(identity: string): void {
   try {
     localStorage.removeItem(storageKey(identity));
+    localStorage.removeItem(binKey(identity));
     localStorage.removeItem(legacyKey(identity));
   } catch {
     /* 忽略 */

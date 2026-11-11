@@ -45,6 +45,8 @@ export interface FormCopy {
   partYear: string;
   partMonth: string;
   partDay: string;
+  /** 缺项的名称（时辰） */
+  partTime: string;
   /** 缺项列表的连接方式 */
   joinParts: (parts: string[]) => string;
   // ── 时辰 ──────────────────────────────────────────────
@@ -53,6 +55,8 @@ export interface FormCopy {
   modeClock: string;
   shichenAria: string;
   clockAria: string;
+  /** 时辰下拉的占位项（未选时） */
+  shichenPlaceholder: string;
   /** 时辰下拉项：中文原词 + 英文释义 + 钟点区间 */
   shichenOption: (zh: string, en: string, range: string) => string;
   /** 行内时辰名：中文原词 + 英文释义 */
@@ -87,6 +91,9 @@ export interface FormCopy {
   fillBack: (label: string) => string;
   fillBackTitle: string;
   fillBackGlyph: string;
+  /** 档案行上的「命盘」直达链接 */
+  viewChart: string;
+  viewChartTitle: string;
   rename: (label: string) => string;
   renameTitle: string;
   renameGlyph: string;
@@ -94,6 +101,10 @@ export interface FormCopy {
   removeTitle: string;
   removeGlyph: string;
   renamePrompt: string;
+  /** 回填成功的浮层提示 */
+  filledBack: (label: string) => string;
+  /** 表单已有内容、回填将覆盖时的确认 */
+  overwriteConfirm: string;
   // ── 日期下拉 ──────────────────────────────────────────
   ariaYear: string;
   ariaMonth: string;
@@ -101,6 +112,8 @@ export interface FormCopy {
   optionYear: string;
   optionMonth: string;
   optionDay: string;
+  /** 换月后「日」被清掉时的就地提示 */
+  dayCleared: (month: number, maxDay: number) => string;
   yearOption: (y: number) => string;
   monthOption: (m: number) => string;
   dayOption: (d: number) => string;
@@ -128,12 +141,14 @@ const ZH: FormCopy = {
   partYear: '年',
   partMonth: '月',
   partDay: '日',
+  partTime: '时辰',
   joinParts: (parts) => parts.join('、'),
   timeLabel: '出生时辰',
   modeShichen: '按时辰',
   modeClock: '按钟点',
   shichenAria: '时辰',
   clockAria: '出生钟点',
+  shichenPlaceholder: '请选择时辰',
   shichenOption: (zh, _en, range) => `${zh}时（${range}）`,
   shichen: (zh, _en) => `${zh}时`,
   ziQuestion: '子时跨零点，你出生在哪一段？',
@@ -160,6 +175,8 @@ const ZH: FormCopy = {
   fillBack: (label) => `回填「${label}」到表单`,
   fillBackTitle: '回填到表单修改',
   fillBackGlyph: '填',
+  viewChart: '命盘',
+  viewChartTitle: '直接查看这张命盘',
   rename: (label) => `重命名「${label}」`,
   renameTitle: '重命名',
   renameGlyph: '名',
@@ -167,12 +184,15 @@ const ZH: FormCopy = {
   removeTitle: '删除',
   removeGlyph: '×',
   renamePrompt: '给这张盘起个名字（如「妈妈的盘」）',
+  filledBack: (label) => `已载入「${label}」，可修改后重新排盘`,
+  overwriteConfirm: '表单里已有填写内容，载入这张盘会覆盖，继续？',
   ariaYear: '出生年份',
   ariaMonth: '出生月份',
   ariaDay: '出生日期',
   optionYear: '年',
   optionMonth: '月',
   optionDay: '日',
+  dayCleared: (month, maxDay) => `${month} 月只有 ${maxDay} 天，「日」已清掉，请重新选择。`,
   yearOption: (y) => `${y}年`,
   monthOption: (m) => `${m}月`,
   dayOption: (d) => `${d}日`,
@@ -184,6 +204,7 @@ const ZH: FormCopy = {
     'invalid-date': (date) => `该日期不存在：${date}`,
     'invalid-clock': () => '钟点需在 00:00–23:59 之间',
     'invalid-shichen': () => '时辰需在 0–11 之间',
+    'missing-shichen': () => '请选择出生时辰',
   },
   pageTitle: '排一张新盘',
   backLink: '← 回到命盘对话',
@@ -206,12 +227,14 @@ const EN: FormCopy = {
   partYear: 'year',
   partMonth: 'month',
   partDay: 'day',
+  partTime: 'double-hour',
   joinParts: (parts) => parts.join(', '),
   timeLabel: 'Time of birth',
   modeShichen: 'By double-hour',
   modeClock: 'By clock time',
   shichenAria: 'Double-hour',
   clockAria: 'Time of birth',
+  shichenPlaceholder: 'Select the double-hour',
   shichenOption: (zh, en, range) => `${zh}时 · ${en} (${range})`,
   shichen: (zh, en) => `${zh}时 · ${en}`,
   ziQuestion: 'The Zi hour crosses midnight — which part were you born in?',
@@ -238,6 +261,8 @@ const EN: FormCopy = {
   fillBack: (label) => `Load “${label}” back into the form`,
   fillBackTitle: 'Load into the form to edit',
   fillBackGlyph: 'Fill',
+  viewChart: 'Chart',
+  viewChartTitle: 'Open this chart directly',
   rename: (label) => `Rename “${label}”`,
   renameTitle: 'Rename',
   renameGlyph: 'Edit',
@@ -245,12 +270,15 @@ const EN: FormCopy = {
   removeTitle: 'Delete',
   removeGlyph: '×',
   renamePrompt: 'Name this chart (e.g. “Mom’s chart”)',
+  filledBack: (label) => `Loaded “${label}” — edit it and cast again`,
+  overwriteConfirm: 'The form has input already — loading this chart will overwrite it. Continue?',
   ariaYear: 'Birth year',
   ariaMonth: 'Birth month',
   ariaDay: 'Birth day',
   optionYear: 'Year',
   optionMonth: 'Month',
   optionDay: 'Day',
+  dayCleared: (month, maxDay) => `${MONTH_EN[month - 1] ?? month} has only ${maxDay} days — the day was cleared, please pick again.`,
   yearOption: (y) => `${y}`,
   monthOption: (m) => MONTH_EN[m - 1] ?? `${m}`,
   dayOption: (d) => `${d}`,
@@ -262,6 +290,7 @@ const EN: FormCopy = {
     'invalid-date': (date) => `That date does not exist: ${date}`,
     'invalid-clock': () => 'Time must be between 00:00 and 23:59',
     'invalid-shichen': () => 'Double-hour must be between 0 and 11',
+    'missing-shichen': () => 'Please select the double-hour of birth',
   },
   pageTitle: 'Cast a new chart',
   backLink: '← Back to the chart chat',

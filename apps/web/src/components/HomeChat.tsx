@@ -7,7 +7,7 @@
  * 对话只存在本机；回答只依据数据集原文，未覆盖的盘会如实说明。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import AskPanel from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
@@ -17,10 +17,14 @@ import Seal from './Seal';
 import { readUserConfig } from '@/lib/aiConfig';
 import { useLang } from '@/lib/lang';
 import { CHAT_COPY } from '@/lib/chatCopy';
-import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
+import { useHistory, chartKey, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
+import { dropAskThreads } from '@/lib/askThreads';
 import { resolveForm } from '@/lib/birth';
 
 import { INTENT_CHIPS } from '@/lib/topicChips';
+
+/** 当前选中档案持久化 key：刷新 / 从盘页回来不丢「在聊谁」 */
+const SELECT_KEY = 'ziwei_selected_profile';
 
 const PROFILE_CHIP_CLASS =
   'shrink-0 rounded-full border px-3.5 py-2 text-xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
@@ -44,6 +48,8 @@ export default function HomeChat({
   const copy = CHAT_COPY[lang];
   const { history, ready, remove } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
 
@@ -51,7 +57,65 @@ export default function HomeChat({
   useEffect(() => {
     setUserAi(!!readUserConfig());
   }, [showConfig]);
+
+  // 恢复上次选中的人：刷新 / 从盘页返回，对话对象不换
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SELECT_KEY);
+      if (saved) setSelectedId(saved);
+    } catch {
+      /* 隐私模式读不到就当没有 */
+    }
+  }, []);
+
+  // 浮层提示自动消失；卸载时清掉定时器
+  useEffect(() => {
+    if (!toast) return;
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, [toast]);
+
   const selected = history.find((e) => e.id === selectedId) ?? history[0] ?? null;
+
+  /** 点档案芯片：换人 + 记住选择 + 浮层确认（切换即换线程，必须让用户知道换了谁） */
+  const pickProfile = (id: string) => {
+    if (id === selected?.id) return;
+    setSelectedId(id);
+    try {
+      localStorage.setItem(SELECT_KEY, id);
+    } catch {
+      /* 忽略写入失败 */
+    }
+    const entry = history.find((e) => e.id === id);
+    if (entry) setToast(copy.switchedTo(shortLabel(entry)));
+  };
+
+  /** 删除当前档案：级联删对话（不留孤儿数据），并清掉持久化选择 */
+  const removeSelected = () => {
+    if (!selected) return;
+    if (!window.confirm(copy.deleteChartConfirm)) return;
+    const removedId = selected.id;
+    if (resolved?.ok && resolved.resolved) {
+      dropAskThreads(
+        chartKey({
+          year: resolved.resolved.year,
+          month: resolved.resolved.month,
+          day: resolved.resolved.day,
+          hour: resolved.resolved.hour,
+          gender: selected.form.gender,
+        }),
+      );
+    }
+    remove(removedId);
+    try {
+      if (localStorage.getItem(SELECT_KEY) === removedId) localStorage.removeItem(SELECT_KEY);
+    } catch {
+      /* 忽略 */
+    }
+    setSelectedId((prev) => (prev === removedId ? null : prev));
+  };
 
   const resolved = useMemo(
     () => (selected ? resolveForm(selected.form) : null),
@@ -121,7 +185,7 @@ export default function HomeChat({
             role="tab"
             aria-selected={active}
             title={entry.label}
-            onClick={() => setSelectedId(entry.id)}
+            onClick={() => pickProfile(entry.id)}
             className={`${PROFILE_CHIP_CLASS} ${
               active
                 ? 'border-zhu bg-zhu-soft text-ink'
@@ -151,9 +215,7 @@ export default function HomeChat({
       </p>
       <button
         type="button"
-        onClick={() => {
-          if (window.confirm(copy.deleteChartConfirm)) remove(selected!.id);
-        }}
+        onClick={removeSelected}
         className="mt-1.5 text-2xs text-ink-3 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
       >
         {copy.deleteChart}
@@ -167,8 +229,9 @@ export default function HomeChat({
           标题在这里渲染：客户端随语言即时切换，不用等刷新 */}
       <h1 className="sr-only mb-4 font-serif text-[1.45rem] leading-snug text-ink sm:not-sr-only sm:block sm:text-[1.6rem]">
         {copy.homeTitle}
-        {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </h1>
+      {/* 排盘回跳的错误提示独立于标题（alert 不能嵌在 h1 里） */}
+      {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
 
       {/* 档案芯片常驻顶部：切换命盘是主入口，藏进抽屉会让人找不到 */}
       {profileRow}
@@ -213,6 +276,18 @@ export default function HomeChat({
             <p className="text-xs text-ink-2">{copy.incompleteBirth}</p>
           </div>
         </>
+      )}
+
+      {/* 切换档案的浮层确认：换人即换线程，必须有一眼可见的反馈 */}
+      {toast && (
+        <div
+          role="status"
+          className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-5"
+        >
+          <span className="max-w-full truncate rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]">
+            {toast}
+          </span>
+        </div>
       )}
     </div>
   );

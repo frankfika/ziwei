@@ -62,7 +62,9 @@ export function detailLabel(form: BirthFormState): string {
   const time =
     form.timeMode === 'clock'
       ? formatClock(Number(form.clockHour), Number(form.clockMinute))
-      : `${SHICHEN_NAMES[form.shichen]}时`;
+      : form.shichen === ''
+        ? '时辰未定'
+        : `${SHICHEN_NAMES[form.shichen]}时`;
   return `${form.year}年${form.month}月${form.day}日 · ${time} · ${GENDER_LABEL[form.gender]}`;
 }
 

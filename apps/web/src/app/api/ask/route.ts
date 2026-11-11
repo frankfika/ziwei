@@ -20,6 +20,7 @@ import {
   AskProviderError,
   type AskTurn,
 } from '@ziwei/ask';
+import { InvalidBirthError, validateBirth } from '@ziwei/chart-engine';
 import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
 import { requestIp, reserveFor, type QuotaSubject } from '@/lib/askAccess';
 import { currentUser } from '@/lib/session';
@@ -87,6 +88,15 @@ export async function POST(request: Request) {
     hour > 11
   ) {
     return sseError('生辰参数不完整，请回到输入页重新排盘。 / Birth data is incomplete — go back and cast the chart again.');
+  }
+
+  // 范围校验与眼镜端 / 引擎同一口径（validateBirth）——非法日期（如 2 月 30 日）
+  // 在占额度之前就拦下，不让它走到引擎深处才炸成一句难懂的 500。
+  try {
+    validateBirth({ year, month, day, hour, gender });
+  } catch (err) {
+    if (err instanceof InvalidBirthError) return sseError(err.message);
+    throw err;
   }
 
   // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）

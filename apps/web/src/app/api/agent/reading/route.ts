@@ -9,104 +9,23 @@
  *    一次模型都不调 —— 眼镜端拿到的每一句断语都必须是数据集原文，不允许模型凭空生成；
  *  · 样本库没覆盖的生辰**如实说没覆盖**，不编造、不静默降级：
  *    返回 status:'not-covered' + core 给的中文说明 + 已建索引的年份；
- *  · 排盘不归这里管（眼镜端本地能算就算，算不动才回落到 /api/agent/chart）。
+ *  · 排盘不归这里管（眼镜端本地能算就算，算不动才回落到 /api/agent/chart）；
+ *  · CORS / 生辰解析共享实现见 @/lib/agentHttp，三个 agent 接口只有这一份。
  */
-
-import { InvalidBirthError, validateBirth } from '@ziwei/chart-engine';
-import type { Birth } from '@ziwei/core';
 
 import {
   AGENT_CITATION_MODE_LABEL,
   applyCitationModeToDimensions,
   resolveAgentCitationMode,
 } from '@/lib/citations';
+import { agentJson, agentOptions, parseBirth } from '@/lib/agentHttp';
 import { getService } from '@/lib/service';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * CORS 头 —— 眼镜端的来源不可控（小程序 wx.request / fetch 行为还不一致），
- * 只能放开。三个接口都只读不写，不带凭证，所以 `*` 是安全的。
- */
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
 /** 预检：眼镜端走 fetch 时会先发 OPTIONS，这里必须先放行 */
 export function OPTIONS(): Response {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
-
-/** 统一 JSON 出口 —— CORS 头与禁缓存策略只在这里写一次，避免漏在某个分支上 */
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...CORS_HEADERS,
-      'content-type': 'application/json; charset=utf-8',
-      // 解读原文是个人隐私数据，不许任何一层缓存
-      'cache-control': 'no-store',
-    },
-  });
-}
-
-/** 生辰解析结果 */
-type ParseResult =
-  | { ok: true; birth: Birth }
-  | { ok: false; message: string };
-
-/**
- * 取整数：设备端理论上发的是 number，但语音识别链路可能把数字转成字符串，
- * 这里一并接受，避免因为类型差异把合法生辰判死。
- */
-function toInt(v: unknown): number | null {
-  if (typeof v === 'number') return Number.isInteger(v) ? v : null;
-  if (typeof v === 'string' && /^-?\d+$/.test(v.trim())) return Number(v.trim());
-  return null;
-}
-
-/**
- * 解析并校验生辰。
- *
- * 范围判定直接借用引擎自己的 validateBirth（@ziwei/chart-engine 导出的权威实现），
- * 不在这里另写一套 —— 引擎认的口径就是数据集认的口径，两边必须一模一样。
- */
-function parseBirth(raw: unknown): ParseResult {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, message: '请求体必须是一个 JSON 对象。' };
-  }
-  const o = raw as Record<string, unknown>;
-
-  const missing = (['year', 'month', 'day', 'hour', 'gender'] as const).filter(
-    (k) => o[k] === undefined || o[k] === null,
-  );
-  if (missing.length > 0) {
-    return { ok: false, message: '请提供完整的出生参数：year、month、day、hour、gender。' };
-  }
-
-  const year = toInt(o.year);
-  const month = toInt(o.month);
-  const day = toInt(o.day);
-  const hour = toInt(o.hour);
-  if (year === null || month === null || day === null || hour === null) {
-    return { ok: false, message: '出生参数格式不对：year、month、day、hour 需要是整数。' };
-  }
-  if (o.gender !== 'male' && o.gender !== 'female') {
-    return { ok: false, message: '性别需为 male 或 female。' };
-  }
-
-  const birth: Birth = { year, month, day, hour, gender: o.gender };
-  try {
-    validateBirth(birth);
-  } catch (err) {
-    if (err instanceof InvalidBirthError) {
-      return { ok: false, message: err.message };
-    }
-    throw err;
-  }
-  return { ok: true, birth };
+  return agentOptions();
 }
 
 /**
@@ -120,18 +39,18 @@ export async function POST(request: Request): Promise<Response> {
   try {
     payload = await request.json();
   } catch {
-    return json({ error: '请求体不是合法的 JSON。' }, 400);
+    return agentJson({ error: '请求体不是合法的 JSON。' }, 400);
   }
 
   const parsed = parseBirth(payload);
   if (!parsed.ok) {
-    return json({ error: parsed.message }, 400);
+    return agentJson({ error: parsed.message }, 400);
   }
 
   const res = getService().reading(parsed.birth);
 
   if (res.status === 'not-covered') {
-    return json(
+    return agentJson(
       {
         status: 'not-covered',
         key: res.key,
@@ -162,7 +81,7 @@ export async function POST(request: Request): Promise<Response> {
     mode,
   );
 
-  return json(
+  return agentJson(
     {
       status: 'ok',
       key: res.key,

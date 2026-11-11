@@ -199,6 +199,20 @@ packages/ask/src/service.ts                   （主仓版 + extraSystem 增量�
 另：Studio 的上传 input 有两个（一个 `accept=".jpg,.jpeg,.png,.gif"`，一个 `accept=".jpg,.jpeg,.png,.mp4" multiple`），
 **mp4 走第二个**；同一个 dropzone 的 ref 都能用。
 
+**④ 仓库布局变了（2026-11-11 21:30，Frank 主动整理）** —— **旧的 worktree 路径已失效**：
+
+| 项 | 变化 |
+|---|---|
+| worktree `/Users/fangchen/Baidu/GitHub/ziwei-rokid` | **已移除**（`git worktree list` 只剩主仓一条） |
+| 主仓 `/Users/fangchen/Baidu/GitHub/ziwei` | **直接从 `main` 切到 `feat/rokid-spatial-joy-2026`**，工作区干净 |
+| 顶部 commit | `16ef648` = `Merge remote-tracking branch 'origin/main' into feat/rokid-spatial-joy-2026` |
+| 对打包范围的影响 | **零** —— `git log 969e02b..16ef648 -- apps/rokid-agent` **为空**（merge 只带进 `apps/web` 的视觉升级） |
+| 回归 | 主仓当前分支上 **253 例全绿** |
+
+⇒ **从这条记录起，改动直接落在主仓 `/Users/fangchen/Baidu/GitHub/ziwei` 的 `feat/rokid-spatial-joy-2026` 分支上**，
+只动 `apps/rokid-agent/` 范围，**不要碰 `apps/web/`**；cron prompt 里的路径已同步改成主仓路径
+（否则 21:00 那档 run 会因为路径不存在而写不进本文档）。
+
 **⚠️ 2026-11-09 实测修正（第十三轮）**：
 
 - ✅ **策划案过审**：`作品策划案通过时间：2026-11-09 19:08:14`，第 1 次提交 / 5.77 MB / 审核通过。

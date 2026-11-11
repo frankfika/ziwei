@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import AskPanel, { type AskQuickPrompt } from './AskPanel';
+import AskPanel from './AskPanel';
 import AiConfigPanel from './AiConfigPanel';
 import ErrorAlert from './ErrorAlert';
 import StarAtlas from './StarAtlas';
@@ -20,15 +20,7 @@ import { CHAT_COPY } from '@/lib/chatCopy';
 import { useHistory, chartUrl, detailLabel, displayName, shortLabel } from '@/lib/history';
 import { resolveForm } from '@/lib/birth';
 
-const INTENT_CHIPS: AskQuickPrompt[] = [
-  { label: '今年如何', labelEn: 'This year', question: '今年（流年）整体如何？流年命宫和流年四化带来了什么变化？', time: 'liunian', featured: true, hint: '流年命宫与四化', hintEn: 'Annual palace & transformations' },
-  { label: '这十年', labelEn: 'This decade', question: '当前这步大限（十年运限）整体如何？大限命宫和大限四化怎么看？', time: 'daxian', hint: '当前大限的十年走向', hintEn: 'The ten-year cycle ahead' },
-  { label: '整体格局', labelEn: 'Overall chart', question: '这份命盘的整体格局是怎样的？原文怎么定性的？', dimension: 'overview', hint: '原局整体定性', hintEn: 'The natal chart’s character' },
-  { label: '感情', labelEn: 'Love', question: '我的感情与婚姻，原文是怎么说的？', dimension: 'love', featured: true, hint: '婚姻与相处模式', hintEn: 'Marriage & how you relate' },
-  { label: '事业', labelEn: 'Career', question: '事业方向上，这份命盘有什么特点？', dimension: 'career', featured: true, hint: '适合的方向与特点', hintEn: 'Where you do best' },
-  { label: '财运', labelEn: 'Money', question: '财运方面，原文给了哪些倾向？', dimension: 'wealth', featured: true, hint: '原文给出的倾向', hintEn: 'How the text reads it' },
-  { label: '健康', labelEn: 'Health', question: '健康方面，原文里有没有要留意的地方？', dimension: 'health', hint: '需要留意的部分', hintEn: 'What to watch' },
-];
+import { INTENT_CHIPS } from '@/lib/topicChips';
 
 const PROFILE_CHIP_CLASS =
   'shrink-0 rounded-full border px-3.5 py-2 text-xs leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu';
@@ -50,7 +42,7 @@ export default function HomeChat({
 }) {
   const [lang] = useLang();
   const copy = CHAT_COPY[lang];
-  const { history, ready } = useHistory();
+  const { history, ready, remove } = useHistory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [userAi, setUserAi] = useState(false);
@@ -151,24 +143,22 @@ export default function HomeChat({
   );
 
   const sheetExtra = (
-    <>
-      <p className="mb-2 px-1 text-2xs text-ink-2">
+    <div className="px-1">
+      <p className="text-2xs text-ink-2">
         {name && <span className="font-medium text-ink">{name}</span>}
         {name && ' · '}
         {detailLabel(selected!.form)}
       </p>
-      {/* 只有一个档案时收成两枚链接，少给选项 */}
-      {history.length > 1 ? profileRow : (
-        <p className="flex flex-wrap gap-1.5 px-1 pb-1">
-          <Link href="/new" className={TOOL_LINK_CLASS}>
-            {copy.newProfile}
-          </Link>
-          <Link href="/synastry" className={TOOL_LINK_CLASS}>
-            {copy.synastry}
-          </Link>
-        </p>
-      )}
-    </>
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(copy.deleteChartConfirm)) remove(selected!.id);
+        }}
+        className="mt-1.5 text-2xs text-ink-3 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+      >
+        {copy.deleteChart}
+      </button>
+    </div>
   );
 
   return (
@@ -179,6 +169,9 @@ export default function HomeChat({
         {copy.homeTitle}
         {errorText && <ErrorAlert>{errorText}</ErrorAlert>}
       </h1>
+
+      {/* 档案芯片常驻顶部：切换命盘是主入口，藏进抽屉会让人找不到 */}
+      {profileRow}
 
       {showConfig && (
         <div className="mb-3">

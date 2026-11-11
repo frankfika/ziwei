@@ -1,172 +1,215 @@
-# 紫微助手（ziwei-assistant）
+# Ziwei Assistant (紫微助手)
 
-> 输入生辰 → 确定性排盘 → 12 宫命盘与 13 维解读 → 命盘本地存档、基于命盘的多轮追问。
+**Deterministic Zi Wei Dou Shu (紫微斗数) charting → 12-palace board → 13-dimension grounded readings → local chart library → multi-turn chart-grounded chat.**
 
-**在线体验：<https://ziwei.secondplanet.cc>** —— 免费、无需注册；用内置 AI 每天 3 次免费追问，填自己的 Key 则不限量。
+**确定性排盘 → 12 宫命盘 → 基于数据集的 13 维解读 → 命盘本地存档 → 立足盘面的多轮追问。**
+
+**Live demo: <https://ziwei.secondplanet.cc>** — free, no sign-up. The built-in AI gives every visitor 3 free follow-up questions per day (UTC); bring your own API key for unlimited use.
+**在线体验** —— 免费、无需注册；内置 AI 每天 3 次免费追问（按 UTC 日切），自带 Key 不限量。
 
 [![CI](https://github.com/frankfika/ziwei/actions/workflows/ci.yml/badge.svg)](https://github.com/frankfika/ziwei/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![数据集: CC BY 4.0](https://img.shields.io/badge/%E6%95%B0%E6%8D%AE%E9%9B%86-CC%20BY%204.0-blue.svg)](https://github.com/Renhuai123/ziwei-doushu)
+[![Dataset: CC BY 4.0](https://img.shields.io/badge/Dataset-CC%20BY%204.0-blue.svg)](https://github.com/Renhuai123/ziwei-doushu)
+[![Release](https://img.shields.io/github/v/release/frankfika/ziwei)](https://github.com/frankfika/ziwei/releases)
 
-**不是「再训一个紫微大模型」项目。** 排盘是确定性计算由程序做，
-解读正文来自大规模预生成的数据集按需检索，模型只负责可选的追问环节。
+> **This is NOT "yet another Ziwei LLM".** Charting is pure deterministic computation done by
+> the program; reading text is retrieved on demand from a large pre-generated open dataset;
+> the LLM only powers the optional follow-up Q&A — under strict grounding constraints.
+>
+> **不是「再训一个紫微大模型」项目。** 排盘是确定性计算，解读正文来自预生成数据集检索，模型只负责可选的追问环节。
 
+> **Disclaimer / 免责声明**：for cultural and educational interest only. Not medical, legal,
+> financial, or life-decision advice.
 > 本工具仅供文化兴趣与学习之用，不构成任何医疗、法律、投资或人生决策建议。
 
 ---
 
-## 界面预览
+## Highlights | 功能一览
 
-**首页是一张紫微垣星图**：三重环垣、十二地支刻度、北斗七星官，120 秒缓转，竖排宋体题字 + 朱砂钤印
-
-![首页星图](docs/images/home.png)
-
-**排一张盘：公历生日 + 时辰/钟点 + 性别，星册自动存在本机**
-
-![排盘表单](docs/images/new-profile.png)
-
-**12 宫命盘：排盘完成时十二宫自命宫起依次浮现**
-
-![十二宫命盘](docs/images/chart.png)
-
-**13 维解读（正文来自开源数据集检索，非模型生成）**
-
-![十三维解读](docs/images/reading.png)
-
-> 截图用的是公开测试数据（1990-01-01 子时 男）。界面为自研，
-> 不含上游商业站的会员/支付/防刷/SEO 功能。
-
-### 视觉与动效：古星图
-
-界面语言取自**古星图与钦天监图谱**，不是常见的"深色星空占星 App"：
-
-| 元素 | 做法 |
+| | |
 |---|---|
-| 纸面 | 宣纸底 `#F6F2E9` + 固定纸纹噪点 / 顶部天光 / 底部暖影三层 |
-| 主色 | 黛青 `#3D5A85`（交互与链接）、鎏金 `#A8792F`（宫位与仪式）、朱砂 `#C1402F`（四化与钤印） |
-| 字体 | 标题、局名、命主身主用宋体（`font-serif`），正文黑体 |
-| 星图 | 首页 hero 为手绘 SVG 星官图，含十二地支刻字与极星十字丝，方位与命盘页一致（子在午顶、卯左酉右） |
-| 光 | 选中宫鎏金呼吸光、命宫常亮淡金描边、三方四正黛青 tint —— 三层各司其职 |
-
-动效只落在**仪式节点**，其余一律不动：
-
-- **开盘仪式** —— 排盘完成后，十二宫自命宫起沿十二支环绕依次浮现（60ms 错峰），四角宫封边，中宫落定，末了盖一方朱砂印，共约 1.2s
-- **星图缓转** —— 120 秒一圈，慢到几乎察觉不到，只有星点在漂
-- **层级光感** —— hover 鎏金描边淡入（独立 `::before` 层，不覆盖流年/大限标记）
-
-全部纯 CSS，无动画库；`prefers-reduced-motion` 下一次性动效压到 80ms、循环动效彻底关闭，
-打印时定格在终态且不渲染钤印。
+| **Deterministic charting** | The board is computed by a vendored open-source engine (MIT) — no LLM ever lays stars or guesses palaces. Leap months, late Zi hour (晚子时), and 五行局 are handled by the engine, not by prompts. **排盘只走确定性引擎**，闰月、晚子时、五行局都由引擎处理。 |
+| **Grounded readings** | 13-dimension texts (命宫, 兄弟, 夫妻, 子女, 财帛, 疾厄, 迁移, 交友, 事业, 田宅, 福德, 父母, 身宫) come from a dataset of **674,976 pre-written charts (1950–2026)**. If a year isn't loaded, the UI says so — it never invents content. **解读只从数据集检索**，没覆盖的年份如实提示，不编内容。 |
+| **Grounded follow-up chat** | Multi-turn conversation anchored to a specific chart. The model may only use engine-produced chart facts + retrieved dataset text; a mechanical self-check (palace-placement check + reference star table) flags out-of-bounds content after every answer. **追问立足盘面 + 原文**，机械自检拦截越界内容。 |
+| **Local-first privacy** | Chart library and every conversation live in your browser's `localStorage` — nothing is uploaded. Per-chart threads (ChatGPT-style), rename/delete charts, delete conversations — all local. **命盘库与对话只存本机**，可改名、删除。 |
+| **Bilingual UI** | Full 中文 / English switch; chart terminology stays faithful in both languages. **全站中英双语**。 |
+| **Ancient star-atlas design** | Rice-paper canvas, indigo/vermilion/gilt palette, hand-drawn SVG star map, serif display type — modeled on classical star charts (钦天监图谱), not a dark "astrology app". **古星图视觉**：宣纸底、黛青朱砂鎏金、手绘星官图。 |
+| **Three interfaces** | Web (Next.js 16), CLI, and a pluggable-LLM ask module — one shared service layer. **Web / 命令行 / 可插拔追问模块**三端共用服务层。 |
+| **Small deploy footprint** | The 53 GB raw dataset compresses to **1.5 GB** in compact form; the byte-offset index is only **15 MB**. **compact 形态 1.5GB 部署**，索引仅 15MB。 |
 
 ---
 
-## 3 分钟跑起来
+## Screenshots | 界面预览
 
-**前置**：Node.js ≥ 20.9（Next.js 16 要求）、`zstd`（解压数据用）、磁盘 ≥ 3GB。
+**Home — a hand-drawn Ziwei star map hero: three ring-walls, twelve earthly-branch ticks, the Northern Dipper, one 120-second revolution, vertical serif title, vermilion seal.
+首页是一张紫微垣星图**：三重环垣、十二地支刻度、北斗七星官，120 秒缓转，竖排宋体 + 朱砂钤印。
+
+![Home star atlas](docs/images/home.png)
+
+**Cast a chart: Gregorian date + hour (or clock time) + gender. The chart library is kept locally.**
+**排一张盘：公历生日 + 时辰/钟点 + 性别，星册自动存在本机。**
+
+![New profile](docs/images/new-profile.png)
+
+**12-palace board — palaces fade in one by one from the Life Palace when the chart opens.**
+**12 宫命盘：排盘完成时十二宫自命宫起依次浮现。**
+
+![12-palace chart](docs/images/chart.png)
+
+**13-dimension reading (retrieved verbatim from the open dataset, not generated).**
+**13 维解读（正文来自开源数据集检索，非模型生成）。**
+
+![13-dimension reading](docs/images/reading.png)
+
+> Screenshots use public test data (1990-01-01, Zi hour, male). The UI is original work —
+> no membership, payment, anti-abuse, or SEO farm features from upstream commercial sites.
+> 截图用的是公开测试数据；界面为自研，不含上游商业站的会员/支付/防刷/SEO 功能。
+
+### Visual language: the ancient star atlas | 视觉与动效：古星图
+
+The interface borrows its vocabulary from **classical Chinese star charts and imperial observatory
+atlases**, not the usual dark-space astrology look:
+
+| Element | Approach | 元素 | 做法 |
+|---|---|---|---|
+| Paper | Rice-paper base `#F6F2E9` + fixed grain noise / top skylight / bottom warm shadow | 纸面 | 宣纸底 + 三层光 |
+| Palette | Indigo `#3D5A85` (interaction), gilt `#A8792F` (palaces & ritual), vermilion `#C1402F` (four transformations & seals) | 主色 | 黛青交互、鎏金宫位、朱砂四化钤印 |
+| Type | Song/serif for titles, bureau names, and the Life Master; sans for body text | 字体 | 标题宋体、正文黑体 |
+| Star map | Hand-drawn SVG with twelve branch inscriptions and polar crosshairs; orientation matches the chart page (子 at top, 卯 left, 酉 right) | 星图 | 手绘 SVG 星官图，方位与命盘一致 |
+| Light | Gilt breathing glow on the selected palace, faint gilt ring on the Life Palace, indigo tint on the trine/quincunx — three layers, each with one job | 光 | 选中鎏金呼吸光、命宫常亮、三方四正黛青 tint |
+
+Motion lands only on **ritual moments**, everything else stays still — all pure CSS, no animation library:
+
+- **Opening ritual** — after casting, the twelve palaces fade in one by one around the branches (60 ms stagger, ~1.2 s total), corners seal, the center settles, a vermilion seal stamps.
+  **开盘仪式**：十二宫自命宫起依次浮现，末了盖一方朱砂印。
+- **Star-map revolution** — one turn per 120 s, slow enough to feel like drift.
+  **星图缓转**：120 秒一圈。
+- **Layered hover glow** — gilt outline on an independent `::before` layer so it never covers flow-year/decade markers.
+
+`prefers-reduced-motion`: one-shot animations collapse to 80 ms, looping motion turns off entirely; printing freezes the final state without the seal.
+`prefers-reduced-motion` 下一次性动效压到 80ms、循环动效关闭；打印定格终态且不渲染钤印。
+
+---
+
+## Quickstart (3 minutes) | 3 分钟跑起来
+
+**Prerequisites**: Node.js ≥ 20.9 (Next.js 16 requirement), `zstd` (data decompression), ≥ 3 GB disk.
 
 ```bash
 git clone https://github.com/frankfika/ziwei.git && cd ziwei
 
-# ① 装依赖
+# ① Install dependencies / 装依赖
 npm install
 
-# ② 拉解读数据（在上游 release，CC BY 4.0；压缩包单年约 2MB）
-#    这里只取 3 年做演示；全部 77 年见下方「全年覆盖」
+# ② Fetch reading data (from the upstream release, CC BY 4.0; ~2 MB per year compressed)
+#    This grabs 3 sample years; for all 77 years see "Full-year coverage" below.
+#    拉解读数据（上游 release，CC BY 4.0；单年压缩包约 2MB），这里取 3 年演示
 scripts/download_data.sh --years 1990,2000,2020 --decompress 1990,2000,2020
 
-# ③ 建索引（字节偏移索引，几秒）
+# ③ Build the byte-offset index (seconds) / 建偏移索引（几秒）
 npm run index:build -- --years 1990,2000,2020
 
-# ④ 起服务
+# ④ Start the server / 起服务
 npm run web:dev        # http://localhost:3000
 ```
 
-打开 <http://localhost:3000>，点「去排一张盘」录入生辰即可出盘。
+Open <http://localhost:3000>, tap "去排一张盘" and enter a birth date — the board appears.
 
-> **不接任何模型 API 也能完整用**：排盘、12 宫盘面、13 维解读全部是本地计算 + 本地检索，
-> 只有「追问」需要模型。数据没覆盖的年份会如实提示，不会编内容补齐。
+> **Everything works without any model API**: charting, the 12-palace board, and the 13-dimension
+> readings are all local computation + local retrieval. Only follow-up Q&A needs a model, and
+> years not covered by your loaded data are reported honestly, never fabricated.
+> **不接任何模型 API 也能完整用**；数据没覆盖的年份如实提示，不会编内容补齐。
 
-### 全年覆盖（1950–2026，674,976 张盘）
+### Full-year coverage (1950–2026, 674,976 charts) | 全年覆盖
 
 ```bash
 for y in $(seq 1950 2026); do scripts/download_data.sh --years $y --decompress $y; done
-npm run index:build            # 建全量索引，约 3.5 分钟
-npm run data:compact -- --all  # 压成 compact 形态：1.5GB（替代 53GB raw）
+npm run index:build            # full index, ~3.5 min / 建全量索引
+npm run data:compact -- --all  # compact form: 1.5 GB (replaces 53 GB raw) / 压成 1.5GB
+# After compacting you may delete data/raw — queries prefer compact and only fall back to raw.
 # 压完之后 data/raw 可以删掉 —— 查询优先走 compact，缺了才回退 raw
 ```
 
 ---
 
-## 接自己的模型（可选）
+## Bring your own model (optional) | 接自己的模型（可选）
 
-只有「追问」需要模型。Web 端读 `apps/web/.env.local`（**该文件已被 gitignore，绝不要提交**）：
+Only follow-up Q&A needs a model. The web app reads `apps/web/.env.local`
+(**gitignored — never commit it**):
 
 ```bash
 # apps/web/.env.local
 ZIWEI_ASK_PROVIDER=openai
 ZIWEI_ASK_BASE_URL=https://api.deepseek.com
-ZIWEI_ASK_API_KEY=sk-你的key
+ZIWEI_ASK_API_KEY=sk-your-key
 ZIWEI_ASK_MODEL=deepseek-chat
 ZIWEI_ASK_MAX_TOKENS=8000
 ```
 
-CLI / 脚本则直接用环境变量（同名变量，见 `deploy/.env.example`）。
-`ZIWEI_ASK_PROVIDER` 可选 `openai`（OpenAI 兼容：DeepSeek / 智谱 / MiniMax / vLLM / Ollama…）、
-`anthropic`、`echo`（不联网本地桩，仅自测用）。
+The CLI/scripts use the same variables via the environment (see `deploy/.env.example`).
+`ZIWEI_ASK_PROVIDER` supports `openai` (OpenAI-compatible: DeepSeek / Zhipu / MiniMax / vLLM / Ollama…),
+`anthropic`, and `echo` (offline local stub for self-tests).
 
-> ⚠️ **别选思维链模型当默认**：带思维链的模型（M3 / R1 / QwQ…）的**思考 token 与正文共用
-> 同一份 `max_tokens` 预算**，思考一长就撞上 provider 的 180s 超时，表现为「转圈三分钟后报错」。
-> 实测同一提示词：MiniMax-M3 **281s**（思考占 11967/12496 token），
-> MiniMax-M1 **12s**（思考仅 397 token）。推荐 `MiniMax-M1` 或 `deepseek-chat`。
+> ⚠️ **Don't default to a long-chain reasoning model**: its thinking tokens share the same
+> `max_tokens` budget as the answer, so a long chain hits the provider's ~180 s timeout —
+> symptoms: "spins for three minutes, then errors". Measured with the same prompt:
+> MiniMax-M3 **281 s** (thinking consumed 11,967 / 12,496 tokens) vs. a light-thinking model
+> **12 s** (397 tokens). Use fast non-reasoning defaults like `deepseek-chat`;
+> MiniMax-M2.5 is verified in production (~17 s to first token).
+> **思维链模型的思考 token 与正文共用 max_tokens 预算**，思考一长就撞 180s 超时。
+> 推荐 `deepseek-chat` 这类快模型；MiniMax-M2.5 生产实测可用（首字约 17s）。
 
-不配置也没关系：界面会明确显示「AI 还没配置」，不会静默降级、也不会出网请求。
+If nothing is configured, the UI says "AI not configured" — it never silently degrades and never
+phones home. 不配置也不会静默降级、不会出网请求。
 
-### 内置追问额度（第一期）
+### Built-in daily quota | 内置追问额度
 
-没自配 Key 的访客，内置 AI **每 IP 每天免费 3 次**（按 **UTC 日**切，次日 0 点刷新）。
-上限可用环境变量覆盖：
+Visitors without their own key get **3 free follow-up questions per IP per day** (UTC midnight
+rollover), overridable via `ZIWEI_ASK_DAILY_LIMIT`.
 
-```bash
-ZIWEI_ASK_DAILY_LIMIT=3   # 默认 3
-```
-
-- 计数口径：请求成功产出回答才扣次；失败/中断不扣。
-- 用尽后接口返回 `QUOTA_EXCEEDED`，界面弹出额度墙并给出「流量包」入口（20 / 100 / 500 次三档占位套餐）。
-- **支付尚未接通**（stub）：点「购买」只记录意向，不产生真实交易。
-- 自带 Key 的用户**不限量**，也不计数。
-- 额度相关文案（额度墙 / 用尽提示 / 流量包入口）支持中英切换，语言存本机 localStorage。
+- A question is only counted when the request produces an answer; failures/interruptions are free.
+  请求成功产出回答才扣次；失败/中断不扣。
+- Exhausted → the API returns `QUOTA_EXCEEDED` and the UI shows a quota wall with traffic-pack
+  entry points (20 / 100 / 500-question placeholder tiers).
+  用尽后接口返回 `QUOTA_EXCEEDED`，界面弹额度墙并给「流量包」入口。
+- **Payment is not wired** (stub): "buy" only records intent — no real transaction occurs.
+  **支付尚未接通**（stub）：点「购买」只记录意向，不产生真实交易。
+- Bring-your-own-key users are unlimited and not counted. 自带 Key 不限量、不计数。
+- Quota copy (wall / exhausted notice / traffic packs) is bilingual, language stored locally.
 
 ---
 
-## 架构
+## Architecture | 架构
 
 ```
-[用户生辰：公历日期 + 时辰 + 性别]
+[birth input: Gregorian date + hour + gender]
               ↓
-      @ziwei/chart-engine          确定性排盘（vendored 上游引擎，MIT）
+      @ziwei/chart-engine          deterministic charting (vendored upstream engine, MIT)
               ↓  ChartJSON
-      @ziwei/core                 应用服务层（三端共用入口）
+      @ziwei/core                 application service layer (shared by all three fronts)
               ↓
-      @ziwei/reading-index        偏移索引检索 → 13 维解读原文
+      @ziwei/reading-index        offset-index retrieval → 13-dimension reading text
               ↓
       ┌──────────┬──────────┬──────────┐
       │ apps/web │ apps/cli │packages/ask│
-      │ Next.js  │ 命令行   │ 可选追问  │
+      │ Next.js  │  CLI     │ optional Q&A│
       └──────────┴──────────┴──────────┘
 ```
 
-### 四条硬规则
+### Four hard rules | 四条硬规则
 
-1. **排盘只走确定性引擎**，禁止 LLM 自己算盘或编星曜。
-2. **解读正文只从数据集检索**，不让模型凭空生成整盘断语。
-3. **默认不做微调**（无 LoRA / 全参训练 / 继续预训练）。
-4. **检索键与数据集严格一致**：`YYYY-MM-DD-时辰序号-性别`，时辰序号 0–11。
+1. **Charting runs only through the deterministic engine** — an LLM never computes a board or invents stars. **排盘只走确定性引擎**。
+2. **Reading text is only retrieved from the dataset** — a model never writes a whole-chart reading from thin air. **解读正文只从数据集检索**。
+3. **No fine-tuning by default** (no LoRA / full-parameter training / continued pretraining). **默认不做微调**。
+4. **Retrieval keys match the dataset exactly**: `YYYY-MM-DD-hourIndex-gender`, hour index 0–11. **检索键与数据集严格一致**。
 
-> 键口径是**实测确认**的，不是照抄文档 —— **15,400 条样本跨全部 77 个年份
-> （1950–2026）100% 直排匹配**，详见 `docs/KEY_SEMANTICS.md`。
+> The key semantics are **empirically verified, not copied from docs**: 15,400 samples across all
+> 77 years (1950–2026) match direct charting **100%**. See `docs/KEY_SEMANTICS.md`.
+> 键口径是实测确认的 —— 15,400 条样本跨全部 77 个年份 100% 直排匹配。
 
 ---
 
-## 三种用法
+## Three ways to use it | 三种用法
 
 ### Web
 
@@ -174,132 +217,142 @@ ZIWEI_ASK_DAILY_LIMIT=3   # 默认 3
 npm run web:dev      # http://localhost:3000
 ```
 
-| 路由 | 说明 |
-|---|---|
-| `/` | **对话首页**：星图 hero（无档案时）→ 选档案 → 追问；面板头标出当前这张盘；命盘库与对话只存本机 |
-| `/new` | **排盘表单**：出生日期 + 时辰/钟点 + 性别 + 本机星册（改名 / 回填 / 删除） |
-| `/chart?y=&m=&d=&h=&g=` | 12 宫盘面（手机端为可点选的紧凑四四方阵）+ 13 维解读 + 会话式追问 + 晚子时提示 |
-| `/synastry` | 双人合盘（两张盘对照） |
-| `/about` | 口径说明、检索键、覆盖情况、署名与免责声明 |
+| Route | What it is | 说明 |
+|---|---|---|
+| `/` | **Chat home**: star-map hero (no profiles yet) → pick a profile → chat; the panel header names the current chart; library & conversations are local only | **对话首页**：星图 hero → 选档案 → 追问；档案与对话只存本机 |
+| `/new` | **Cast a chart**: date + hour/clock + gender + local chart library (rename / refill / delete) | **排盘表单** + 本机星册（改名 / 回填 / 删除） |
+| `/chart?y=&m=&d=&h=&g=` | 12-palace board (compact tappable grid on mobile) + 13-dimension reading + conversational Q&A + late-Zi notice | 12 宫盘面 + 13 维解读 + 会话式追问 + 晚子时提示 |
+| `/synastry` | Synastry: two charts side by side | 双人合盘（两张盘对照） |
+| `/about` | Key semantics, coverage, attribution, disclaimer | 口径说明、覆盖情况、署名与免责声明 |
 
-排盘在 **Server Action** 里算（浏览器端不进排盘引擎，避免把 iztro 打进客户端包）。
+Charting runs in a **Server Action** (the charting engine never ships to the browser bundle).
+排盘在 Server Action 里算，排盘引擎不进客户端包。
 
-### 命令行
+### CLI | 命令行
 
 ```bash
-npm run chart -- chart --date 1990-01-01 --hour 0 --gender male   # 只看命盘
-npm run chart -- read  --date 1990-01-01 --hour 0 --gender male   # 命盘 + 13 维解读
+npm run chart -- chart --date 1990-01-01 --hour 0 --gender male   # board only
+npm run chart -- read  --date 1990-01-01 --hour 0 --gender male   # board + 13-dim reading
 npm run chart -- read  --date 1990-01-01 --hour 0 --gender male --dim love
-npm run chart -- coverage                                         # 样本库覆盖情况
-npm run chart -- ask   --date 1990-01-01 --hour 0 --gender male --question "今年如何？"
-npm run chart -- help                                             # 完整参数表
+npm run chart -- coverage                                         # dataset coverage
+npm run chart -- ask   --date 1990-01-01 --hour 0 --gender male --question "How is this year?"
+npm run chart -- help                                             # full flag table
 ```
 
-| 子命令 | 说明 |
+| Subcommand | Purpose |
 |---|---|
-| `chart` | 排盘并打印 12 宫摘要 |
-| `read` | 排盘 + 13 维解读（默认每维 200 字预览，`--full` 打全文） |
-| `ask` | 基于命盘追问（需要先配好 provider 环境变量） |
-| `coverage` | 样本库覆盖了哪些年份 |
+| `chart` | Cast and print a 12-palace summary |
+| `read` | Cast + 13-dimension reading (200-char preview per dimension by default; `--full` prints everything) |
+| `ask` | Chart-grounded follow-up (requires provider env vars) |
+| `coverage` | Which years the dataset covers |
 
-| 开关 | 说明 |
+| Flag | Meaning |
 |---|---|
-| `--date` | 公历出生日期 `YYYY-MM-DD` |
-| `--hour` | 时辰序号 0–11，**或**中文 `子丑寅…` |
-| `--clock` | 用钟点代替时辰序号（`--clock 23:30` → 晚子时按次日排盘） |
-| `--gender` | `male`/`female`，或 `男`/`女`/`m`/`f` |
-| `--name` | 展示用称呼 |
-| `--dim` | 只看某一维（`love` 或 `感情`，仅 `read`） |
-| `--question` | 要问的问题（仅 `ask`） |
-| `--full` | `read` 打印 13 维全文（默认每维 200 字预览） |
-| `--json` | 机器可读输出 |
+| `--date` | Gregorian birth date `YYYY-MM-DD` |
+| `--hour` | Hour index 0–11, **or** Chinese `子丑寅…` |
+| `--clock` | Clock time instead of index (`--clock 23:30` → late Zi counts as next day) |
+| `--gender` | `male`/`female`, or `男`/`女`/`m`/`f` |
+| `--name` | Display name |
+| `--dim` | One dimension only (`love` or `感情`, `read` only) |
+| `--question` | The question (`ask` only) |
+| `--full` | `read` prints all 13 dimensions in full |
+| `--json` | Machine-readable output |
 
+Exit codes: `0` success / `2` bad arguments / `3` year not covered by dataset / `1` other.
 退出码：`0` 成功 / `2` 参数错误 / `3` 样本库未覆盖 / `1` 其他。
 
-### 追问（可选）
+### Follow-up Q&A (optional) | 追问（可选）
 
-追问是**多轮会话**：每张盘的对话存浏览器 localStorage（不上传），
-后续问题自动带上前面上文帮助模型理解指代；回答要求大白话，不出现内部标注。
+Follow-ups are **multi-turn conversations**: each chart gets its own thread list (new / switch /
+delete), stored in the browser's `localStorage` (never uploaded). Later questions automatically
+carry recent turns as context so the model understands references; answers are required to be
+plain language with no internal annotation labels.
 
-追问的硬约束：只允许使用引擎产出的盘面事实 + 检索到的原文；
-材料没写的必须直说「材料里没有写」。回答返回后还会跑一遍**机械自检**
-（落宫检查 + 参考星表比对），越界内容会被标出来。
+追问是**多轮会话**：每张盘下有多条对话，可新建、切换、删除，存浏览器本机不上传；
+后续问题自动带上文；回答要求大白话。
+
+Hard constraints: the model may only use engine-produced chart facts + retrieved dataset text;
+anything the material doesn't cover must be answered with "the material doesn't say". Every answer
+then passes a **mechanical self-check** (palace-placement check + reference star table), and
+out-of-bounds content gets flagged in the UI. 材料没写的必须直说「没有」；机械自检标出越界内容。
 
 ---
 
-## 目录结构
+## Project layout | 目录结构
 
 ```
 ziwei-assistant/
 ├── packages/
-│   ├── chart-engine/      排盘引擎（vendored 上游 MIT）+ chart() 适配器 + ChartJSON 契约
-│   ├── reading-index/     数据集偏移索引：构建、查询、键口径、compact 压缩形态
-│   ├── core/              应用服务层：ZiweiService（Web/CLI/追问共用）
-│   ├── citation-guard/    倪师《天纪》引文检测与降级
-│   └── ask/               可选追问：可插拔 LLM provider + 防编造自检
+│   ├── chart-engine/      charting engine (vendored upstream MIT) + chart() adapter + ChartJSON contract
+│   ├── reading-index/     dataset byte-offset index: build, query, key semantics, compact form
+│   ├── core/              application service layer: ZiweiService (shared by Web / CLI / ask)
+│   ├── citation-guard/    Ni Shi's 《天纪》 citation detection and degradation
+│   └── ask/               optional follow-up Q&A: pluggable LLM providers + anti-hallucination check
 ├── apps/
-│   ├── web/               Next.js 16 + React 19 界面
-│   └── cli/               命令行工具
-├── tests/                 回归套件 + 金标准盘快照
+│   ├── web/               Next.js 16 + React 19 UI
+│   └── cli/               command-line tool
+├── tests/                 regression suite + golden-chart snapshots
 ├── scripts/
-│   └── download_data.sh   数据集下载/解压
-├── deploy/                单机 Docker 部署（镜像构建、compose、运维说明）
+│   └── download_data.sh   dataset download / decompression
+├── deploy/                single-machine Docker deployment (image build, compose, ops notes)
 ├── docs/
-│   ├── ARCHITECTURE.md    架构契约（实现方必读）
-│   ├── KEY_SEMANTICS.md   键口径与排盘语义
-│   ├── DATA.md            数据运维手册
-│   ├── DEPLOY.md          部署指南（部署者必读）
-│   └── LEGAL_NOTES.md     法务要点与引文处理
-├── vendor/upstream-reference/   上游 MIT 组件参考（只读）
-├── ATTRIBUTION.md         署名与许可（法律义务）
-└── data/                  数据集（gitignore，大文件不进 git）
+│   ├── ARCHITECTURE.md    architecture contract (read before contributing)
+│   ├── KEY_SEMANTICS.md   key semantics and charting rules
+│   ├── DATA.md            data operations manual
+│   ├── DEPLOY.md          deployment guide
+│   └── LEGAL_NOTES.md     legal notes and citation handling
+├── vendor/upstream-reference/   upstream MIT reference (read-only)
+├── ATTRIBUTION.md         attribution and licensing (a legal obligation)
+└── data/                  dataset (gitignored — large files stay out of git)
 ```
 
 ---
 
-## 数据
+## Data | 数据
 
-解读数据集 v4.0-13d：674,976 张命盘 × 13 维，1950–2026。
+Reading dataset v4.0-13d: **674,976 charts × 13 dimensions, 1950–2026**.
 
-| 目录 | 内容 | 体积 |
+| Directory | Contents | Size |
 |---|---|---|
-| `data/zst/` | 77 个压缩包 | 164MB |
-| `data/raw/` | 77 份解压后的 JSONL | 53GB |
-| `data/compact/` | 77 份压缩形态（推荐） | **1.5GB** |
-| `data/index/` | 77 份偏移索引 | **15MB** |
+| `data/zst/` | 77 compressed archives | 164 MB |
+| `data/raw/` | 77 decompressed JSONL files | 53 GB |
+| `data/compact/` | 77 compact-form files (recommended) | **1.5 GB** |
+| `data/index/` | 77 byte-offset indexes | **15 MB** |
 
-**索引采用「字节偏移」方案** —— 索引总共仅 15MB（源文件 53GB），
-查询时直接 seek 到那一行；compact 形态再压 34 倍，部署只需 1.5GB。
-详见 `docs/DATA.md`。
+The index uses **byte offsets** — 15 MB total against 53 GB of source; queries `seek` straight to
+the row. The compact form compresses another **34×**, so production deploys need only 1.5 GB.
+Details in `docs/DATA.md`.
+索引采用字节偏移方案（15MB 对 53GB），compact 再压 34 倍，部署只需 1.5GB。
 
 ---
 
-## 开发
+## Development | 开发
 
 ```bash
-npm run typecheck     # 全仓类型检查（packages + apps + tests）
-npm test              # 回归套件（96 用例，含金标准盘与键口径实证）
-npm run acceptance    # MVP 总验收（24 项，typecheck + test + CLI 端到端 + web build）
-npm run index:build   # 建索引
-npm run data:compact  # 压 compact 形态
+npm run typecheck     # typecheck the whole repo (packages + apps + tests)
+npm test              # regression suite (96 cases, incl. golden charts & key-semantics proof)
+npm run acceptance    # full acceptance: typecheck + test + CLI end-to-end + web build (24 items)
+npm run index:build   # build the index
+npm run data:compact  # build compact form
 npm run chart -- chart --date 1990-01-01 --hour 0 --gender male   # CLI
-npm run web:dev       # Web 开发服务器
-npm run web:build     # Web 生产构建
-npm run ask:selftest  # 追问模块自测（零网络）
-npm run citation:selftest  # 引文降级自测（25 用例，含真实数据回归）
+npm run web:dev       # web dev server
+npm run web:build     # web production build
+npm run ask:selftest  # ask-module self-test (zero network)
+npm run citation:selftest  # citation-degradation self-test (25 cases, real-data regression)
 ```
 
-单机 Docker 部署见 [`docs/DEPLOY.md`](docs/DEPLOY.md)：
+Single-machine Docker deployment: see [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ```bash
-npm run docker:build  # 构建镜像（数据集不进镜像，走卷挂载）
-npm run docker:up     # 起服务
-npm run docker:logs   # 看日志
-npm run docker:down   # 停服务
+npm run docker:build  # build image (dataset stays out; mounted as a volume)
+npm run docker:up     # start
+npm run docker:logs   # logs
+npm run docker:down   # stop
 ```
 
-回归套件包含**金标准盘快照**（9 份，覆盖闰日/闰月/年末/时辰边界/男女/数据集首尾年）：
-引擎变更若静默改盘，测试会指出**具体哪个 JSON 路径**变了。
+The suite includes **golden-chart snapshots** (9 charts covering leap day / leap month / year-end /
+hour boundaries / both genders / first-and-last dataset years): a silent engine change makes the
+tests point at the exact JSON path that moved.
 
 ```bash
 npm test
@@ -309,54 +362,57 @@ npm test
 #     · $.wuxingJuName             快照: "木三局"  重算: "水二局"
 ```
 
-刷新快照（确认变更是**有意**的之后）：
+Refresh snapshots (only after confirming the change is **intentional**), then review `git diff`
+before committing: `ZIWEI_UPDATE_GOLDEN=1 npm test`.
 
-```bash
-ZIWEI_UPDATE_GOLDEN=1 npm test
-```
-
-然后 review `git diff` 再提交。
-
-CI：`.github/workflows/ci.yml`（push / PR → 装依赖 → typecheck → test）。
-CI 没有 56GB 数据集，数据相关用例**自动跳过并说明原因**，纯引擎用例照跑。
+CI: `.github/workflows/ci.yml` (push / PR → install → typecheck → test). CI has no 56 GB dataset,
+so data-dependent cases **skip themselves with an explanation** while pure-engine cases run.
 
 ---
 
-## 排障
+## Troubleshooting | 排障
 
-| 症状 | 多半是 | 怎么办 |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| 界面提示「样本库未覆盖」 | 该年份没建索引 | `npm run index:build`（或补该年数据） |
-| `npm run web:dev` 起不来 / 端口占用 | 3000 被占 | `PORT=3001 npm run web:dev` |
-| 追问面板显示「AI 还没配置」 | 没配 provider | 配 `apps/web/.env.local`（见上文「接自己的模型」） |
-| 追问转圈很久后报 timeout | 选了思维链模型，思考 token 吃满预算 | 换 `MiniMax-M1` / `deepseek-chat` 这类快模型 |
-| 解压数据失败 | zstd 长窗口 | 必须 `zstd -d --long=27`（脚本已带） |
-| 磁盘不够 | 解压全年代要 53GB | 用 `npm run data:compact -- --all` 压成 1.5GB 后删掉 `data/raw` |
+| UI says "year not covered" | that year's index is missing | `npm run index:build` (or fetch that year's data) |
+| `npm run web:dev` won't start / port busy | 3000 taken | `PORT=3001 npm run web:dev` |
+| Q&A panel says "AI not configured" | no provider | fill in `apps/web/.env.local` (see above) |
+| Q&A spins for minutes then times out | long-chain reasoning model ate the token budget | switch to a fast model (`deepseek-chat` class) |
+| data decompression fails | zstd long window | must use `zstd -d --long=27` (the script already does) |
+| out of disk | full decompression needs 53 GB | `npm run data:compact -- --all`, then delete `data/raw` |
 
 ---
 
-## 已知边界
+## Known limitations | 已知边界
 
-| 项 | 状态 |
+| Item | Status |
 |---|---|
-| 数据覆盖 | **已全年代 1950–2026**（674,976 条全部可查）；重铺见 `docs/DATA.md` 第 4.3 节 |
-| 真太阳时 / 夏令时 | **不做**（数据集未做，做了检索键会错位）。后续独立需求 |
-| 倪师《天纪》引文 | 数据集里密度很高（79% 的维度文本含受限引文片段）。已提供检测与降级工具，商业化前须处理，见 `docs/LEGAL_NOTES.md` |
-| 闰月 / 亮度流派 | 引擎内部固定为 `split`（月中分界）+ 全书派亮度表，与数据集生成口径一致 |
-| 闰月标记 | `isLeapMonth` 在 `split` 下**恒为 false**，闰月体现为农历月归属，别拿它判断闰月 |
-| 盘面缓存 | `currentAge` 随当天日期变 → 整个 `ChartJSON` **不可缓存** |
-| 盘外星曜检测 | 引擎每张盘都落全部 70 颗星（只落宫不同），所以集合判定几乎不触发；防编造靠**落宫检查** + 参考星表 |
-| 追问模块 | 默认不接任何真实 API（需自行配置 provider 环境变量）；内置 AI 每 IP 每天 3 次（`ZIWEI_ASK_DAILY_LIMIT` 可覆盖），用尽后可买「流量包」 |
-| 追问输出方式 | **流式**：模型吐字就实时显示（SSE），思维链内容不外露 |
-| 界面动效 | 纯 CSS、无动画库。`prefers-reduced-motion` 下一次性动效压到 80ms、缓转/呼吸类彻底关闭；打印定格终态且不渲染钤印 |
-| 本地存档 | 命盘库与追问对话只存浏览器 localStorage，不上传；命盘最多 50 张、每盘对话最多 20 条 |
-| 上游商业站功能 | **不**实现会员/支付/防刷/SEO 站群；界面为自研 |
+| Data coverage | **Full 1950–2026** (all 674,976 entries queryable); re-laying instructions in `docs/DATA.md` §4.3 |
+| True solar time / DST | **Not done** (the dataset doesn't do them; adding them would misalign retrieval keys). A separate future effort |
+| Ni Shi's 《天纪》 citations | Dense in the dataset (79% of dimension texts contain restricted citation fragments). Detection + degradation tooling provided; must be handled before commercialization — `docs/LEGAL_NOTES.md` |
+| Leap month / brightness school | Engine fixed to `split` (mid-month boundary) + full-book brightness table, matching dataset generation |
+| Leap-month flag | `isLeapMonth` is **always false** under `split` — leap months manifest as lunar-month assignment; don't use it to detect leap months |
+| Chart caching | `currentAge` changes daily → the whole `ChartJSON` is **not cacheable** |
+| Out-of-chart star detection | the engine places all 70 stars on every chart (palace assignment differs), so set checks almost never fire; anti-hallucination relies on the **palace-placement check** + reference star table |
+| Q&A module | No real API wired by default (configure provider env vars); built-in AI 3/IP/day (`ZIWEI_ASK_DAILY_LIMIT` overridable), with placeholder traffic packs after exhaustion |
+| Q&A output | **Streaming**: tokens render as they arrive (SSE); chain-of-thought is never exposed |
+| UI motion | Pure CSS, no animation library; `prefers-reduced-motion` honored; printing freezes final state |
+| Local storage | Library + conversations in `localStorage` only; ≤ 50 charts; ≤ 50 messages kept per conversation (oldest trimmed, UI notes the truncation) |
+| Upstream commercial features | Deliberately **not** implemented: membership / payment / anti-abuse / SEO farms |
 
 ---
 
-## 署名与许可
+## Attribution & License | 署名与许可
 
-**必须保留**以下来源标注（详见 `ATTRIBUTION.md`）：
+**The following attribution must be preserved** (legal obligation — see `ATTRIBUTION.md`):
+
+```
+This project uses the "Ziwei Doushu Open Reading Dataset v4.0"
+(674,976 charts × 13 dimensions) and the open-source charting engine.
+Source: https://github.com/Renhuai123/ziwei-doushu
+Author: 王多鱼AI
+Dataset license: CC BY 4.0; engine code: MIT.
+```
 
 ```
 本项目使用了「紫微斗数开源解读数据集 v4.0」（674,976 张命盘 × 13 维）
@@ -366,8 +422,4 @@ CI 没有 56GB 数据集，数据相关用例**自动跳过并说明原因**，�
 数据集许可：CC BY 4.0；引擎代码：MIT。
 ```
 
-```
-本工具仅供文化兴趣与学习之用，不构成任何医疗、法律、投资或人生决策建议。
-```
-
-上游仓库：https://github.com/Renhuai123/ziwei-doushu
+Upstream repository: <https://github.com/Renhuai123/ziwei-doushu>

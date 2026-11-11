@@ -34,19 +34,18 @@ export interface ChatCopy {
   // 对话抽屉
   manageAria: string;
   closeSheetAria: string;
-  archivedLabel: string;
   profileAiAria: string;
   conversationsOf: (name?: string) => string;
+  noConversationsHint: string;
+  currentChart: string;
   msgCount: (n: number) => string;
   today: string;
   yesterday: string;
-  archived: (n: number) => string;
   newTopic: string;
-  freeChat: string;
-  clearThread: string;
-  clearConfirm: string;
-  archiveThread: string;
-  archiveTitle: string;
+  deleteThread: string;
+  deleteThreadConfirm: string;
+  deleteChart: string;
+  deleteChartConfirm: string;
   deepThinkOn: string;
   deepThinkOff: string;
   deepThinkTitle: string;
@@ -102,7 +101,7 @@ export interface ChatCopy {
   /** 服务端报错卡上的「配置自己的 Key」出口（内置 AI 挂了时给用户一条活路） */
   errorConfigCta: string;
   yourQuestion: string;
-  nonBareClear: string;
+  nonBareDelete: string;
   disclaimerShort: string;
   // AI 设置
   aiPanelTitle: string;
@@ -141,7 +140,7 @@ const ZH: ChatCopy = {
   retry: '重试',
   errorConfigCta: '配置自己的 Key',
   yourQuestion: '你的问题',
-  nonBareClear: '清空对话',
+  nonBareDelete: '删除这段对话',
   disclaimerShort: '回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。',
 
   homeTitle: '和你的命盘聊聊',
@@ -168,19 +167,18 @@ const ZH: ChatCopy = {
   // 对话抽屉
   manageAria: '对话管理',
   closeSheetAria: '关闭对话抽屉',
-  archivedLabel: '已归档',
   profileAiAria: '档案与 AI',
   conversationsOf: (name) => (name ? `${name}的对话` : '对话'),
+  noConversationsHint: '还没有对话。挑一个话题开始，或自由聊聊。',
+  currentChart: '当前这张盘',
   msgCount: (n) => `${n} 条`,
   today: '今天',
   yesterday: '昨天',
-  archived: (n) => `已归档 ${n}`,
   newTopic: '开个新话题',
-  freeChat: '自由聊聊',
-  clearThread: '清空当前对话',
-  clearConfirm: '清空当前这段对话？其他对话会保留。',
-  archiveThread: '归档这段对话',
-  archiveTitle: '从对话列表收起来，可在「已归档」里找回',
+  deleteThread: '删除',
+  deleteThreadConfirm: '删掉这段对话？删掉后无法找回。',
+  deleteChart: '删除此档案',
+  deleteChartConfirm: '删掉这张命盘档案？这张盘的本地对话记录仍保留在本机。',
   deepThinkOn: '● 深度思考：开',
   deepThinkOff: '○ 深度思考：关',
   deepThinkTitle: '深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。',
@@ -237,7 +235,7 @@ const EN: ChatCopy = {
   retry: 'Retry',
   errorConfigCta: 'Set up your own key',
   yourQuestion: 'Your question',
-  nonBareClear: 'Clear chat',
+  nonBareDelete: 'Delete this chat',
   disclaimerShort: 'Answers are reasoned only from this chart’s existing material: conclusion first, then the basis. For reference only — not medical, legal or investment advice.',
 
   homeTitle: 'Talk with your chart',
@@ -264,19 +262,18 @@ const EN: ChatCopy = {
   // 对话抽屉
   manageAria: 'Conversations',
   closeSheetAria: 'Close conversations',
-  archivedLabel: 'Archived',
   profileAiAria: 'Profiles & AI',
   conversationsOf: (name) => (name ? `${name}’s conversations` : 'Conversations'),
+  noConversationsHint: 'No conversations yet. Pick a topic to start, or just chat.',
+  currentChart: 'Current chart',
   msgCount: (n) => `${n}`,
   today: 'today',
   yesterday: 'yesterday',
-  archived: (n) => `Archived ${n}`,
   newTopic: 'Start a topic',
-  freeChat: 'Just chat',
-  clearThread: 'Clear this chat',
-  clearConfirm: 'Clear the current conversation? Other conversations are kept.',
-  archiveThread: 'Archive this chat',
-  archiveTitle: 'Hide from the list; restore anytime under "Archived"',
+  deleteThread: 'Delete',
+  deleteThreadConfirm: 'Delete this conversation? This cannot be undone.',
+  deleteChart: 'Delete this profile',
+  deleteChartConfirm: 'Delete this chart profile? Its local conversations stay on this device.',
   deepThinkOn: '● Deep think: on',
   deepThinkOff: '○ Deep think: off',
   deepThinkTitle: 'Deep think: the model reasons before answering — more rigorous, slower. Off is faster. Only works with reasoning-capable models (e.g. DeepSeek).',

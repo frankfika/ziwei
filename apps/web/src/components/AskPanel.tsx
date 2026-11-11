@@ -273,14 +273,11 @@ export default function AskPanel({
   const {
     messages,
     append,
-    clear,
     threads,
-    archivedThreads,
     activeId,
     newThread,
     selectThread,
-    archiveThread,
-    unarchiveThread,
+    deleteThread,
   } = useAskThread(identity);
   const [question, setQuestion] = useState('');
   /** 界面语言：界面骨架走 chatCopy；问句发给模型仍用中文（数据集是中文原文） */
@@ -345,7 +342,6 @@ export default function AskPanel({
 
   /** 对话抽屉：话题列表 / 新话题 / 档案 / AI 设置入口，都收在这里 */
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
   const headerTitle = activeThread ? topicTitle(activeThread) : copy.newChatTitle;
 
@@ -441,21 +437,18 @@ export default function AskPanel({
   }, [stream]);
 
   /** 话题即对话：点话题芯片 = 切到（或新建）这个话题的专属对话再发问。
-      生成中的回答还在写旧话题，此时不切换，排队即可 —— 免得排队的句子落到新话题里 */
+      例外：刚从「新对话」落到草稿态时，即使这个话题聊过也另起一条 —— 不然点了「新对话」
+      又被拽回旧对话，等于没法开新对话。生成中的回答还在写旧话题时不切换，排队即可 */
   function submitInTopic(label: string, q: string, focus?: { dimension?: string; palace?: string; time?: 'liunian' | 'daxian' }) {
     if (busyRef.current) {
       submit(q, focus);
       return;
     }
-    const existing = threads.find((t) => t.title === label);
-    const inTopic = threads.some((t) => t.id === activeId && t.title === label);
+    const draft = activeId === '__draft__';
+    const existing = !draft ? threads.find((t) => t.title === label) : undefined;
+    const inTopic = !draft && threads.some((t) => t.id === activeId && t.title === label);
     if (!inTopic) {
-      const archived = archivedThreads.find((t) => t.title === label);
-      if (archived) {
-        // 这个话题聊过又归档了：恢复它接着聊
-        unarchiveThread(archived.id);
-        handleSelectThread(archived.id);
-      } else if (existing) {
+      if (existing) {
         handleSelectThread(existing.id);
       } else {
         handleNewThread();
@@ -616,13 +609,7 @@ export default function AskPanel({
       onClick={toggleDeepThink}
       aria-pressed={deepThink}
       title={copy.deepThinkTitle}
-      className={
-        'shrink-0 ' +
-        CHIP_CLASS +
-        (deepThink
-          ? ' border-zhu/50 text-ink'
-          : ' border-line text-ink-2 opacity-70')
-      }
+      className="inline-flex items-center gap-1.5 text-2xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
     >
       {deepThink ? copy.deepThinkOn : copy.deepThinkOff}
     </button>
@@ -766,15 +753,19 @@ export default function AskPanel({
                   aria-label={copy.manageAria}
                   className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[72dvh] overflow-y-auto rounded-xl border border-line bg-surface p-3.5 shadow-[0_12px_40px_rgba(28,35,51,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:pb-[max(env(safe-area-inset-bottom),12px)]"
                 >
-                  {/* 这张盘下的全部话题对话 */}
-                  {threads.length > 0 && (
-                    <section aria-label={copy.conversationsOf()}>
-                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
+                  {/* ① 对话：当前盘下的所有话题 */}
+                  <section aria-label={copy.conversationsOf()}>
+                    <p className="mb-1 px-1 text-2xs text-ink-3">{copy.conversationsOf(subjectName)}</p>
+                    {threads.length === 0 ? (
+                      <p className="px-1 text-2xs leading-relaxed text-ink-3">
+                        {copy.noConversationsHint}
+                      </p>
+                    ) : (
                       <ul>
                         {threads.map((t) => {
                           const isActive = t.id === activeId;
                           return (
-                            <li key={t.id}>
+                            <li key={t.id} className="flex items-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -782,7 +773,7 @@ export default function AskPanel({
                                   setSheetOpen(false);
                                 }}
                                 aria-current={isActive || undefined}
-                                className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                className={`flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
                                   isActive
                                     ? 'bg-zhu-soft text-ink'
                                     : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
@@ -793,115 +784,52 @@ export default function AskPanel({
                                   {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
                                 </span>
                               </button>
+                              <button
+                                type="button"
+                                aria-label={`${copy.deleteThread}：${topicTitle(t)}`}
+                                title={copy.deleteThread}
+                                onClick={() => {
+                                  if (window.confirm(copy.deleteThreadConfirm)) deleteThread(t.id);
+                                }}
+                                className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                              >
+                                ✕
+                              </button>
                             </li>
                           );
                         })}
                       </ul>
-                    </section>
-                  )}
-
-                  {/* 已归档：收起成一行，展开后点选即恢复 */}
-                  {archivedThreads.length > 0 && (
-                    <section aria-label={copy.archivedLabel} className="mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowArchived((v) => !v)}
-                        aria-expanded={showArchived}
-                        className="px-1 py-1.5 text-2xs text-ink-3 transition-colors hover:text-ink-2"
-                      >
-                        {copy.archived(archivedThreads.length)} {showArchived ? '▴' : '▸'}
-                      </button>
-                      {showArchived && (
-                        <ul>
-                          {archivedThreads.map((t) => (
-                            <li key={t.id}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  unarchiveThread(t.id);
-                                  handleSelectThread(t.id);
-                                  setSheetOpen(false);
-                                }}
-                                className="flex w-full items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
-                              >
-                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
-                                <span className="shrink-0 text-2xs text-ink-3">
-                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
-                                </span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-                  )}
-
-                  {/* 开个新话题：话题即对话，点一张签就开一段新对话 */}
-                  <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
-                    <p className="mb-1.5 px-1 text-2xs text-ink-3">{copy.newTopic}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {presets.map((p) => (
-                        <button
-                          key={p.question}
-                          type="button"
-                          onClick={() => {
-                            submitInTopic(p.label, p.question, p.dimension || p.time ? { dimension: p.dimension, time: p.time } : undefined);
-                            setSheetOpen(false);
-                          }}
-                          disabled={pending}
-                          className="rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {labelOf(p)}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleNewThread();
-                          setSheetOpen(false);
-                        }}
-                        disabled={pending}
-                        className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs text-ink-3 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {copy.freeChat}
-                      </button>
-                    </div>
+                    )}
                   </section>
 
-                  {/* 宿主页内容：档案切换 / 新建 / 合盘 / AI 状态 / 语言 */}
+                  {/* ② 开个新话题：话题芯片在空态卡片里已有，这里只给一个干净的入口 */}
+                  <section aria-label={copy.newTopic} className="mt-3 border-t border-lineSoft pt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleNewThread();
+                        setSheetOpen(false);
+                        window.requestAnimationFrame(() => textareaRef.current?.focus());
+                      }}
+                      disabled={pending}
+                      className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line px-3 py-2.5 text-left text-xs text-ink-2 transition-colors hover:border-zhu hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span aria-hidden="true">＋</span>
+                      {copy.newChatTitle}
+                    </button>
+                  </section>
+
+                  {/* ③ 当前这张盘：档案信息（宿主页提供） */}
                   {sheetExtra && (
-                    <section aria-label={copy.profileAiAria} className="mt-3 border-t border-lineSoft pt-3">
+                    <section aria-label={copy.currentChart} className="mt-3 border-t border-lineSoft pt-3">
+                      <p className="mb-1 px-1 text-2xs text-ink-3">{copy.currentChart}</p>
                       {sheetExtra}
                     </section>
                   )}
 
-                  {/* 深度思考 + 当前对话操作 */}
-                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-lineSoft pt-3">
+                  {/* ④ 当前对话的次要操作 */}
+                  <section className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-lineSoft pt-3">
                     {deepThinkChip}
-                    {messages.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(copy.clearConfirm)) clear();
-                        }}
-                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        {copy.clearThread}
-                      </button>
-                    )}
-                    {activeId && activeId !== '__draft__' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          archiveThread(activeId);
-                          handleNewThread();
-                        }}
-                        title={copy.archiveTitle}
-                        className="text-xs text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                      >
-                        {copy.archiveThread}
-                      </button>
-                    )}
                   </section>
                 </div>
               </>
@@ -1372,11 +1300,11 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(copy.clearConfirm)) clear();
+                if (activeId && window.confirm(copy.deleteThreadConfirm)) deleteThread(activeId);
               }}
-              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >
-              {copy.nonBareClear}
+              {copy.nonBareDelete}
             </button>
           </div>
         )}

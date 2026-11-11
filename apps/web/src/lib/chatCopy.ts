@@ -46,6 +46,28 @@ export interface ChatCopy {
   deleteThreadConfirm: string;
   deleteChart: string;
   deleteChartConfirm: string;
+  // 对话整理：重命名 / 归档 / 回收站
+  threadActions: string;
+  renameThread: string;
+  renameThreadPrompt: string;
+  archiveThread: string;
+  unarchiveThread: string;
+  archivedSection: (n: number) => string;
+  trashSection: (n: number) => string;
+  restoreThread: string;
+  destroyThread: string;
+  emptyTrash: string;
+  emptyTrashConfirm: string;
+  deletedToast: (title: string) => string;
+  /** 删除档案（星盘）后的撤销条 */
+  deletedProfile: (label: string) => string;
+  undo: string;
+  // 长会话
+  showEarlier: (n: number) => string;
+  backToBottom: string;
+  expandAnswer: string;
+  collapseAnswer: string;
+  storageFull: string;
   deepThinkOn: string;
   deepThinkOff: string;
   deepThinkTitle: string;
@@ -65,6 +87,8 @@ export interface ChatCopy {
   // 档案
   newProfile: string;
   synastry: string;
+  /** 切换档案后的浮层提示（确认当前对话对象） */
+  switchedTo: (label: string) => string;
   noProfilesBody: string;
   noProfilesCta: string;
   incompleteBirth: string;
@@ -178,7 +202,26 @@ const ZH: ChatCopy = {
   deleteThread: '删除',
   deleteThreadConfirm: '删掉这段对话？删掉后无法找回。',
   deleteChart: '删除此档案',
-  deleteChartConfirm: '删掉这张命盘档案？这张盘的本地对话记录仍保留在本机。',
+  deleteChartConfirm: '删掉这张命盘档案？这张盘的本机对话也会一并删除。',
+  threadActions: '对话操作',
+  renameThread: '重命名',
+  renameThreadPrompt: '给这段对话起个名字',
+  archiveThread: '归档',
+  unarchiveThread: '取消归档',
+  archivedSection: (n) => `已归档（${n}）`,
+  trashSection: (n) => `已删除（${n}）`,
+  restoreThread: '恢复',
+  destroyThread: '彻底删除',
+  emptyTrash: '清空',
+  emptyTrashConfirm: '清空已删除的对话？清空后无法恢复。',
+  deletedToast: (title) => `已删除「${title}」`,
+  deletedProfile: (label) => `已删除档案「${label}」`,
+  undo: '撤销',
+  showEarlier: (n) => `显示更早的 ${n} 条`,
+  backToBottom: '回到底部',
+  expandAnswer: '展开全文',
+  collapseAnswer: '收起',
+  storageFull: '本机存储不可用或已满，新回答可能保存失败。可在对话抽屉的「已删除」里清理空间。',
   deepThinkOn: '● 深度思考：开',
   deepThinkOff: '○ 深度思考：关',
   deepThinkTitle: '深度思考：模型先推演再作答，应期、四化串联更严谨，但更慢；关闭后更快更省。仅对支持思考的模型（如 DeepSeek）生效。',
@@ -196,6 +239,7 @@ const ZH: ChatCopy = {
   sendQueueTitle: '回答中 —— 点击把这句话排到下一条',
   newProfile: '＋ 新建档案',
   synastry: '双人合盘 →',
+  switchedTo: (label) => `已切换到「${label}」，对话跟着这张盘走`,
   noProfilesBody: '先排一张盘，之后打开首页就能直接接着聊。',
   noProfilesCta: '去排一张盘',
   incompleteBirth: '这个档案的生辰不完整，无法对话。请重新排盘。',
@@ -273,7 +317,26 @@ const EN: ChatCopy = {
   deleteThread: 'Delete',
   deleteThreadConfirm: 'Delete this conversation? This cannot be undone.',
   deleteChart: 'Delete this profile',
-  deleteChartConfirm: 'Delete this chart profile? Its local conversations stay on this device.',
+  deleteChartConfirm: 'Delete this chart profile? Its local conversations will be deleted too.',
+  threadActions: 'Chat actions',
+  renameThread: 'Rename',
+  renameThreadPrompt: 'Name this conversation',
+  archiveThread: 'Archive',
+  unarchiveThread: 'Unarchive',
+  archivedSection: (n) => `Archived (${n})`,
+  trashSection: (n) => `Deleted (${n})`,
+  restoreThread: 'Restore',
+  destroyThread: 'Delete forever',
+  emptyTrash: 'Clear',
+  emptyTrashConfirm: 'Clear all deleted conversations? This cannot be undone.',
+  deletedToast: (title) => `Deleted “${title}”`,
+  deletedProfile: (label) => `Deleted profile “${label}”`,
+  undo: 'Undo',
+  showEarlier: (n) => `Show ${n} earlier`,
+  backToBottom: 'Back to bottom',
+  expandAnswer: 'Read more',
+  collapseAnswer: 'Show less',
+  storageFull: 'Local storage is unavailable or full — new answers may fail to save. Clear space under “Deleted” in the chat drawer.',
   deepThinkOn: '● Deep think: on',
   deepThinkOff: '○ Deep think: off',
   deepThinkTitle: 'Deep think: the model reasons before answering — more rigorous, slower. Off is faster. Only works with reasoning-capable models (e.g. DeepSeek).',
@@ -291,6 +354,7 @@ const EN: ChatCopy = {
   sendQueueTitle: 'Answering — tap to queue this message',
   newProfile: '＋ New profile',
   synastry: 'Synastry →',
+  switchedTo: (label) => `Switched to “${label}” — the chat follows this chart`,
   noProfilesBody: 'Cast a chart first — the home page then picks up right where you left off.',
   noProfilesCta: 'Cast a chart',
   incompleteBirth: 'This profile’s birth data is incomplete. Please cast the chart again.',

@@ -87,8 +87,8 @@ export interface BirthFormState {
   month: string;
   day: string;
   timeMode: TimeMode;
-  /** 时辰序号 0–11 */
-  shichen: number;
+  /** 时辰序号 0–11；'' = 还没选（时辰决定整张盘，不给默认值，防止静默排错盘） */
+  shichen: number | '';
   /** 子时归属（仅 timeMode === 'shichen' 且 shichen === 0 时生效） */
   ziVariant: ZiVariant;
   /** 钟点（仅 timeMode === 'clock' 时生效），字符串便于表单受控 */
@@ -103,7 +103,7 @@ export const EMPTY_FORM: BirthFormState = {
   month: '',
   day: '',
   timeMode: 'shichen',
-  shichen: 0,
+  shichen: '',
   ziVariant: 'same',
   clockHour: '12',
   clockMinute: '0',
@@ -160,7 +160,8 @@ export type BirthErrorCode =
   | 'day-range'
   | 'invalid-date'
   | 'invalid-clock'
-  | 'invalid-shichen';
+  | 'invalid-shichen'
+  | 'missing-shichen';
 
 /**
  * 把表单状态解析成排盘口径。
@@ -227,6 +228,9 @@ export function resolveForm(form: BirthFormState): ResolvedInput {
   }
 
   // 时辰模式
+  if (form.shichen === '') {
+    return { ok: false, error: '请选择出生时辰', errorCode: 'missing-shichen' };
+  }
   const hour = form.shichen;
   if (!Number.isInteger(hour) || hour < 0 || hour > 11) {
     return { ok: false, error: '时辰需在 0–11 之间', errorCode: 'invalid-shichen' };

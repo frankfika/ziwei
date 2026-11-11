@@ -589,6 +589,48 @@ Frank 登录后还需**再点一次首页「一键查询进度」**完成授权�
 
 ---
 
+### 🔵 2026-11-11 第二十一轮 · Rokid 账号绑邮箱：Set Now → fchen2020@163.com（等 Frank 点「Next」）
+
+**① 为什么现在做这件事**（2026-11-11 21:3x 在 account-web 基本资料页读到）：账号 `R星人mVkVSKQhN`
+（手机号 `13916784060`，注册时间 2026-11-06）的 **Email 字段显示「Set Now」= 从未绑定过邮箱**。
+⇒ 商店审核结果、赛事通知、密码找回**一个收件口都没有**，只剩手机号一条路。
+
+**② 「报名要邮箱」这件事查清了 —— 报名表确实要邮箱，但和账号邮箱是两处**（Frank 提问，2026-11-11 21:5x 查实）：
+
+- 赛事站 bundle i18n 原文可证：报名表有 **`负责人邮箱`** 字段，校验文案 **`负责人邮箱格式不正确`**、
+  提示 **`可用且常用的邮箱地址`**。
+- 但那是**报名表自己的字段**，与 account-web 的账号邮箱**互不联动**；报名提交时已固定，改账号邮箱不动已提交的报名。
+- ⇒ 绑邮箱的真实收益 = **商店审核结果 / 赛事通知 / 密码找回有地方收**，不是补报名表。
+
+**③ 改邮箱流程实测（2026-11-11 21:2x–22:1x，两套 UI 都要记）**：
+
+| 入口 | 字段 | 按钮 | 备注 |
+|---|---|---|---|
+| 桌面版 `/modify?type=email`（pcPages） | `password` + `userName`(新邮箱) + `token`(验证码) | 「Send Verification Code」→「Submit」 | 「Cancel」会跳 `about:blank`（旧记录，勿点） |
+| 移动版 `/modifyemail`（mobilePages，**本轮实际走通的就是它**） | `password` + `email`(新邮箱) + 验证码 | 「Get Verification Code」→「**Next**」 | ⚠️ 旧记录「`/modifyemail` 会错渲染成 Modify Password」**不成立** —— 本轮实测它渲染的是正确的邮箱两步式表单 |
+
+接口与错误码（实测 + bundle）：
+
+- `POST /v3/sendEmailCode.do` → **201**（发码成功；21:30 对 gmail 发过一次、22:1x 对 163 发过一次，两次均 201）
+- `PUT /v2/accounts/pwd_modify.do` → **201**（重设密码，本轮 Frank 走「Forgot? Retrieve Password」触发）
+- `POST /v2/login.do` → **201**（登录）
+- 失败码：**100054**（新邮箱已被注册）/ **40004、40005**（邮箱与 Hi Rokid App 账号不匹配）
+
+**④ 新邮箱地址不是猜的**：`fchen2020@163.com`，来源 = Frank 自己那份个人简介页
+`~/Documents/SlideSkill/fangchen-personal-intro/index.html` 第 10 行（**读页面原文，不是推测**）。
+
+**⑤ 本轮实测顺序**：21:2x account-web 会话第三次过期 → 落到 `/login`（默认是 "Login with Verification Code"，
+点底部「Password」切到 "Login with Account and Password"）→ Frank 重设密码（`pwd_modify` 201）+ 登录（`login` 201）
+→ 进 `/modifyemail` → Agent 填入 `fchen2020@163.com` → 点「Get Verification Code」→ `sendEmailCode.do` **201**。
+
+**⑥ 当前状态（截至 2026-11-11 22:1x）**：⏳ 表单已备好 —— password 已由 Frank 本人填（9 个掩码字符）、
+email = `fchen2020@163.com`、验证码**已发到 163**（按钮进入「Resend Verification Code (48)」倒计时）。
+**只差最后一步：Frank 从 163 邮箱取验证码 → 填进验证码框 → 自己点「Next」**（终审按钮，Agent 不代点）。
+Agent 全程**未填、未读取、未索取**密码与验证码。
+🚫 本轮**未点任何终审按钮**（「提交审核」/「提交作品」/「Next」/「签署合同」都没点）。
+
+---
+
 ## 1. 阻塞项（**策划案已于 2026-11-09 过审；现存唯一硬阻塞 = 真机到手**）
 
 | 项 | 状态 | 证据 |
@@ -1164,6 +1206,14 @@ Frank 问过「现在不应该去申请样机吗」—— **申请不了，入�
 > 分别在 18:23:05 / 18:25:06 / 18:25:36 / 18:26:06 送达，**四轮读数逐字一致**（两站都在 account-web 登录页），
 > ⇒ **不是状态变化，是排队延迟**。**没有任何一轮点过按钮、改过表单**。
 > 下次正常触发 **21:00**（`0 */3 * * *` Asia/Shanghai）。
+>
+> 🔐 **2026-11-11 21:2x–22:1x · account-web 会话第三次过期 → 已由 Frank 重登（含重设密码）**：
+> 改 Rokid 账号邮箱这件事里，account-web 在 21:2x 再次掉（落到 `/login`）；21:5x 前后观察到 Frank 走了
+> 「Forgot? Retrieve Password」⇒ `PUT /v2/accounts/pwd_modify.do` **201**，随后 `POST /v2/login.do` **201** 重登成功。
+> ⇒ **下一轮盯梢若仍读到两站登录墙，先确认 account-web 是不是已被重登过**（本轮已重登），
+> 再判断是不是状态变化 —— **别重复请他登录，也别据此改写 §0**。
+> 📌 改邮箱本身的状态记在 §0 第二十一轮：表单已备好（163 邮箱已填、验证码已发 201），
+> **等 Frank 取验证码点「Next」**，Agent 不代填凭据、不代点。
 
 
 ### 5.2 拿到入口后的操作序列（**B1–B2 已于 2026-11-09 完成**，B3 起待触发）

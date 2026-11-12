@@ -1,7 +1,7 @@
 <script def>
 {
     "navigationBarTitleText": "紫微星盘",
-    "description": "展示紫微斗数十二宫命盘：宫位、主星与四化，可切换本命、大限、流年、流月四层运限。镜腿滑动选宫（也可用准星或抬头低头），单击听该宫解读，双击切时间层，也可以基于这张盘追问。",
+    "description": "紫微斗数命盘助手。戴上眼镜说出生辰就能排出十二宫命盘，可切换本命、大限、流年、流月四层。滑动镜腿选宫，单击就这一宫发问，双击换生辰；对话页可以直接开口提问，盘面始终留在屏幕上方，不会被弹窗顶掉。",
     "schema": {
         "data": {
             "type": "object",
@@ -48,12 +48,13 @@ import {
     dimensionOfPalace,
     speakableStars,
     DIMENSION_LABELS,
+    shortPalaceName
 } from '../../lib/chart-layout.js';
 import {
     createCursorState,
     updateCursor,
     createTiltState,
-    updateTilt,
+    updateTilt
 } from '../../lib/head-cursor.js';
 import {
     ACTION,
@@ -66,7 +67,7 @@ import {
     buildTimeLayers,
     focusFromQuestion,
     fortuneSiHuaText,
-    nextLayerKey,
+    nextLayerKey
 } from '../../lib/time-layer.js';
 import { resolveChart } from '../../lib/chart-source.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
@@ -74,7 +75,21 @@ import { latestProfile, upsertProfile } from '../../lib/storage.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
-import { listenOnce, cancelListen } from '../../lib/voice-input.js';
+import { listenOnce, listenContinuous, cancelListen } from '../../lib/voice-input.js';
+import {
+    TURN_KIND,
+    MAX_TURNS,
+    SUGGESTIONS,
+    palaceQuestion,
+    normalizeQuestion,
+    summarize,
+    createTurn,
+    appendTurn,
+    indexOfTurn,
+    viewTurns,
+    digestOf,
+    nextSuggestionIndex
+} from '../../lib/chat-store.js';
 
 /**
  * 传感器采样频率（Hz）与首帧超时
@@ -85,22 +100,37 @@ const SENSOR = Object.freeze({
 });
 
 /**
- * 解读/追问长文本的滚动步长（像素）。
+ * 屏幕形态 —— **不再是「一个页面 + 三个互斥弹窗」**。
+ *
+ * ⚠️ 这次重做要解决的核心问题（用户视角）：
+ * 之前的版本里，解读页和追问页都是 `width:480px; height:352px` 的**整屏替换**，
+ * 于是「看盘 → 看解读 → 看追问」变成三个互斥的全屏页：
+ *  · 盘面在回答时整个消失，用户不知道自己问的是哪一宫；
+ *  · 问答只有一轮，问完就覆盖，上下文看不见；
+ *  · 没有输入框，用户只能从 4 条预设里挑 —— 这不是对话，是查表。
+ *
+ * 现在改成**两个屏 + 一个录入浮层**：
+ *  · `board` —— 盘面页。十二宫图 + **中宫常驻对话摘要**（最近一问一答）。
+ *  · `chat` —— 对话页。顶部是盘面缩略带（保住「我在看哪」），下面是**会话流**。
+ *  · `input` —— 生辰录入浮层（一次性流程，可以整屏）。
+ *
+ * 盘面**永远可见**是这一版的硬要求：单绿 480×352 上，看得见上下文比看得全重要。
+ */
+const SCREEN = Object.freeze({
+    BOARD: 'board',
+    CHAT: 'chat',
+    INPUT: 'input'
+});
+
+/**
+ * 长文本的滚动步长（像素）。
  *
  * 为什么自己管滚动：宿主给方向键的默认行为是「滚动根视图」，
  * 而根视图是固定 480×352 + overflow:hidden，滚不动；
  * 页面接管方向键之后（preventDefault），scroll-view 更不会被宿主带动。
- * 长文本不自己翻页，用户就永远读不完一整段解读。
+ * 长文本不自己翻页，用户就永远读不完一整段回答。
  */
 const SCROLL_STEP_PX = 60;
-
-/** 快捷问题（语音不可用时的兜底，也保证演示路径是确定的） */
-const PRESET_QUESTIONS = Object.freeze([
-    '今年这一层盘面有什么变化',
-    '我的性格特点是什么',
-    '事业上什么时候适合变动',
-    '和伴侣的相处要注意什么'
-]);
 
 /** 四个方向动作 */
 const DIRECTION_ACTIONS = Object.freeze([
@@ -139,7 +169,8 @@ export default {
     data: {
         ready: false,
         needInput: false,
-        overlay: '',
+        /** 当前屏：board / chat / input */
+        screen: 'board',
         cells: [],
         center: {
             yinYangGender: '',
@@ -156,33 +187,26 @@ export default {
         layerKey: 'natal',
         /** 当前层标题（例：大限 32–41 岁） */
         layerTitle: '本命盘',
-        /** 中宫第 2 行：本命层=阴阳男女·五行局；运限层=本层命宫落位 */
+        /** 当前层补充（运限层=本层命宫落位） */
         layerSub: '',
-        /** 中宫第 3 行：本命层=农历日期；运限层=本层四化 */
+        /** 当前层四化（运限层才有） */
         layerExtra: '',
         /** 选中宫在本层的宫名（运限层才有） */
         layerRole: '',
         /** 运限层是否可用（端侧引擎没加载时不可用） */
         layersReady: false,
-        /** 键位提示（随能力变）；引擎就绪前用最保守的一档，见 _navHint() */
-        navHint: '滑动选宫　单击听解读',
         sourceLabel: '',
         sensorLabel: '',
-        /** 中宫状态行（传感器通道 + 计算来源），见 _statusLine() */
-        statusLine: '',
         /**
          * 最近一次输入的**原始键值**（例：`ArrowLeft`、`GlobalHook`、`Enter`）。
          *
          * 为什么把它显示出来：真机上报的到底是 `code` 还是 `key`、
          * 镜腿点按是不是只有 `GlobalHook` —— 这些**源码里读不出来**，
          * 只有真机能回答（DEVICE-CHECKLIST §1.5 T2）。
-         * 显示原始值，上机第一分钟就能看到答案，不用靠猜。
          */
         lastInput: '',
-        /** 解读原文的滚动位置（scroll-view 的 scroll-top 绑定） */
-        readingScrollTop: 0,
-        /** 追问答案的滚动位置（scroll-view 的 scroll-top 绑定） */
-        askScrollTop: 0,
+        /** 状态行（端侧计算 / 正在听 / 正在推演） */
+        statusLine: '',
         /**
          * 示例盘标注。
          *
@@ -197,33 +221,51 @@ export default {
          * 但**必须明示** —— 时辰决定命宫落点，静默兜底等于给出一张看起来很真的错盘。
          */
         hourNote: '',
-        /**
-         * 中宫最后一行（示例盘 / 时辰估算）的合并文案。
-         *
-         * ⚠️ 中宫高度是死的（176px，padding 8px → 内容区 160px），
-         * 现有几行**已经排满**，再加一行就会压到下排宫位上。
-         * 所以两类提示合并成一行显示。
-         */
+        /** 示例盘 / 时辰估算的合并文案 */
         noticeLabel: '',
-        voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
-        /** 录入浮层的键位提示（返回键语义随「有没有盘」变） */
-        inputHint: '单击开始识别　返回键退出',
+
+        /* ---- 盘面页（中宫 = 常驻对话区） ---- */
+        /** 焦点行：当前宫 + 当前时间层 */
+        focusLine: '',
+        /** 焦点详情行：命主身主（本命层）/ 本层落位与四化（运限层） */
+        focusDetail: '',
+        /** 最近一问（摘要） */
+        digestQuestion: '',
+        /** 最近一答（摘要）；等待中显示「正在推演……」 */
+        digestAnswer: '',
+        /** 还没有任何对话时的引导语 */
+        digestLead: '说出生辰，或直接问我',
+
+        /* ---- 对话页 ---- */
+        /** 会话流视图模型 */
+        chatTurns: [],
+        /** 会话流为空 */
+        chatEmpty: true,
+        /** 对话页空态的标题（示例盘时改成「先说说你的生辰」） */
+        chatEmptyTitle: '你可以问我这张盘的任何事',
+        /** 会话流滚动位置 */
+        chatScrollTop: 0,
+        /** 顶部盘面缩略带 */
+        stripCells: [],
+        /** 建议语（不依赖语音的兜底路径） */
+        suggestions: SUGGESTIONS,
+        suggestionIndex: 0,
+        /** 当前这条建议语（盘面页中宫空态展示「试试问：…」） */
+        suggestionText: SUGGESTIONS[0],
+
+        /* ---- 通用 ---- */
+        /** 当前屏的操作提示（每屏只说一件事） */
+        hintLine: '',
+        /** 语音录入 */
+        voiceHint: '',
+        inputHint: '',
         heardText: '',
-        readingTitle: '',
-        readingDimension: '',
-        readingText: '',
-        readingLoading: false,
-        /** 当前引文降级模式（由服务端下发，界面必须披露） */
-        readingCitation: '',
-        askQuestion: '',
-        askAnswer: '',
-        askLoading: false,
-        askCitation: '',
-        /** 追问焦点（宫位 + 时间层），要让用户看得见自己在问哪一块 */
-        askFocus: '',
-        presets: PRESET_QUESTIONS,
         errorText: ''
     },
+
+    /* ================================================================ *
+     * 生命周期
+     * ================================================================ */
 
     onLoad(query) {
         this._cursor = createCursorState();
@@ -240,10 +282,6 @@ export default {
                 /**
                  * **异步动作**（镜腿点按的延迟确认）走这里 ——
                  * 它是在契约层的定时器里触发的，没有返回值可拿。
-                 *
-                 * 补一条日志：真机上「点一下没反应」到底是
-                 * 「延迟确认没触发」还是「触发了但页面没响应」，
-                 * 看这条日志就能分开。
                  */
                 console.info(`[ziwei-agent] input 延迟确认 → ${action}`);
                 this._dispatchKey(action);
@@ -255,14 +293,18 @@ export default {
         this._lastError = '';
         /** 语音录入代际令牌：取消录入后，迟到的识别结果不得再触发排盘 */
         this._voiceSeq = 0;
-        /** 追问代际令牌：浮层关闭后，迟到的答案不得落地 */
+        /** 追问代际令牌：回答等待期间用户可能取消，迟到的答案不得落地 */
         this._askSeq = 0;
-        /** 解读代际令牌：浮层关闭后，迟到的解读正文不得落地、不得播报 */
+        /** 解读代际令牌：同上 */
         this._readingSeq = 0;
         /** 是否正在识别中（防重复触发） */
         this._listening = false;
-        /** 追问上下文（最近几轮问答），换盘时清空 */
+        /** 会话流（最近 MAX_TURNS 轮） */
+        this._turns = [];
+        /** 给后端的上文（最近 3 轮问答） */
         this._askTurns = [];
+        /** 是否有一个追问请求正在等待（防重复提交） */
+        this._askLoading = false;
         /** 四个时间层（运限）。端侧引擎不可用时全是 null。 */
         this._layers = null;
         /** 运限层是否可用 */
@@ -288,7 +330,7 @@ export default {
         this._stopSensors();
         /** 清掉挂起的镜腿确认定时器，别让回调打到已销毁的页面上 */
         if (this._input) this._input.cancel();
-        /** 作废一切挂起的语音识别 / 追问 / 解读响应 */
+        /** 作废一切挂起的语音识别 / 回答响应 */
         this._voiceSeq += 1;
         this._askSeq += 1;
         this._readingSeq += 1;
@@ -297,14 +339,18 @@ export default {
     },
 
     onVoiceWakeup(event) {
-        // 唤醒即回到盘面，避免用户停在别的浮层
-        if (this.data.overlay && this.data.overlay !== 'input') {
-            this._closeOverlay();
+        // 唤醒即回到盘面，避免用户停在别的屏
+        if (this.data.screen === SCREEN.CHAT) {
+            this._goBoard();
         }
         if (!this._sensorMode || this._sensorMode === 'none') {
             this._startSensors();
         }
     },
+
+    /* ================================================================ *
+     * 按键
+     * ================================================================ */
 
     /**
      * 按键**按下**。
@@ -326,14 +372,14 @@ export default {
      * ⚠️ `preventDefault()` 必须在**所有分支之前**无条件调用。
      *
      * 官方事件文档写明 keyup 的宿主默认行为：
-     *   · `Backspace` → 返回上一页或请求关闭应用
-     *   · `ArrowUp` / `ArrowDown` → 滚动根视图
-     *   · `Enter` → 进入导航模式或激活当前目标
+     *   · `Backspace` → 返回上一页或请求关闭应用；
+     *   · `ArrowUp` / `ArrowDown` → 滚动根视图；
+     *   · `Enter` → 进入导航模式或激活当前目标。
      *
      * 之前这段代码把 `preventDefault()` 放在函数**末尾**，
      * 而且解读/追问/录入三个浮层分支都提前 `return` 了 —— 于是：
-     *   · 在解读或追问浮层按返回键 → 浮层关了，**应用也一起退了**；
-     *   · 在浮层按确认键 → 同时**进入宿主导航模式**，
+     *   · 在解读或追问页按返回键 → 页关了，**应用也一起退了**；
+     *   · 在页上按确认键 → 同时**进入宿主导航模式**，
      *     之后方向键被导航层吃掉，表现为「滑动切不动 / 无法产生交互」。
      */
     onKeyUp(event) {
@@ -380,12 +426,7 @@ export default {
         /**
          * **真机日志自证**：把「设备报了什么 → 归一化成什么 → 最终执行了什么」打全。
          *
-         * 为什么要打这一行：样机到手之前，真机的键值/时序全靠推断；
-         * 有了这行日志，上机连着 logcat 一看就知道
-         * 设备到底报的是 `code` 还是 `key`、方向键是一对还是只有一个、
-         * `GlobalHook` 与补发的 `Enter` 差多少毫秒。
-         *
-         * `（吸收）` 表示这一次被契约层吃掉了（配对键、回声、冷却）——
+         * 「（吸收）」表示这一次被契约层吃掉了（配对键、回声、冷却）——
          * 「按了没反应」和「被吞了」在界面上长得一样，日志能区分。
          */
         console.info(
@@ -401,13 +442,26 @@ export default {
      *
      * 键位语义（**全部按真机手势实测表**对齐，见 DEVICE-CHECKLIST §1.5）：
      *
-     * | 手势 | 真机键值 | 盘面态 | 解读浮层 | 追问浮层 |
+     * | 手势 | 真机键值 | 盘面页 | 对话页 | 录入页 |
      * |---|---|---|---|---|
-     * | 前滑 | `ArrowRight`+`ArrowDown` | 下一宫 | 往下翻 | 往下翻 |
-     * | 后滑 | `ArrowLeft`+`ArrowUp` | 上一宫 | 往上翻 | 往上翻 |
-     * | 单击 | `GlobalHook`→`Enter` | 打开解读 | 打开追问 | 发送追问 |
-     * | 双击 | `GlobalHook`×2→`Backspace` | 切时间层 | 关闭浮层 | 换预设问题 |
-     * | 返回 | 裸 `Backspace` | 重新说生辰 | 关闭浮层 | 关闭浮层 |
+     * | 前滑 | `ArrowRight`+`ArrowDown` | 下一宫 | 往下翻 | — |
+     * | 后滑 | `ArrowLeft`+`ArrowUp` | 上一宫 | 往上翻 | — |
+     * | 单击 | `GlobalHook`→`Enter` | 问这一宫 | 开口说话 | 开始识别 |
+     * | 双击 | `GlobalHook`×2→`Backspace` | 切时间层 | 问建议语 | — |
+     * | 返回 | 裸 `Backspace` | 退出应用 | 回盘面 | 回盘面 |
+     *
+     * ⚠️ **为什么每个手势在每屏只有一个含义**：
+     * 之前的版本里单击在三个屏分别是「听解读 / 进追问 / 发送追问」，
+     * 双击是「切层 / 关浮层 / 换预设问题」—— 同一手势三套语义，
+     * 用户每换一个屏就要重新记一次，这是「交互和逻辑全是问题」的主要来源。
+     * 社区实战的结论也是「**每屏只给两个动作**」。
+     *
+     * ⚠️ **「换生辰」为什么不在手势里**：
+     * 盘面页只有 4 个手势（滑动 / 单击 / 双击 / 返回），而产品要的动作有 5 个：
+     * 选宫、问这宫、切层、换生辰、退出。硬塞进去必然有一个手势背两个意思。
+     * 所以**换生辰走语音** —— 对话页开口说话，说的是生辰就重排，说的是问题就追问。
+     * 这也符合眼镜的形态：**说话本来就是这里最自然的输入**，
+     * 而「双击换生辰」在真机上是最容易被误触成切层的手势。
      *
      * ⚠️ **为什么四个方向键一律同义**：
      * 真机一次滑动发的是**一对**方向键（前滑 `Right`+`Down`，后滑 `Left`+`Up`），
@@ -416,89 +470,68 @@ export default {
      * **一次滑动同时触发两个动作域**（切宫 + 切层），
      * 表现就是评审说的「arrow 滑动事件问题 / 焦点切换问题 / 无法切换」。
      *
-     * ⚠️ **为什么上下键的方向也是同义的**：
-     * 真机一次滑动里两个键的**到达顺序不保证**，
-     * 只有「`Left`/`Up` 一律上一档、`Right`/`Down` 一律下一档」才与顺序无关。
-     *
      * @param {string} action
      */
     _dispatchKey(action) {
-        const overlay = this.data.overlay;
+        const screen = this.data.screen;
 
-        if (overlay === 'input') {
+        if (screen === SCREEN.INPUT) {
             if (action === ACTION.CONFIRM) this._startVoiceInput();
             else if (action === ACTION.BACK) this._closeInput();
             /**
-             * 双击在录入浮层**没有动作**：
+             * 双击在录入页**没有动作**：
              * 这一层只有「开始识别」和「取消重录」两件事，
              * 双击（换一个）在这里没有可换的东西。
              */
             return;
         }
 
-        if (overlay === 'reading') {
-            if (action === ACTION.BACK || action === ACTION.DOUBLE) this._closeOverlay();
-            else if (action === ACTION.CONFIRM) this._openAsk();
+        if (screen === SCREEN.CHAT) {
+            if (action === ACTION.BACK) this._goBoard();
             /**
-             * 解读浮层：四个方向键一律翻页。
-             * 长解读必须读得完 —— 宿主的方向键默认只滚根视图（固定 480×352，滚不动），
-             * 所以滚动由页面自己管（`scroll-top` 绑定）。
-             */
-            else if (isDirectionAction(action)) {
-                this._scrollReading(isPrevDirection(action) ? -1 : 1);
-            }
-            return;
-        }
-
-        if (overlay === 'ask') {
-            if (action === ACTION.BACK) this._closeOverlay();
-            /**
-             * 追问浮层：双击 = **换预设问题**。
+             * 对话页：双击 = **用建议语发问**。
              *
-             * 为什么不是「翻答案」：真机上只剩一条方向轴（滑动），
-             * 而答案是长文本 —— 必须让给滑动去翻。
-             * 换问题就交给双击（语义上「换一个」）。
+             * 为什么不是「回盘面」：眼镜上没有键盘，语音是唯一提问通道，
+             * 而语音在嘈杂环境里识别率不稳定（社区实测：一句含混的话识别正确率不到一半）。
+             * 只有语音路径 = 只要识别失败一次，用户就彻底问不了。
+             * 建议语是**不依赖识别的兜底路径**，必须留在最好按到的位置（双击）。
              */
-            else if (action === ACTION.DOUBLE) this._cyclePreset(1);
-            else if (action === ACTION.CONFIRM) this._submitAsk(this.data.askQuestion);
+            else if (action === ACTION.DOUBLE) this._askSuggestion();
+            else if (action === ACTION.CONFIRM) this._startVoiceQuestion();
             else if (isDirectionAction(action)) {
-                this._scrollAsk(isPrevDirection(action) ? -1 : 1);
+                this._scrollChat(isPrevDirection(action) ? -1 : 1);
             }
             return;
         }
 
         /**
-         * 盘面态：**四个方向键一律选宫**。
-         *
-         * 理由见上面的表格 —— 真机上下键只是滑动的配对键，不是独立手势。
+         * 盘面页：**四个方向键一律选宫**（真机只有一维手势轴）。
          */
         if (action === ACTION.LEFT || action === ACTION.UP) {
             this._stepPalace(-1);
         } else if (action === ACTION.RIGHT || action === ACTION.DOWN) {
             this._stepPalace(1);
-        } else if (action === ACTION.CONFIRM) this._openReading();
+        } else if (action === ACTION.CONFIRM) this._askPalace();
         /**
          * **双击 = 切时间层**。
          *
          * 为什么不给方向键：方向键整条让给选宫了（真机只有一维手势）。
-         * 为什么不给倾斜通道：倾斜通道是**准星不可用时的兜底**，职责是选宫。
+         * 为什么不用倾斜通道：倾斜通道是**准星不可用时的兜底**，职责是选宫。
          * 双击是唯一「镜腿 + 真机可测 + 模拟器可测」的独立手势，
          * 拿它做「换一层」最稳（同一族项目（言值）也是这个用法）。
+         *
+         * ⚠️ 「换生辰」**不占手势**，走语音（见对话页单击）。
+         * 之前返回键承担「换生辰」，导致**用户想退出应用却退不掉**，
+         * 而且一按就把自己辛苦排的盘抹掉。退出改回返回键。
          */
         else if (action === ACTION.DOUBLE) this._cycleLayer(1);
-        /**
-         * 返回键 = 回到上一步 = 重新说生辰（再按一次返回键才退出应用）。
-         *
-         * 之前这里直接 `this.finish()`，于是**盘面态没有任何入口能重新说生辰**：
-         * 语音录入只在「还没排出盘」时可达，一旦语音失败一次，用户就被锁死在
-         * 第一张盘上，只能退出重开。
-         */
-        else if (action === ACTION.BACK) this._openInput();
+        /** 返回键 = 退出应用（用户必须能退出） */
+        else if (action === ACTION.BACK) this.finish();
     },
 
-    /* ---------------------------------------------------------------- *
+    /* ================================================================ *
      * 排盘
-     * ---------------------------------------------------------------- */
+     * ================================================================ */
 
     /**
      * 出生参数解析已抽到 lib/birth-source.js（resolveInitialBirth）。
@@ -508,12 +541,14 @@ export default {
     async _chart(birth, opts = {}) {
         const demo = opts.demo === true;
         /**
-         * 换盘必清：解读缓存、引文标注、追问上下文都是**上一张盘**的，
+         * 换盘必清：解读缓存、引文标注、会话流、追问上下文都是**上一张盘**的，
          * 不清掉用户会读到旧人的解读（缓存按维度命中，新盘照中）。
          */
         this._readingCache = null;
         this._citationLabel = '';
         this._askTurns = [];
+        this._turns = [];
+        this._askLoading = false;
         this.setData({ ready: false, errorText: '' });
         try {
             const result = await resolveChart(birth);
@@ -548,31 +583,31 @@ export default {
             const layerView = this._layerView('natal', board.center);
 
             /**
-             * 中宫最后一行：示例盘标注 + 时辰估算标注（合并成一行，见 data.noticeLabel）。
+             * 示例盘标注 + 时辰估算标注（合并成一行）。
              */
             const hourNote = !demo && birth && birth.hourEstimated ? '时辰按午时估算' : '';
-            const demoLabel = demo ? '示例盘　返回键换成你的生辰' : '';
+            const demoLabel = demo ? '示例盘　说话换成你的生辰' : '';
             const noticeLabel = [demoLabel, hourNote].filter(Boolean).join('　');
 
             console.info(
                 '[ziwei-agent] 盘面来源=' + result.source +
                 ' 运限层可用=' + this._layersReady +
                 ' 示例盘=' + demo +
-                ' 时辰估算=' + hourNote,
+                ' 时辰估算=' + hourNote
             );
 
             this.setData({
                 ready: true,
                 needInput: false,
                 /**
-                 * 关掉生辰录入浮层。
+                 * 关掉生辰录入页。
                  *
                  * ⚠️ 这里以前**漏了**，后果是：用户说完生辰 → 解析成功 → 排盘成功，
-                 * 但录入浮层还盖在盘面上；而浮层态下按返回键是 `this.finish()`（退出应用），
+                 * 但录入页还盖在盘面上；录入页态下按返回键是 `this.finish()`（退出应用），
                  * 于是用户**永远看不到自己刚排出来的盘**，只能退出重开。
                  * 眼镜上没有别的出口 —— 模拟器没有麦克风，这条路径以前从没被跑到过。
                  */
-                overlay: '',
+                screen: SCREEN.BOARD,
                 cells: markActive(board.cells, mingBranch),
                 center: board.center,
                 selectedBranch: mingBranch,
@@ -583,48 +618,43 @@ export default {
                 layerExtra: layerView.layerExtra,
                 layerRole: '',
                 layersReady: this._layersReady,
-                navHint: this._navHint(),
                 sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算',
+                /** 中宫状态行：传感器通道 + 计算来源（+ 最近一次输入的原始键值） */
                 statusLine: this._statusLine(result.source === 'device' ? '端侧计算' : '服务端计算'),
                 demoLabel,
                 hourNote,
                 noticeLabel
             });
+            this._syncChat();
         } catch (err) {
             console.info(
                 '[ziwei-agent] 排盘失败：',
-                err && err.message ? err.message : String(err),
+                err && err.message ? err.message : String(err)
             );
+            /**
+             * 排盘失败 → 进生辰录入页，让用户重来一次。
+             *
+             * ⚠️ 这里**不能白屏**（社区实战铁律）：
+             * 「不管在线接口成不成，页面永远必须有内容出」。
+             * 所以失败分支必须落到一个用户还能操作的界面上，
+             * 而不是停在空盘面。
+             */
+            this._openInput();
             this.setData({
                 ready: true,
-                needInput: true,
-                overlay: 'input',
-                demoLabel: '',
-                hourNote: '',
-                noticeLabel: '',
-                /**
-                 * 返回键语义跟「有没有盘」走（与 _openInput 同一判据）：
-                 * 已有盘的重录失败 = 取消重录回盘面；首启失败 = 退出应用。
-                 * 之前这里写死「返回键退出」，有盘时文案与实际行为矛盾。
-                 */
-                inputHint: this._chartJson
-                    ? '单击开始识别　返回键回盘面'
-                    : '单击开始识别　返回键退出',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
     },
 
-    /* ---------------------------------------------------------------- *
+    /* ================================================================ *
      * 时间层（运限）
-     * ---------------------------------------------------------------- */
+     * ================================================================ */
 
     /**
      * 某一层的展示字段。
      *
-     * 本命层与运限层的中宫行**结构一致**，用户切换时视线不用重新找位置：
-     *   第 2 行  本命层=阴阳男女·五行局      运限层=本层命宫落位
-     *   第 3 行  本命层=农历日期            运限层=本层四化
+     * 本命层与运限层的中宫行**结构一致**，用户切换时视线不用重新找位置。
      *
      * @param {string} key
      * @param {Object} [center] 本命盘中宫信息（首次排盘时 data 里还是空的，必须显式传）
@@ -637,13 +667,13 @@ export default {
             return {
                 layerTitle: '本命盘',
                 layerSub: `${info.yinYangGender || ''}　${info.wuxingJuName || ''}`.trim(),
-                layerExtra: info.lunarText || '',
+                layerExtra: info.lunarText || ''
             };
         }
         return {
             layerTitle: layer.label,
             layerSub: layer.mingPalaceName ? `本层命宫落 ${layer.mingPalaceName}` : '',
-            layerExtra: fortuneSiHuaText(layer),
+            layerExtra: fortuneSiHuaText(layer)
         };
     },
 
@@ -669,10 +699,10 @@ export default {
             layerSub: view.layerSub,
             layerExtra: view.layerExtra,
             selectedName: cell ? cell.name : this.data.selectedName,
-            layerRole: fortune && cell ? (cell.fortuneShort || '') : '',
-            navHint: this._navHint()
+            layerRole: fortune && cell ? (cell.fortuneShort || '') : ''
         });
 
+        this._syncChat();
         // 切层给一句语音：眼镜上用户不一定盯着看，得让他知道自己在哪一层。
         speak(view.layerTitle || TIME_LAYER_NAMES[key] || '');
     },
@@ -687,9 +717,6 @@ export default {
      * 从来不是独立手势。所以方向键整条让给选宫（核心交互），
      * 切层交给**双击**（`GlobalHook`×2 → 补发 `Backspace`）。
      *
-     * 为什么不用倾斜通道：那条通道只在准星不可用时才启动，
-     * 职责是替准星做选宫；切层已经被双击独占。
-     *
      * ⚠️ 双击没有方向，所以只能**向前循环**（本命 → 大限 → 流年 → 流月 → 本命）。
      */
     _cycleLayer(delta) {
@@ -702,299 +729,131 @@ export default {
         if (next && next !== this.data.layerKey) this._applyLayer(next);
     },
 
+    /* ================================================================ *
+     * 提示文案
+     * ================================================================ */
+
     /**
- * 键位提示（界面文案必须跟实际能力一致，不能承诺做不到的事）。
- *
- * 现在的映射（与真机手势一一对应）：
- *   · 滑动（前后）= 选宫
- *   · 单击 = 听解读 / 追问
- *   · 双击 = 切时间层（运限层不可用时没有这一项，所以不写）
- *
- * @returns {string}
- */
-_navHint() {
-    return this._layersReady ? '滑动选宫　单击听解读　双击切层' : '滑动选宫　单击听解读';
-},
-
-/**
- * 中宫状态行：传感器通道 + 计算来源 + 最近一次输入的原始键值。
- *
- * 为什么不用模板里的 `{{sensorLabel}}　{{sourceLabel}}`：
- * 传感器标签为空时（例如模拟器没有传感器），那行会留下一个前导全角空格，
- * 把「端侧计算」顶得缩进一格，看起来像排版坏了。
- * 而且中宫内容宽只有 220px，操作提示 + 状态拼一起正好 220px 会折行 ——
- * 所以状态**独占一行**才是对的。
- *
- * @param {string} [sourceLabel] 传了就用传值，否则用 data 里已有的
- * @param {string} [lastInput] 传了就用传值，否则用 data 里已有的
- * @returns {string}
- */
-_statusLine(sourceLabel, lastInput) {
-    const parts = [
-        this.data.sensorLabel,
-        sourceLabel || this.data.sourceLabel,
-        lastInput !== undefined ? lastInput : this.data.lastInput
-    ].filter(Boolean);
-    return parts.join('　');
-},
-
-/**
- * 解读原文翻页 —— **自己管滚动**，不靠宿主。
- *
- * 宿主的默认行为是「ArrowUp/ArrowDown 滚动根视图」，
- * 而根视图固定 480×352 且 overflow:hidden，滚不动；
- * 页面接管方向键之后（preventDefault），scroll-view 更不会被宿主带动。
- * 长文本不自己翻页，用户就永远读不完一整段解读。
- *
- * @param {number} delta -1 往上 / +1 往下
- */
-_scrollReading(delta) {
-    const next = Math.max(0, this.data.readingScrollTop + delta * SCROLL_STEP_PX);
-    this.setData({ readingScrollTop: next });
-},
-
-/**
- * 追问答案翻页（与解读原文同一套机制）。
- *
- * @param {number} delta -1 往上 / +1 往下
- */
-_scrollAsk(delta) {
-    const next = Math.max(0, this.data.askScrollTop + delta * SCROLL_STEP_PX);
-    this.setData({ askScrollTop: next });
-},
-
-/**
- * 沿盘面外圈走一宫。
- *
- * 十二宫按「巳午未申酉戌亥子丑寅卯辰」排布（见 `lib/chart-layout.js`），
- * `stepRing(branch, ±1)` 就是相邻宫 —— 与抬头低头的方向一致。
- *
- * @param {number} delta -1 上一宫 / +1 下一宫
- */
-_stepPalace(delta) {
-    this._select(stepRing(this.data.selectedBranch, delta));
-},
-
-    /* ---------------------------------------------------------------- *
-     * 传感器：准星通道（绝对方向）优先，倾斜通道（加速度计）兜底
-     * ---------------------------------------------------------------- */
-
-    _startSensors() {
-        if (this._sensorMode !== 'none') return;
-
-        try {
-            const sensor = new AbsoluteOrientationSensor({ frequency: SENSOR.FREQUENCY });
-            this._orient = sensor;
-            this._orientGotFrame = false;
-
-            sensor.addEventListener('reading', () => {
-                this._orientGotFrame = true;
-                /** 浮层打开时转头不得在浮层背后换宫 */
-                if (this.data.overlay) return;
-                const q = sensor.quaternion;
-                if (!q) return;
-                const res = updateCursor(this._cursor, q);
-                this._cursor = res.state;
-                if (res.changed) this._select(res.branch);
-            });
-
-            sensor.addEventListener('error', () => {
-                this._fallbackToTilt();
-            });
-
-            sensor.start();
-
-            // 宿主可能没开绝对方向能力（文档明确提示要显式 enable）：
-            // 首帧超时即认定不可用，落到加速度计通道。
-            this._orientTimer = setTimeout(() => {
-                if (!this._orientGotFrame) this._fallbackToTilt();
-            }, SENSOR.FIRST_FRAME_TIMEOUT_MS);
-
-            this._sensorMode = 'cursor';
-            this.setData({
-                sensorLabel: '头部准星',
-                navHint: this._navHint(),
-                statusLine: this._statusLine()
-            });
-        } catch (err) {
-            this._fallbackToTilt();
-        }
+     * 当前屏的操作提示 —— **每屏只说一件事**。
+     *
+     * 之前只有盘面态一句 `navHint`，切到别的屏就没提示了，
+     * 用户只能靠猜。现在每一屏都有一句，且只列这一屏能做的动作。
+     *
+     * @returns {string}
+     */
+    _hintFor(screen) {
+        if (screen === SCREEN.INPUT) return this.data.inputHint;
+        if (screen === SCREEN.CHAT) return '滑动翻会话　单击开口问　双击问建议语';
+        return '滑动选宫　单击问这宫　双击切层';
     },
 
-    _fallbackToTilt() {
-        if (this._sensorMode === 'tilt') return;
-        this._sensorMode = 'tilt';
+    /**
+     * 中宫 / 页脚的状态行：传感器通道 + 计算来源 + 最近一次输入的原始键值。
+     *
+     * @param {string} [sourceLabel] 传了就用传值，否则用 data 里已有的
+     * @param {string} [lastInput] 传了就用传值，否则用 data 里已有的
+     * @returns {string}
+     */
+    _statusLine(sourceLabel, lastInput) {
+        const parts = [
+            this.data.sensorLabel,
+            sourceLabel || this.data.sourceLabel,
+            lastInput !== undefined ? lastInput : this.data.lastInput
+        ].filter(Boolean);
+        return parts.join('　');
+    },
+
+    /**
+     * 焦点行：当前宫 + 当前时间层。
+     *
+     * @returns {string}
+     */
+    _focusLine() {
+        const name = this.data.selectedName || '命宫';
+        const layer = this.data.layerTitle || '本命盘';
+        return `${name}　${layer}`;
+    },
+
+    /**
+     * 焦点详情行。
+     *
+     * 本命层给「命主 / 身主 / 阴阳男女 · 五行局」（紫微里这几个是入口信息）；
+     * 运限层给「本层命宫落位 + 本层四化」（这一层跟本命层不同的地方就在这两项）。
+     *
+     * @returns {string}
+     */
+    _focusDetail() {
+        const center = this.data.center || {};
+        if (this.data.layerKey === 'natal') {
+            const parts = [];
+            if (center.mingZhu) parts.push(`命主${center.mingZhu}`);
+            if (center.shenZhu) parts.push(`身主${center.shenZhu}`);
+            if (center.yinYangGender) parts.push(center.yinYangGender);
+            if (center.wuxingJuName) parts.push(center.wuxingJuName);
+            return summarize(parts.join('　'), 22);
+        }
+        return summarize([this.data.layerSub, this.data.layerExtra].filter(Boolean).join('　'), 24);
+    },
+
+    /* ================================================================ *
+     * 会话流
+     * ================================================================ */
+
+    /**
+     * 会话流视图同步 —— 盘面页中宫摘要 + 对话页会话流 + 顶部缩略带，一次 setData。
+     *
+     * @returns {void}
+     */
+    _syncChat() {
+        const digest = digestOf(this._turns);
         this.setData({
-            sensorLabel: '抬头选宫',
-            navHint: this._navHint(),
-            statusLine: this._statusLine()
+            chatTurns: viewTurns(this._turns),
+            chatEmpty: this._turns.length === 0,
+            digestQuestion: digest.question ? summarize(digest.question, 20) : '',
+            digestAnswer: digest.answer,
+            focusLine: this._focusLine(),
+            focusDetail: this._focusDetail(),
+            stripCells: this._stripCells(),
+            suggestionText: (this.data.suggestions || [])[this.data.suggestionIndex] || '',
+            hintLine: this._hintFor(this.data.screen)
         });
-
-        try {
-            const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
-            this._accel = sensor;
-            sensor.addEventListener('reading', () => {
-                /** 浮层打开时抬头低头不得在浮层背后换宫 */
-                if (this.data.overlay) return;
-                const res = updateTilt(this._tilt, {
-                    x: sensor.x,
-                    y: sensor.y,
-                    z: sensor.z
-                });
-                this._tilt = res.state;
-                /**
-                 * 抬头/低头 = **选宫**（沿盘面外圈走一宫）。
-                 *
-                 * 为什么不是切层：
-                 *   · 这条通道只在**准星不可用时**才启动（`_fallbackToTilt`），
-                 *     职责就是替准星做空间选宫；
-                 *   · 切层已经由**双击**独占（唯一不占用方向轴的手势），
-                 *     倾斜再切层就变成两个入口抢同一个动作；
-                 *   · 准星与倾斜都用「相对盘面外圈」移动，语义一致。
-                 *
-                 * ⚠️ 用 `res.direction`（±1）走 `stepRing`，
-                 * 不能直接用 `res.branch` —— 那是倾斜自己的计数器，
-                 * 与当前选中的宫无关。
-                 */
-                if (res.changed) this._stepPalace(res.direction);
-            });
-            sensor.start();
-        } catch (err) {
-            this._sensorMode = 'none';
-            this.setData({
-                sensorLabel: '镜腿选宫',
-                navHint: this._navHint(),
-                statusLine: this._statusLine()
-            });
-        }
     },
 
-    _stopSensors() {
-        if (this._orientTimer) {
-            clearTimeout(this._orientTimer);
-            this._orientTimer = null;
-        }
-        try {
-            if (this._orient) this._orient.stop();
-        } catch (err) {
-            /* ignore */
-        }
-        try {
-            if (this._accel) this._accel.stop();
-        } catch (err) {
-            /* ignore */
-        }
-        this._orient = null;
-        this._accel = null;
-        /**
-         * 复位通道状态 —— 否则 onVoiceWakeup 的「none 才重启」判断
-         * 永远为假，传感器停过一次就再也起不来。
-         */
-        this._sensorMode = 'none';
+    /**
+     * 对话页顶部的盘面缩略带：12 格横排，当前宫高亮。
+     *
+     * ⚠️ 为什么要有这条带子：对话页之前是「解读页」——
+     * 整屏换成一段文字，用户读到一半完全不知道自己问的是哪一宫。
+     * 这条带子把「我在看哪」常驻在屏幕上，是这一版最要紧的改动之一。
+     *
+     * @returns {Array<Object>}
+     */
+    _stripCells() {
+        return (this.data.cells || []).map((c) => ({
+            branch: c.branch,
+            short: shortPalaceName(c.name),
+            activeClass: c.branch === this.data.selectedBranch ? 'on' : ''
+        }));
     },
 
-    /* ---------------------------------------------------------------- *
-     * 选宫与解读
-     * ---------------------------------------------------------------- */
-
-    _select(branch) {
-        if (branch === this.data.selectedBranch) return;
-        const cells = markActive(this.data.cells, branch);
-        const cell = cellAt(cells, branch);
-        this.setData({
-            cells,
-            selectedBranch: branch,
-            selectedName: cell ? cell.name : ''
-        });
-        /**
-         * 滑动 / 转头选宫要有声音反馈：眼镜上用户不一定盯着屏，
-         * 不报宫名就是「盲滑」。tts 模块头注释就要求每步操作出声，
-         * 之前这里是哑的。
-         */
-        if (cell) speak(cell.name);
-    },
-
-    async _openReading() {
-        const branch = this.data.selectedBranch;
-        const cell = cellAt(this.data.cells, branch);
-        if (!cell) return;
-
-        /**
-         * 代际令牌：解读原文要走网络（最长 10s），等待期间用户可能
-         * 已关掉浮层 —— 迟到的正文不得写回，更不得 speak 给已关的浮层。
-         */
-        const seq = ++this._readingSeq;
-
-        const dimension = dimensionOfPalace(cell.name);
-        /**
-         * 解读原文来自**本命盘**的数据集（13 维按本命宫位收录，没有运限版本），
-         * 所以必须把「这段话说的是哪一宫」讲清楚 —— 尤其在运限层里，
-         * 同一个地支在本命和本层的宫名不是一回事。
-         */
-        const dimensionLabel = dimension ? DIMENSION_LABELS[dimension] : '命盘';
-        const roleText =
-            this.data.layerKey === 'natal' || !this.data.layerRole
-                ? ''
-                : `　·　本层为${this.data.layerRole}`;
-
-        this.setData({
-            overlay: 'reading',
-            readingTitle: `${cell.name}　${cell.stemName}${cell.branchName}`,
-            readingDimension: `本命${cell.name} · ${dimensionLabel}${roleText}`,
-            readingText: '',
-            readingLoading: true,
-            /** 换一段解读就从头读起 */
-            readingScrollTop: 0
-        });
-
-        speak(
-            `${this.data.layerKey === 'natal' ? '' : `${TIME_LAYER_NAMES[this.data.layerKey]}层，`}` +
-            `${cell.name}，${speakableStars(cell.majorText)}`
-        );
-
-        try {
-            const text = await this._readingFor(cell, dimension);
-            if (seq !== this._readingSeq) return;
-            this.setData({
-                readingText: text,
-                readingLoading: false,
-                readingCitation: this._citationLabel || ''
-            });
-            /** 接在宫位摘要后面播（enqueue），不打断摘要 */
-            speak(text, { replace: false });
-        } catch (err) {
-            if (seq !== this._readingSeq) return;
-            this.setData({
-                readingText: '这一段解读暂时取不到，盘面本身是端侧算的，不影响查看。',
-                readingLoading: false
-            });
-        }
-    },
-
-    async _readingFor(cell, dimension) {
-        if (this._readingCache) {
-            const hit = this._readingCache.find((d) => d.key === dimension);
-            if (hit) return hit.text;
-        }
-
-        const res = await requestReading(this._birth);
-        if (!res || res.status !== 'ok' || !Array.isArray(res.dimensions)) {
-            throw new Error(res && res.message ? res.message : 'not-covered');
-        }
-        this._readingCache = res.dimensions;
-
-        /**
-         * 引文模式要**在界面上披露** —— 用户得知道当前拿到的文本是什么形态
-         * （受限引文是不是被降级过）。这是许可要求，不是装饰。
-         */
-        this._citationLabel = (res && res.citationModeLabel) || '';
-
-        const hit = res.dimensions.find((d) => d.key === dimension);
-        if (hit && hit.text) return hit.text;
-
-        // 该宫没有对应维度时，退到总览
-        const fallback = res.dimensions.find((d) => d.key === 'overview');
-        return fallback ? fallback.text : '这一段解读暂时没有收录。';
+    /**
+     * 标记一轮对话完成（落地答案 / 落地失败）。
+     *
+     * @param {string} id
+     * @param {{ answer?: string, citation?: string, failed?: boolean }} patch
+     */
+    _settleTurn(id, patch) {
+        const i = indexOfTurn(this._turns, id);
+        if (i < 0) return;
+        const turn = this._turns[i];
+        this._turns[i] = {
+            ...turn,
+            answer: typeof patch.answer === 'string' ? patch.answer : turn.answer,
+            citation: typeof patch.citation === 'string' ? patch.citation : turn.citation,
+            pending: false,
+            failed: Boolean(patch.failed)
+        };
+        this._syncChat();
     },
 
     /**
@@ -1038,122 +897,477 @@ _stepPalace(delta) {
         return parts.length ? `焦点：${parts.join('　·　')}` : '';
     },
 
-    _openAsk() {
-        /** 解读长文可能还在念：浮层切走了，声音也必须跟着切 */
-        stopSpeaking();
-        const question = this.data.presets[0];
-        this.setData({
-            overlay: 'ask',
-            askQuestion: question,
-            askAnswer: '',
-            askFocus: this._focusLabel(question),
-            askScrollTop: 0
-        });
-        /** 眼镜上用户不一定盯着屏：追问浮层打开了什么，要念出来 */
-        speak(`追问，${question}`);
-    },
+    /* ================================================================ *
+     * 提问
+     * ================================================================ */
 
-    _cyclePreset(delta) {
-        const list = this.data.presets;
-        const current = list.indexOf(this.data.askQuestion);
-        const next = list[((current < 0 ? 0 : current) + delta + list.length) % list.length];
-        this.setData({ askQuestion: next, askFocus: this._focusLabel(next) });
-        /** 双击换问题也要有声音反馈 —— 不换声用户根本不知道换成了什么 */
-        speak(next);
-    },
-
-    async _submitAsk(question) {
-        const q = (question || '').trim();
-        if (!q || this.data.askLoading) return;
+    /**
+     * 盘面页单击 —— **就当前这一宫发问**。
+     *
+     * ⚠️ 为什么是「替用户问」而不是「让用户先说话」：
+     * 盘面页是用户看到的第一样东西，此刻他手上只有一张陌生的盘，
+     * 还不知道该问什么。此时要求他开口 = 第一分钟就卡住。
+     * 替用户问一句「这一宫怎么样」，他立刻看到一问一答的样子，
+     * 也立刻明白「这东西会跟我说话」。
+     *
+     * 回答走**数据集原文检索**（项目硬规则：解读正文不许模型凭空生成）。
+     *
+     * @returns {Promise<void>}
+     */
+    async _askPalace() {
+        const cell = cellAt(this.data.cells, this.data.selectedBranch);
+        if (!cell) return;
 
         /**
-         * 代际令牌：追问响应最长要等 120s（lib/api.js TIMEOUTS.ask），
-         * 等待期间用户可能已关掉浮层 —— 迟到的答案不得落地
-         * （更不能 speak 给一个已关的浮层）。
+         * 示例盘不能问解读 —— 那解读是**别人**的盘，问出来只会误导。
+         *
+         * ⚠️ 示例盘上单击 = **直接开口**（不是「问这一宫」）：
+         * 用户此刻手里只有一张陌生人的盘，他需要的是「说出你的生辰」，
+         * 不是「解读这张盘」。示例盘上问解读，等于拿别人的盘回答他，
+         * 他还分不清这是不是自己的 —— 这是最不该出错的地方。
+         */
+        if (this.data.demoLabel) {
+            await this._startVoiceQuestion();
+            return;
+        }
+
+        const question = palaceQuestion(cell.name);
+        const dimension = dimensionOfPalace(cell.name);
+        /**
+         * 解读原文来自**本命盘**的数据集（13 维按本命宫位收录，没有运限版本），
+         * 所以必须把「这段话说的是哪一宫」讲清楚 —— 尤其在运限层里，
+         * 同一个地支在本命和本层的宫名不是一回事。
+         */
+        const roleText =
+            this.data.layerKey === 'natal' || !this.data.layerRole
+                ? ''
+                : `　·　本层为${this.data.layerRole}`;
+
+        const turn = createTurn({
+            question,
+            kind: TURN_KIND.READING,
+            focus: `本命${cell.name} · ${dimension ? DIMENSION_LABELS[dimension] : '命盘'}${roleText}`
+        });
+        this._turns = appendTurn(this._turns, turn, MAX_TURNS);
+        this._goChat();
+        /**
+         * 先念**宫位摘要**（宫名 + 主星），再接解读正文（enqueue）。
+         *
+         * ⚠️ 为什么不是念问题句：
+         * 问题是**我们替用户生成的**，用户没说过，念出来是「自问自答」；
+         * 而宫名 + 主星是用户真正需要被告知的上下文 ——
+         * 眼镜上他不一定盯着屏，得让他知道自己在问哪一宫。
+         */
+        speak(`${cell.name}，${speakableStars(cell.majorText)}`);
+
+        const seq = ++this._readingSeq;
+        try {
+            const text = await this._readingFor(cell, dimension);
+            if (seq !== this._readingSeq) return;
+            this._settleTurn(turn.id, { answer: text, citation: this._citationLabel || '' });
+            /** 接在宫位摘要后面播（enqueue），不打断摘要 */
+            speak(text, { replace: false });
+        } catch (err) {
+            if (seq !== this._readingSeq) return;
+            this._settleTurn(turn.id, {
+                answer: '这一段暂时没有取到，单击重试。',
+                failed: true
+            });
+        }
+    },
+
+    /**
+     * 对话页双击 —— **用建议语发问**（不依赖语音识别的兜底路径）。
+     *
+     * @returns {Promise<void>}
+     */
+    async _askSuggestion() {
+        const list = this.data.suggestions || [];
+        if (!list.length) return;
+        const question = list[this.data.suggestionIndex] || list[0];
+        /** 问完自动轮到下一条，用户连按就是连问 */
+        this.setData({
+            suggestionIndex: nextSuggestionIndex(list, this.data.suggestionIndex, 1)
+        });
+        await this._submitAsk(question);
+    },
+
+    /**
+     * 对话页单击 —— **开口提问**。
+     *
+     * ⚠️ 走**连续识别**（lib/voice-input.js 的 listenContinuous）：
+     * 一次说完一整句，中间不停顿 —— 旧的一次性识别会把长句截断。
+     *
+     * @returns {Promise<void>}
+     */
+    async _startVoiceQuestion() {
+        if (this._listening) return;
+        this._listening = true;
+        const seq = ++this._voiceSeq;
+        this.setData({
+            statusLine: '在听……请说出你的问题',
+            hintLine: this._hintFor(SCREEN.CHAT)
+        });
+        const text = await listenContinuous({
+            onPartial: (partial) => {
+                if (seq !== this._voiceSeq) return;
+                this.setData({ statusLine: partial ? `在听：${summarize(partial, 18)}` : '在听……' });
+            }
+        });
+        if (seq !== this._voiceSeq) return;
+        this._listening = false;
+
+        const question = normalizeQuestion(text);
+        if (!question) {
+            this.setData({
+                statusLine: '没听清，再说一次',
+                hintLine: this._hintFor(SCREEN.CHAT)
+            });
+            this._syncChat();
+            return;
+        }
+
+        /**
+         * 说的是不是**生辰**？
+         *
+         * 「换生辰」没有占手势（盘面页只有 4 个手势，要干的却是 5 件事：
+         * 选宫 / 问这宫 / 切层 / 换生辰 / 退出），
+         * 所以它走**语音** —— 对话页开口说话，识别到生辰就重排，说的是问题就追问。
+         * 这也符合眼镜的形态：说话本来就是这里最自然的输入。
+         *
+         * ⚠️ 误判风险很低：parseBirthFromSpeech 要求**年 + 月 + 日 + 性别**齐全，
+         * 「我今年怎么样」这种问句解析不出来（缺月/日），不会被误当成生辰。
+         */
+        const birth = parseBirthFromSpeech(text);
+        if (birth) {
+            this._birth = birth;
+            speak('好，重新给你排盘');
+            await this._chart(birth);
+            return;
+        }
+
+        /**
+         * 说的是问题 —— 进对话页再问。
+         *
+         * ⚠️ 盘面页也能开口（示例盘上单击就是听），
+         * 所以这里必须自己切屏，不能假设已经在对话页。
+         */
+        if (this.data.screen !== SCREEN.CHAT) this._goChat();
+        await this._submitAsk(question);
+    },
+
+    /**
+     * 发一轮自由追问（走模型）。
+     *
+     * @param {string} question
+     * @returns {Promise<void>}
+     */
+    async _submitAsk(question) {
+        const q = normalizeQuestion(question);
+        if (!q || this._askLoading) return;
+
+        /**
+         * 代际令牌：回答最长要等 120s（lib/api.js TIMEOUTS.ask），
+         * 等待期间用户可能已取消 —— 迟到的答案不得落地
+         * （更不能 speak 给一个已经取消的会话）。
          */
         const seq = ++this._askSeq;
         /** 带上最近几轮问答作上下文，追问才接得上话 */
         const turns = this._askTurns.slice();
 
-        this.setData({
-            askLoading: true,
-            askQuestion: q,
-            askAnswer: '',
-            askFocus: this._focusLabel(q),
-            /** 新问题从头看起 */
-            askScrollTop: 0
+        const turn = createTurn({
+            question: q,
+            kind: TURN_KIND.ASK,
+            focus: this._focusLabel(q)
         });
+        this._turns = appendTurn(this._turns, turn, MAX_TURNS);
+        this._askLoading = true;
+        this.setData({
+            statusLine: '正在推演……',
+            hintLine: this._hintFor(SCREEN.CHAT)
+        });
+        this._syncChat();
+
         try {
             const res = await requestAsk(this._birth, q, turns, this._focusFor(q));
             if (seq !== this._askSeq) return;
+            this._askLoading = false;
             const answer = (res && res.answer) || '这一问暂时没有回答。';
-            this.setData({
-                askAnswer: answer,
-                askLoading: false,
-                // 追问的回答同样可能含受限引文，模式一并披露
-                askCitation: (res && res.citationModeLabel) || ''
+            this._settleTurn(turn.id, {
+                answer,
+                citation: (res && res.citationModeLabel) || ''
             });
-            /** 保留最近 3 轮上下文，换盘时在 _chart 里清空 */
             this._askTurns.push({ question: q, answer });
             if (this._askTurns.length > 3) this._askTurns.shift();
+            this.setData({ statusLine: this._statusLine() });
             speak(answer);
         } catch (err) {
             if (seq !== this._askSeq) return;
+            this._askLoading = false;
+            this._settleTurn(turn.id, {
+                answer: '这一问暂时没有回答，单击重试。',
+                failed: true
+            });
+            this.setData({ statusLine: this._statusLine() });
+        }
+    },
+
+    /**
+     * 取某宫的解读原文（**数据集原文检索**，不是模型生成）。
+     *
+     * @param {Object} cell
+     * @param {string|null} dimension
+     * @returns {Promise<string>}
+     */
+    async _readingFor(cell, dimension) {
+        if (this._readingCache) {
+            const hit = this._readingCache.find((d) => d.key === dimension);
+            if (hit) return hit.text;
+        }
+
+        const res = await requestReading(this._birth);
+        if (!res || res.status !== 'ok' || !Array.isArray(res.dimensions)) {
+            throw new Error((res && res.message) || 'not-covered');
+        }
+        this._readingCache = res.dimensions;
+
+        /**
+         * 引文模式要**在界面上披露** —— 用户得知道当前拿到的文本是什么形态
+         * （受限引文是不是被降级过）。这是许可要求，不是装饰。
+         */
+        this._citationLabel = (res && res.citationModeLabel) || '';
+
+        const hit = res.dimensions.find((d) => d.key === dimension);
+        if (hit && hit.text) return hit.text;
+
+        // 该宫没有对应维度时，退到总览
+        const fallback = res.dimensions.find((d) => d.key === 'overview');
+        return fallback ? fallback.text : '这一段解读暂时没有收录。';
+    },
+
+    /* ================================================================ *
+     * 屏切换
+     * ================================================================ */
+
+    /**
+     * 去对话页。
+     *
+     * @returns {void}
+     */
+    _goChat() {
+        stopSpeaking();
+        this.setData({
+            screen: SCREEN.CHAT,
+            chatScrollTop: 0,
+            hintLine: this._hintFor(SCREEN.CHAT)
+        });
+        this._syncChat();
+    },
+
+    /**
+     * 回盘面页。
+     *
+     * @returns {void}
+     */
+    _goBoard() {
+        this._askSeq += 1;
+        this._readingSeq += 1;
+        this._askLoading = false;
+        stopSpeaking();
+        this.setData({
+            screen: SCREEN.BOARD,
+            statusLine: this._statusLine(),
+            hintLine: this._hintFor(SCREEN.BOARD)
+        });
+        this._syncChat();
+    },
+
+    /* ================================================================ *
+     * 滚动
+     * ================================================================ */
+
+    /**
+     * 会话流翻页。
+     *
+     * @param {number} delta -1 往上 / +1 往下
+     */
+    _scrollChat(delta) {
+        const next = Math.max(0, this.data.chatScrollTop + delta * SCROLL_STEP_PX);
+        this.setData({ chatScrollTop: next });
+    },
+
+    /* ================================================================ *
+     * 传感器
+     * ================================================================ */
+
+    _startSensors() {
+        if (this._sensorMode !== 'none') return;
+
+        try {
+            const sensor = new AbsoluteOrientationSensor({ frequency: SENSOR.FREQUENCY });
+            this._orient = sensor;
+            this._orientGotFrame = false;
+
+            sensor.addEventListener('reading', () => {
+                this._orientGotFrame = true;
+                /** 对话页开着时转头不得在会话背后换宫 */
+                if (this.data.screen !== SCREEN.BOARD) return;
+                const q = sensor.quaternion;
+                if (!q) return;
+                const res = updateCursor(this._cursor, q);
+                this._cursor = res.state;
+                if (res.changed) this._select(res.branch);
+            });
+
+            sensor.addEventListener('error', () => {
+                this._fallbackToTilt();
+            });
+
+            sensor.start();
+
+            // 宿主可能没开绝对方向能力（文档明确提示要显式 enable）：
+            // 首帧超时即认定不可用，落到加速度计通道。
+            this._orientTimer = setTimeout(() => {
+                if (!this._orientGotFrame) this._fallbackToTilt();
+            }, SENSOR.FIRST_FRAME_TIMEOUT_MS);
+
+            this._sensorMode = 'cursor';
             this.setData({
-                askAnswer: '追问暂时不可用，盘面和解读不受影响。',
-                askLoading: false
+                sensorLabel: '头部准星',
+                statusLine: this._statusLine()
+            });
+        } catch (err) {
+            this._fallbackToTilt();
+        }
+    },
+
+    _fallbackToTilt() {
+        if (this._sensorMode === 'tilt') return;
+        this._sensorMode = 'tilt';
+        this.setData({
+            sensorLabel: '抬头选宫',
+            statusLine: this._statusLine()
+        });
+
+        try {
+            const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
+            this._accel = sensor;
+            sensor.addEventListener('reading', () => {
+                /** 对话页开着时抬头低头不得在会话背后换宫 */
+                if (this.data.screen !== SCREEN.BOARD) return;
+                const res = updateTilt(this._tilt, {
+                    x: sensor.x,
+                    y: sensor.y,
+                    z: sensor.z
+                });
+                this._tilt = res.state;
+                /**
+                 * 抬头/低头 = **选宫**（沿盘面外圈走一宫）。
+                 *
+                 * ⚠️ 用 `res.direction`（±1）走 `stepRing`，
+                 * 不能直接用 `res.branch` —— 那是倾斜自己的计数器，
+                 * 与当前选中的宫无关。
+                 */
+                if (res.changed) this._stepPalace(res.direction);
+            });
+            sensor.start();
+        } catch (err) {
+            this._sensorMode = 'none';
+            this.setData({
+                sensorLabel: '镜腿选宫',
+                statusLine: this._statusLine()
             });
         }
     },
 
-    _closeOverlay() {
-        /** 作废等待中的追问 / 解读响应 */
-        this._askSeq += 1;
-        this._readingSeq += 1;
-        stopSpeaking();
-        this.setData({ overlay: '', askLoading: false, readingLoading: false });
+    _stopSensors() {
+        if (this._orientTimer) {
+            clearTimeout(this._orientTimer);
+            this._orientTimer = null;
+        }
+        try {
+            if (this._orient) this._orient.stop();
+        } catch (err) {
+            /* ignore */
+        }
+        try {
+            if (this._accel) this._accel.stop();
+        } catch (err) {
+            /* ignore */
+        }
+        this._orient = null;
+        this._accel = null;
+        /**
+         * 复位通道状态 —— 否则 onVoiceWakeup 的「none 才重启」判断
+         * 永远为假，传感器停过一次就再也起不来。
+         */
+        this._sensorMode = 'none';
     },
 
-    /* ---------------------------------------------------------------- *
-     * 语音录入生辰
-     * ---------------------------------------------------------------- */
+    /* ================================================================ *
+     * 选宫
+     * ================================================================ */
 
     /**
-     * 打开生辰录入浮层 —— **盘面态唯一的「重新说生辰」入口**（返回键）。
+     * 沿盘面外圈走一宫。
      *
-     * 之前盘面态没有这个入口：返回键直接退出应用，而语音录入只在「还没排出盘」
-     * 时可达。语音失败一次，用户就再也换不了自己的盘。
+     * 十二宫按「巳午未申酉戌亥子丑寅卯辰」排布（见 `lib/chart-layout.js`），
+     * `stepRing(branch, ±1)` 就是相邻宫 —— 与抬头低头的方向一致。
+     *
+     * @param {number} delta -1 上一宫 / +1 下一宫
+     */
+    _stepPalace(delta) {
+        this._select(stepRing(this.data.selectedBranch, delta));
+    },
+
+    _select(branch) {
+        if (branch === this.data.selectedBranch) return;
+        const cells = markActive(this.data.cells, branch);
+        const cell = cellAt(cells, branch);
+        this.setData({
+            cells,
+            selectedBranch: branch,
+            selectedName: cell ? cell.name : ''
+        });
+        /**
+         * 滑动 / 转头选宫要有声音反馈：眼镜上用户不一定盯着屏，
+         * 不报宫名就是「盲滑」。tts 模块头注释就要求每步操作出声，
+         * 之前这里是哑的。
+         */
+        if (cell) speak(cell.name);
+        this._syncChat();
+    },
+
+    /* ================================================================ *
+     * 语音录入生辰
+     * ================================================================ */
+
+    /**
+     * 打开生辰录入页 —— **盘面页双击**（换生辰）的入口。
      */
     _openInput() {
         /** 新一次录入，作废旧识别的迟到结果，停掉可能还在念的播报 */
         this._voiceSeq += 1;
         stopSpeaking();
         this.setData({
-            overlay: 'input',
+            screen: SCREEN.INPUT,
             needInput: true,
             heardText: '',
+            errorText: '',
             voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
-            /**
-             * 返回键的语义跟着「有没有盘」走：
-             * 有盘 = 取消这次重录、回盘面；没盘 = 退出应用。
-             */
             inputHint: this._chartJson
                 ? '单击开始识别　返回键回盘面'
-                : '单击开始识别　返回键退出'
+                : '单击开始识别　返回键退出',
+            hintLine: this._hintFor(SCREEN.INPUT)
         });
     },
 
     /**
-     * 生辰录入浮层的返回键。
-     *
-     * 之前这里直接 `this.finish()` —— 退出应用，于是
-     * 「盘面态按返回键重新说生辰」这条路径进去就出不来了：
-     * 用户想取消，整个应用被关掉。
+     * 生辰录入页的返回键。
      *
      * 分两种情况：
      *   · **已经有盘**（`_chartJson` 有值）→ 回到盘面，这是「取消这次重录」；
-     *   · **还没有盘**（首次启动必须录入，语音解析失败）→ 才退出应用，
-     *     因为这时候没有别的地方可退。
+     *   · **还没有盘**（首次启动必须录入，语音解析失败）→ 才退出应用。
      *
      * 判据用 `_chartJson` 而不是 `data.ready`：`ready` 在排盘失败的分支里
      * 也会被置成 true，拿它当「有没有盘」的判据会把用户留在一个空屏上。
@@ -1169,12 +1383,14 @@ _stepPalace(delta) {
         cancelListen();
         if (this._chartJson) {
             this.setData({
-                overlay: '',
+                screen: SCREEN.BOARD,
                 needInput: false,
                 heardText: '',
                 errorText: '',
-                voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女'
+                voiceHint: '说出你的生辰：哪年哪月哪日、大概几点、男或女',
+                hintLine: this._hintFor(SCREEN.BOARD)
             });
+            this._syncChat();
             return;
         }
         this.finish();
@@ -1190,7 +1406,16 @@ _stepPalace(delta) {
          */
         const seq = this._voiceSeq;
         this.setData({ voiceHint: '在听……请说出你的生辰', heardText: '' });
-        const text = await listenOnce();
+        /**
+         * ⚠️ 连续识别：生辰是「1990年1月1日早上男」这种**多个信息位**的话，
+         * 一次性识别会把后半句截断（社区实战踩过的坑）。
+         */
+        const text = await listenOnce({
+            onPartial: (partial) => {
+                if (seq !== this._voiceSeq) return;
+                this.setData({ voiceHint: '在听……', heardText: partial });
+            }
+        });
         if (seq !== this._voiceSeq) return;
         this._listening = false;
         if (!text) {
@@ -1226,7 +1451,8 @@ _stepPalace(delta) {
 </script>
 
 <page>
-    <view class="board">
+    <!-- ================= 盘面页 ================= -->
+    <view class="board" ink:if="{{screen === 'board'}}">
         <view ink:for="{{cells}}" ink:key="branch" class="cell p{{item.branch}} {{item.activeClass}}">
             <view class="cell-head">
                 <view class="head-left">
@@ -1239,55 +1465,82 @@ _stepPalace(delta) {
             <text class="minor">{{item.minorText}}</text>
         </view>
 
+        <!-- 中宫 = 常驻对话区 -->
         <view class="center">
-            <text class="center-title">{{layerTitle}}</text>
-            <text class="center-line">命主 {{center.mingZhu}}　身主 {{center.shenZhu}}</text>
-            <text class="center-line dim">{{layerSub}}</text>
-            <text class="center-line dim">{{layerExtra}}</text>
-            <text class="center-line dim">{{center.pillarsText}}</text>
-            <view class="center-divider"></view>
-            <view class="selected-row">
-                <text class="center-line strong">{{selectedName}}</text>
-                <text class="center-role" ink:if="{{layerRole}}">{{layerRole}}</text>
+            <!-- 焦点块 -->
+            <view class="center-top">
+                <text class="focus-line">{{focusLine}}</text>
+                <text class="focus-detail" ink:if="{{focusDetail}}">{{focusDetail}}</text>
             </view>
-            <text class="center-hint">{{navHint}}</text>
-            <text class="center-hint dim">{{statusLine}}</text>
-            <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
+
+            <view class="center-divider"></view>
+
+            <!-- 对话块：最近一问一答；没有对话时是引导语 + 建议语 -->
+            <view class="center-mid">
+                <text class="digest-q" ink:if="{{digestQuestion}}">{{digestQuestion}}</text>
+                <text class="digest-a" ink:if="{{digestAnswer}}">{{digestAnswer}}</text>
+                <text class="digest-lead" ink:if="{{!digestQuestion}}">{{digestLead}}</text>
+                <text class="center-suggest" ink:if="{{!digestQuestion && suggestionText}}">试试问：{{suggestionText}}</text>
+            </view>
+
+            <!-- 底部块：示例盘标注 / 操作提示 / 计算来源 -->
+            <view class="center-bottom">
+                <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
+                <text class="center-hint">{{hintLine}}</text>
+                <text class="center-hint dim" ink:if="{{statusLine}}">{{statusLine}}</text>
+            </view>
+        </view>
+    </view>
+
+    <!-- ================= 对话页 ================= -->
+    <view class="chat" ink:if="{{screen === 'chat'}}">
+        <!-- 顶部：盘面缩略带（保住「我在看哪」） -->
+        <view class="strip">
+            <view class="strip-head">
+                <text class="strip-title">{{layerTitle}}</text>
+                <text class="strip-focus">{{selectedName}}</text>
+            </view>
+            <view class="strip-row">
+                <text class="strip-cell {{item.activeClass}}" ink:for="{{stripCells}}" ink:key="branch">{{item.short}}</text>
+            </view>
         </view>
 
-        <view class="overlay" ink:if="{{overlay === 'input'}}">
-            <text class="overlay-title">说出你的生辰</text>
-            <text class="overlay-body">{{voiceHint}}</text>
-            <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
-            <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
-            <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
-            <text class="overlay-hint">{{inputHint}}</text>
-        </view>
+        <!-- 会话流 -->
+        <scroll-view class="chat-scroll" scroll-y="{{true}}" scroll-top="{{chatScrollTop}}">
+            <view class="turn" ink:for="{{chatTurns}}" ink:key="id">
+                <text class="turn-q">{{item.q}}</text>
+                <text class="turn-a loading" ink:if="{{item.pending}}">正在推演……</text>
+                <text class="turn-a failed" ink:if="{{item.failed}}">{{item.a}}</text>
+                <text class="turn-a" ink:if="{{!item.pending && !item.failed}}">{{item.a}}</text>
+                <text class="turn-tag" ink:if="{{item.metaLine}}">{{item.metaLine}}</text>
+            </view>
 
-        <view class="overlay" ink:if="{{overlay === 'reading'}}">
-            <text class="overlay-title">{{readingTitle}}</text>
-            <text class="overlay-body dim">{{readingDimension}}</text>
-            <scroll-view class="reading-scroll" scroll-y="{{true}}" scroll-top="{{readingScrollTop}}">
-                <text class="reading-text" ink:if="{{!readingLoading}}">{{readingText}}</text>
-                <text class="reading-text dim" ink:if="{{readingLoading}}">正在检索解读原文……</text>
-            </scroll-view>
-            <text class="overlay-note" ink:if="{{readingCitation}}">{{readingCitation}}</text>
-            <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">滑动翻页　单击追问　返回键退出</text>
-        </view>
+            <!-- 空态：告诉用户这里能说话，并给出不依赖识别的建议语 -->
+            <view class="chat-empty" ink:if="{{chatEmpty}}">
+                <text class="chat-empty-title">{{chatEmptyTitle}}</text>
+                <text class="chat-empty-sub">单击镜腿开口问　双击直接问建议语</text>
+                <text class="chat-empty-format">说生辰：1990年1月1日 早上 男</text>
+                <view class="chat-sug" ink:for="{{suggestions}}" ink:key="*this">
+                    <text class="chat-sug-item">{{item}}</text>
+                </view>
+            </view>
+        </scroll-view>
 
-        <view class="overlay" ink:if="{{overlay === 'ask'}}">
-            <text class="overlay-title">追问</text>
-            <text class="overlay-body strong">{{askQuestion}}</text>
-            <text class="overlay-body dim" ink:if="{{askFocus}}">{{askFocus}}</text>
-            <scroll-view class="reading-scroll" scroll-y="{{true}}" scroll-top="{{askScrollTop}}">
-                <text class="reading-text" ink:if="{{!askLoading}}">{{askAnswer}}</text>
-                <text class="reading-text dim" ink:if="{{askLoading}}">正在推演……</text>
-            </scroll-view>
-            <text class="overlay-note" ink:if="{{askCitation}}">{{askCitation}}</text>
-            <text class="overlay-note">传统文化学习与研究用 · 不构成医疗、法律、投资或人生决策建议</text>
-            <text class="overlay-hint">滑动看答案　双击换问题　单击发送　返回键退出</text>
+        <!-- 页脚：提示 + 状态 -->
+        <view class="chat-foot">
+            <text class="foot-hint">{{hintLine}}</text>
+            <text class="foot-status" ink:if="{{statusLine}}">{{statusLine}}</text>
         </view>
+    </view>
+
+    <!-- ================= 生辰录入页 ================= -->
+    <view class="overlay" ink:if="{{screen === 'input'}}">
+        <text class="overlay-title">说出你的生辰</text>
+        <text class="overlay-body">{{voiceHint}}</text>
+        <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
+        <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
+        <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
+        <text class="overlay-hint">{{hintLine}}</text>
     </view>
 </page>
 
@@ -1308,6 +1561,9 @@ page {
  * 代价很致命：单色绿屏是黑底，若 color 继承不上，
  * 所有没显式写 color 的文字（宫名、中宫标题、正文）会变成**黑字黑底 = 整屏隐形**。
  * 颜色必须自己有落点，不能指望继承。
+ *
+ * 主色用官方绿主题的 #40FF5E（不是自选的 #00ff66）；
+ * 层级靠**四档亮度**区分（100% / 60% / 40%），不靠换色相。
  */
 .board {
     position: relative;
@@ -1315,7 +1571,7 @@ page {
     height: 352px;
     overflow: hidden;
     background-color: #000000;
-    color: #00ff66;
+    color: #40FF5E;
     font-family: monospace;
 }
 
@@ -1360,21 +1616,21 @@ page {
 .fortune-name {
     font-size: 10px;
     line-height: 15px;
-    color: #4da86c;
+    color: #269938;
     margin-left: 2px;
 }
 
 .gan-zhi {
     font-size: 9px;
     line-height: 15px;
-    color: #4da86c;
+    color: #269938;
 }
 
 .major {
     display: block;
     font-size: 12px;
     line-height: 15px;
-    color: #00ff66;
+    color: #40FF5E;
     max-height: 30px;
     overflow: hidden;
 }
@@ -1383,13 +1639,13 @@ page {
     display: block;
     font-size: 9px;
     line-height: 11px;
-    color: #4da86c;
+    color: #269938;
     max-height: 11px;
     overflow: hidden;
 }
 
 .cell.on {
-    border: 2px solid #00ff66;
+    border: 2px solid #40FF5E;
     padding: 3px 4px;
 }
 
@@ -1411,6 +1667,14 @@ page {
 .p10 { left: 360px; top: 176px; }
 .p11 { left: 360px; top: 264px; }
 
+/*
+ * 中宫 = **常驻对话区**。
+ *
+ * ⚠️ 这里原来是「命主/身主/阴阳男女/农历/四化」的静态数据区，
+ * 整屏没有任何「对话」的痕迹 —— 用户看到的是一张盘，不是一个能问的东西。
+ * 现在中宫的第一行是**焦点**（哪一宫、哪一层），下面就是**最近一问一答**。
+ * 十二宫的网格一点没动（这是产品辨识度），对话区正好落在四四方阵中间那个洞上。
+ */
 .center {
     position: absolute;
     left: 120px;
@@ -1421,56 +1685,102 @@ page {
     padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
-.center-title {
+/*
+ * 中宫分三块：**焦点 / 对话 / 底部提示**。
+ *
+ * ⚠️ 为什么中间那块要 flex:1：
+ * 之前所有行都堆在顶部（justify-content 默认 flex-start），
+ * 中宫下面空出 40% 的高度，整块看起来「什么都没发生」。
+ * 让对话块撑开、底部提示块沉底，三块各就各位 ——
+ * 空白是留白，不是漏排。
+ *
+ * ⚠️ 为什么三块都要显式 `display:flex; flex-direction:column`：
+ * `<text>` 在 ink 里默认是**行内**元素。一旦把几个 text 包进一个 view，
+ * 它们就会**串成一行**（「命宫 本命盘 命主巨门 身主天机」糊成一片）。
+ * 每一块自己开一个纵向 flex，行与行才真正分开。
+ */
+.center-top {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.center-mid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.center-bottom {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 焦点行：当前宫 + 当前时间层 */
+.focus-line {
+    display: block;
     font-size: 15px;
     line-height: 20px;
     font-weight: bold;
-    margin-bottom: 4px;
 }
 
-.center-line {
-    font-size: 11px;
-    line-height: 15px;
-}
-
-.center-line.dim {
-    color: #4da86c;
-}
-
-.center-line.strong {
-    font-size: 16px;
-    line-height: 20px;
-    font-weight: bold;
-}
-
-/* 选中宫：本命宫名（大字）+ 运限层宫名（小字） */
-.selected-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    margin-top: 4px;
-}
-
-.center-role {
-    font-size: 12px;
-    line-height: 20px;
-    color: #4da86c;
-    margin-left: 5px;
+/* 焦点详情行：命主身主（本命层）/ 本层落位与四化（运限层） */
+.focus-detail {
+    display: block;
+    font-size: 10px;
+    line-height: 13px;
+    color: #269938;
 }
 
 .center-divider {
     height: 1px;
     background-color: #174526;
-    margin: 6px 0;
+    margin: 5px 0;
+}
+
+/* 最近一问：60% 亮度（是「用户说的」，不是主角） */
+.digest-q {
+    display: block;
+    font-size: 12px;
+    line-height: 17px;
+    color: #269938;
+}
+
+/* 最近一答：100% 亮度（这是主角） */
+.digest-a {
+    display: block;
+    font-size: 12px;
+    line-height: 17px;
+    color: #40FF5E;
+    max-height: 51px;
+    overflow: hidden;
+}
+
+/* 还没有对话时的引导语 */
+.digest-lead {
+    display: block;
+    font-size: 12px;
+    line-height: 17px;
+    color: #269938;
+}
+
+/* 空态下再给一句「试试问」—— 让用户第一眼就知道这东西能问 */
+.center-suggest {
+    display: block;
+    font-size: 12px;
+    line-height: 17px;
+    color: #40FF5E;
 }
 
 .center-hint {
+    display: block;
     font-size: 10px;
     line-height: 13px;
-    color: #4da86c;
+    color: #269938;
 }
 
 /*
@@ -1481,7 +1791,7 @@ page {
  * 层级靠字号（10px，比正文小）区分，不靠把字调暗。
  */
 .center-hint.dim {
-    color: #4da86c;
+    color: #269938;
 }
 
 /*
@@ -1494,6 +1804,180 @@ page {
     color: #7fe3a0;
 }
 
+/*
+ * ================= 对话页 =================
+ *
+ * 之前没有「对话页」—— 只有两个整屏替换的浮窗（解读 / 追问），
+ * 用户看到的是文档，不是对话。现在是：
+ *   顶部 56px 盘面缩略带（保住上下文）+ 会话流 + 页脚提示。
+ */
+.chat {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 480px;
+    height: 352px;
+    box-sizing: border-box;
+    background-color: #000000;
+    color: #40FF5E;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+}
+
+.strip {
+    height: 56px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border-bottom: 1px solid #174526;
+}
+
+.strip-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 16px;
+}
+
+.strip-title {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: bold;
+}
+
+.strip-focus {
+    font-size: 11px;
+    line-height: 16px;
+    color: #269938;
+}
+
+.strip-row {
+    display: flex;
+    flex-direction: row;
+    height: 20px;
+    margin-top: 4px;
+}
+
+.strip-cell {
+    width: 38px;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    color: #269938;
+}
+
+.strip-cell.on {
+    color: #40FF5E;
+    font-weight: bold;
+}
+
+.chat-scroll {
+    flex: 1;
+    padding: 8px 12px;
+}
+
+.turn {
+    margin-bottom: 12px;
+}
+
+/* 用户问的那一句：60% 亮度 */
+.turn-q {
+    display: block;
+    font-size: 12px;
+    line-height: 17px;
+    color: #269938;
+}
+
+/* 回答：100% 亮度，正文 */
+.turn-a {
+    display: block;
+    font-size: 13px;
+    line-height: 19px;
+    color: #40FF5E;
+}
+
+.turn-a.loading {
+    color: #269938;
+}
+
+.turn-a.failed {
+    color: #7fe3a0;
+}
+
+.turn-meta {
+    display: flex;
+    flex-direction: row;
+    margin-top: 2px;
+}
+
+.turn-tag {
+    font-size: 9px;
+    line-height: 13px;
+    color: #269938;
+}
+
+.chat-empty {
+    margin-top: 4px;
+}
+
+.chat-empty-title {
+    display: block;
+    font-size: 13px;
+    line-height: 19px;
+    font-weight: bold;
+}
+
+.chat-empty-sub {
+    display: block;
+    font-size: 11px;
+    line-height: 16px;
+    color: #269938;
+    margin-top: 2px;
+}
+
+/* 换生辰的格式提示 —— 用户得知道「怎么说」才说得出 */
+.chat-empty-format {
+    display: block;
+    font-size: 11px;
+    line-height: 16px;
+    color: #269938;
+    margin-top: 6px;
+}
+
+.chat-sug {
+    margin-top: 8px;
+}
+
+.chat-sug-item {
+    display: block;
+    font-size: 12px;
+    line-height: 18px;
+    color: #269938;
+}
+
+.chat-foot {
+    height: 40px;
+    padding: 4px 12px 6px;
+    box-sizing: border-box;
+    border-top: 1px solid #174526;
+}
+
+.foot-hint {
+    display: block;
+    font-size: 10px;
+    line-height: 14px;
+    color: #269938;
+}
+
+.foot-status {
+    display: block;
+    font-size: 10px;
+    line-height: 13px;
+    color: #269938;
+}
+
+/* ================= 生辰录入页 ================= */
 .overlay {
     position: absolute;
     left: 0;
@@ -1503,7 +1987,7 @@ page {
     box-sizing: border-box;
     padding: 14px 16px;
     background-color: #000000;
-    color: #00ff66;
+    color: #40FF5E;
     font-family: monospace;
     display: flex;
     flex-direction: column;
@@ -1529,12 +2013,12 @@ page {
 }
 
 .overlay-body.dim {
-    color: #4da86c;
+    color: #269938;
     font-size: 11px;
 }
 
 .overlay-body.error {
-    color: #00ff66;
+    color: #7fe3a0;
     font-size: 11px;
 }
 
@@ -1544,36 +2028,6 @@ page {
     bottom: 12px;
     font-size: 10px;
     line-height: 14px;
-    color: #4da86c;
-}
-
-.reading-scroll {
-    flex: 1;
-    width: 448px;
-    margin-top: 6px;
-}
-
-.reading-text {
-    font-size: 13px;
-    line-height: 19px;
-    color: #00ff66;
-}
-
-.reading-text.dim {
-    color: #4da86c;
-}
-
-/*
- * 底注：引文模式披露 + 免责声明。
- *
- * 颜色用 #4da86c（不是更暗的 #174526）—— 这是**必须让用户看清**的内容，
- * 不能为了「低调」牺牲可读性（之前踩过一次 page {} 继承导致黑字黑底的坑）。
- */
-.overlay-note {
-    font-size: 9px;
-    line-height: 13px;
-    color: #4da86c;
-    /* 给绝对定位的 .overlay-hint 让出位置，两者不叠字 */
-    margin-bottom: 18px;
+    color: #269938;
 }
 </style>

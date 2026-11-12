@@ -288,6 +288,27 @@ export function cellAt(cells, branch) {
 }
 
 /**
+ * 宫名的**短名** —— 给对话页顶部的盘面缩略带用。
+ *
+ * ⚠️ 为什么要短名：缩略带是 12 格横排，每格只有 38px 宽。
+ * 「财帛宫」三个字在 11px 字号下约 33px，几乎顶满一格，
+ * 12 个格子排下来会溢出屏幕边界。去掉末尾的「宫」字之后
+ * 「命宫 → 命」「财帛宫 → 财帛」，两字以内，永远排得下。
+ *
+ * 完整宫名在盘面格子和中宫焦点行里都有，缩略带只是**上下文提示**，
+ * 不承担识别职责 —— 所以可以省字，但不能省到认不出来。
+ *
+ * @param {string} name 完整宫名
+ * @returns {string} 短名
+ */
+export function shortPalaceName(name) {
+  const s = typeof name === 'string' ? name.trim() : '';
+  if (!s) return '';
+  if (s.length > 2 && s.slice(-1) === '宫') return s.slice(0, -1);
+  return s;
+}
+
+/**
  * 按顺序推进 N 宫（+1 逆时针 = 地支 +1，与 Web 端「自命宫起十二宫序」同向）。
  *
  * @param {number} branch 当前地支

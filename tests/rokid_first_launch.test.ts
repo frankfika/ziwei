@@ -11,12 +11,15 @@
  *   命令与 `apps/rokid-agent/scripts/simulate-first-launch.mjs` 是同一条，
  *   跟开发者本地跑的完全是同一件事。
  *
- * 它守住的四件事：
- *   1. 首启必须出盘（12 宫），不能停在输入浮层；
+ * 它守住的六件事：
+ *   1. 首启必须出盘（12 宫），停在盘面页，不能停在生辰录入页；
  *   2. **端侧引擎真的能加载**（assets/engine.js 动态 import）→ 中宫显示「端侧计算」；
  *      这条以前是「不知道」，现在是被断言钉死的；
  *   3. 四层运限可用（运限层要靠端侧引擎算，服务端兜底路径算不出来）；
- *   4. 盘面态的返回键能回到生辰录入 —— 否则语音失败一次用户就被锁死在第一张盘上。
+ *   4. **中宫是对话区**（焦点行 + 引导语都在）—— 这一版的核心改动；
+ *   5. 盘面态的返回键能**退出应用**（换生辰走语音，不占手势）；
+ *   6. 语音路径：单击 → 听 → 解析 → 排盘 → **回到盘面页**，
+ *      缺时辰时明示「时辰按午时估算」。
  */
 
 import { execFileSync } from 'node:child_process';
@@ -48,7 +51,7 @@ function runSimulator(extraArgs: string[] = []): RunResult {
 }
 
 export const suite: SuiteFn = async (t) => {
-  await t.test('冷启动能出盘（12 宫），且不是停在「说出你的生辰」', () => {
+  await t.test('冷启动能出盘（12 宫），且停在盘面页', () => {
     const r = runSimulator();
     const all = `${r.stdout}\n${r.stderr}`;
     if (r.code !== 0) {
@@ -60,8 +63,8 @@ export const suite: SuiteFn = async (t) => {
     if (!/盘面\s*:\s*12 宫/.test(r.stdout)) {
       throw new Error(`盘面不是 12 宫\n${r.stdout}`);
     }
-    if (!/浮层=（无）/.test(r.stdout)) {
-      throw new Error(`首屏仍停在浮层里\n${r.stdout}`);
+    if (!/屏=board/.test(r.stdout)) {
+      throw new Error(`首屏不在盘面页\n${r.stdout}`);
     }
   });
 
@@ -93,31 +96,55 @@ export const suite: SuiteFn = async (t) => {
     }
   });
 
-  await t.test('盘面态的返回键能回到生辰录入（重新说生辰的唯一入口）', () => {
+  /**
+   * 中宫 = 常驻对话区（这一版的核心改动）。
+   *
+   * 之前中宫是「命主/身主/阴阳男女/农历/四化」的静态数据区 ——
+   * 整屏没有任何「对话」的痕迹，用户看到的是一张盘，不是一个能问的东西。
+   */
+  await t.test('中宫是对话区（有焦点行、有引导语）', () => {
     const r = runSimulator();
-    if (!/返回键→生辰录入\s*:\s*可达 ✓/.test(r.stdout)) {
-      throw new Error(`返回键回不到生辰录入\n${r.stdout}\n${r.stderr}`);
+    if (!/中宫焦点\s*:\s*\S/.test(r.stdout)) {
+      throw new Error(`中宫没有焦点行\n${r.stdout}\n${r.stderr}`);
+    }
+    if (!/中宫引导\s*:\s*\S/.test(r.stdout)) {
+      throw new Error(`中宫没有对话引导语\n${r.stdout}\n${r.stderr}`);
     }
   });
 
   /**
-   * 语音路径（`--asr` 桩）：说完生辰 → 解析 → 排盘 → **关掉录入浮层**。
+   * 盘面态的返回键 = **退出应用**。
+   *
+   * ⚠️ 之前返回键承担的是「重新说生辰」—— 用户想退出退不掉，
+   * 而且一按就把自己排好的盘抹掉。现在退出归返回键，换生辰走语音。
+   */
+  await t.test('盘面态的返回键能退出应用', () => {
+    const r = runSimulator();
+    if (!/返回键→退出\s*:\s*可达 ✓/.test(r.stdout)) {
+      throw new Error(`返回键退不出应用\n${r.stdout}\n${r.stderr}`);
+    }
+  });
+
+  /**
+   * 语音路径（`--asr` 桩）：单击 → 听 → 解析 → 排盘 → **回到盘面页**。
    *
    * ⚠️ 这条路径以前**从没被任何测试跑到过** —— 模拟器没有麦克风，
-   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见：
-   * 用户说完生辰 → 排盘成功 → 录入浮层还盖在盘面上 →
-   * 而浮层态按返回键是**退出应用** ⇒ 用户永远看不到自己刚排出来的盘。
+   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见。
+   * 现在它是**首启换盘的主路径**（示例盘上单击就是开口）。
    */
-  await t.test('语音说完生辰后能回到盘面（录入浮层必须关掉）', () => {
+  await t.test('语音说完生辰后能回到盘面页（示例盘要被换掉）', () => {
     const r = runSimulator(['--asr', '1990年1月1日 早上 男']);
     if (r.code !== 0) {
       throw new Error(`语音路径退出码 ${r.code}\n${r.stdout}\n${r.stderr}`);
     }
-    if (!/识别后浮层\s*:\s*（无）\s*✓ 已回到盘面/.test(r.stdout)) {
-      throw new Error(`说完生辰后仍停在录入浮层\n${r.stdout}\n${r.stderr}`);
+    if (!/识别后屏\s*:\s*board\s*✓ 已回盘面/.test(r.stdout)) {
+      throw new Error(`说完生辰后没回到盘面页\n${r.stdout}\n${r.stderr}`);
     }
     if (!/识别后宫位\s*:\s*12/.test(r.stdout)) {
       throw new Error(`语音识别后排盘格子不是 12\n${r.stdout}\n${r.stderr}`);
+    }
+    if (!/示例盘标注\s*:\s*（无）/.test(r.stdout)) {
+      throw new Error(`说完生辰后还是示例盘 —— 生辰没被采纳\n${r.stdout}`);
     }
   });
 

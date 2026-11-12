@@ -1511,26 +1511,43 @@ export const suite = async (t: Tester): Promise<void> => {
       }
     });
 
-    await t.test('中宫提示行不重复（只输出 navHint 一次）', () => {
+    await t.test('中宫提示行不重复（只输出 hintLine 一次）', () => {
       /**
        * 回归：模板曾写成 `<text class="center-hint">单击听解读　{{navHint}}</text>`，
-       * 而 `navHint` 本身就是「滑动选宫　单击听解读　双击切层」⇒ 渲染出来是
+       * 而提示行本身就是「滑动选宫　单击听解读　双击切层」⇒ 渲染出来是
        * 「单击听解读　滑动选宫　单击听解读　双击切层」—— 同一个手势在提示行里出现两次，
        * 而且中宫这行只有 220px，重复字会把「双击切层」挤掉。
+       *
+       * ⚠️ 2026-11-12 重做后字段名从 `navHint` 改成 `hintLine` ——
+       * 因为提示行现在**每屏都不同**（盘面页 / 对话页 / 录入页各说各的），
+       * 不再是盘面页专属的一个字段。
        */
       assert.ok(
-        ink.includes('<text class="center-hint">{{navHint}}</text>'),
-        '中宫提示行应只输出 {{navHint}}，模板里不要再拼一段固定前缀'
+        ink.includes('<text class="center-hint">{{hintLine}}</text>'),
+        '中宫提示行应只输出 {{hintLine}}，模板里不要再拼一段固定前缀'
       );
       assert.ok(
-        !ink.includes('center-hint">单击听解读'),
-        '中宫提示行不该再硬写「单击听解读」前缀'
+        !ink.includes('center-hint">单击'),
+        '中宫提示行不该再硬写「单击…」前缀'
       );
       // 兜底值（引擎就绪前显示的那一档）也必须是新手势口径 ——
       // 旧值「左右选宫　上下切层」正是被商店驳回的那套映射。
       assert.ok(
-        !/navHint:\s*'[^']*上下切层/.test(ink),
-        'navHint 兜底值不该再出现「上下切层」'
+        !/hintLine:\s*'[^']*上下切层/.test(ink),
+        'hintLine 兜底值不该再出现「上下切层」'
+      );
+      // ⚠️ 更硬的一条：**模板里**不许再出现「上下切层」——
+      // 真机上下键只是滑动的配对键，不是独立手势。
+      // （只查模板，不查全文：代码注释里保留这段历史是必要的，
+      //   「为什么废弃上下切层」正是这一版最容易改回去的地方。）
+      const template = ink.slice(ink.indexOf('<page>'), ink.indexOf('</page>'));
+      assert.ok(
+        !template.includes('上下切层'),
+        '模板里不该再出现「上下切层」（真机没有独立上下键）'
+      );
+      assert.ok(
+        !template.includes('左右选宫'),
+        '模板里不该再出现「左右选宫」（真机左右键不是独立手势）'
       );
     });
 

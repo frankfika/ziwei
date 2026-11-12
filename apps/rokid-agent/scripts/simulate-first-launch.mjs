@@ -11,12 +11,13 @@
  *    页面逻辑改一行，这里立刻能看出首屏对不对。
  *
  * 它验证什么：
- *  1. **首启必须出盘**（无入参、无本机存档 → 内置示例盘），不再停在「说出你的生辰」；
+ *  1. **首启必须出盘**（无入参、无本机存档 → 内置示例盘），停在盘面页，不再停在「说出你的生辰」；
  *  2. **端侧引擎真的能加载**（assets/engine.js 动态 import）→ 中宫显示「端侧计算」；
  *  3. **四层运限可用**（layersReady）；
  *  4. **示例盘标注在界面上**，且不会写进本机命盘库；
- *  5. **盘面态的返回键能回到生辰录入**（重新说生辰的唯一入口）；
- *  6. **语音路径**（给了 --asr 才跑）：说完生辰 → 解析 → 排盘 → **关掉录入浮层**，
+ *  5. **中宫是对话区**（focusLine + digestLead 都有内容）；
+ *  6. **盘面态的返回键能退出应用**（换生辰走语音，不占手势）；
+ *  7. **语音路径**（给了 --asr 才跑）：单击 → 听 → 解析 → 排盘 → **回到盘面页**，
  *     并在盘面上标出「时辰按午时估算」（缺时辰时的兜底口径）。
  *
  * 用法：
@@ -37,6 +38,7 @@ import { AGENT_ROOT } from './forbidden-terms.mjs';
 const REPO = path.resolve(AGENT_ROOT, '..', '..');
 const INK_PAGE = path.join(AGENT_ROOT, 'pages', 'index', 'index.ink');
 const OUT_PNG = path.join(AGENT_ROOT, 'submit-kit', 'preview', 'board-first-launch.png');
+const OUT_CHAT_PNG = path.join(AGENT_ROOT, 'submit-kit', 'preview', 'chat-conversation.png');
 
 function requireGlobal(name) {
   const root = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
@@ -73,16 +75,21 @@ async function loadPageModule(asrText = '') {
     (_m, rel) => `from '${pathToFileURL(path.join(libDir, rel)).href}'`,
   );
 
-  // 语音识别桩：把 listenOnce 换成一个固定返回值的假函数，
-  // 这样「确认键 → 听 → 解析 → 排盘 → 关浮层」整条路径能在本地跑通。
+  // 语音识别桩：把 listenOnce / listenContinuous 换成固定返回值的假函数，
+  // 这样「单击 → 听 → 解析 → 排盘」整条路径能在本地跑通。
   if (asrText) {
     const before = body;
     body = body.replace(
-      /import\s*\{\s*listenOnce\s*(?:,\s*cancelListen\s*)?\}\s*from\s*'[^']*voice-input\.js';/,
-      `const listenOnce = async () => ${JSON.stringify(asrText)};\nconst cancelListen = () => {};`,
+      /import\s*\{[^}]*\}\s*from\s*'[^']*voice-input\.js';/,
+      [
+        `const __say = async () => ${JSON.stringify(asrText)};`,
+        'const listenOnce = __say;',
+        'const listenContinuous = __say;',
+        'const cancelListen = () => {};'
+      ].join('\n')
     );
     if (body === before) {
-      throw new Error('没能替换掉 listenOnce 导入 —— index.ink 的导入写法变了？');
+      throw new Error('没能替换掉 voice-input 导入 —— index.ink 的导入写法变了？');
     }
   }
 
@@ -158,29 +165,34 @@ function renderHtml(page) {
     )
     .join('\n');
 
-  const center = page.data.center || {};
-  const role = page.data.layerRole
-    ? `        <text class="center-role">${esc(page.data.layerRole)}</text>`
-    : '';
+  /**
+   * 中宫 = **常驻对话区**（这一版的核心改动）。
+   *
+   * 之前这里渲染的是「命主/身主/阴阳男女/农历/四化」的静态数据区，
+   * 整屏没有一点「对话」的痕迹。现在中宫第一行是焦点，
+   * 下面就是最近一问一答 —— 渲染必须跟真实页面一致，
+   * 否则这张 PNG 就成了「文档里的图」，跟眼镜上看到的不是一回事。
+   */
+  const digestHtml = page.data.digestQuestion
+    ? `      <text class="digest-q">${esc(page.data.digestQuestion)}</text>
+      <text class="digest-a">${esc(page.data.digestAnswer)}</text>`
+    : `      <text class="digest-lead">${esc(page.data.digestLead)}</text>
+      <text class="center-suggest">试试问：${esc(page.data.suggestionText)}</text>`;
 
   const centerHtml = `    <view class="center">
-      <text class="center-title">${esc(page.data.layerTitle)}</text>
-      <text class="center-line">命主 ${esc(center.mingZhu)}　身主 ${esc(center.shenZhu)}</text>
-      <text class="center-line dim">${esc(page.data.layerSub)}</text>
-      <text class="center-line dim">${esc(page.data.layerExtra)}</text>
-      <text class="center-line dim">${esc(center.pillarsText)}</text>
-      <view class="center-divider"></view>
-      <view class="selected-row">
-        <text class="center-line strong">${esc(page.data.selectedName)}</text>
-${role}
+      <view class="center-top">
+        <text class="focus-line">${esc(page.data.focusLine)}</text>
+        ${page.data.focusDetail ? `<text class="focus-detail">${esc(page.data.focusDetail)}</text>` : ''}
       </view>
-      <text class="center-hint">${esc(page.data.navHint)}</text>
-      <text class="center-hint dim">${esc(page.data.statusLine)}</text>
-${
-  page.data.demoLabel
-    ? `      <text class="center-hint demo">${esc(page.data.demoLabel)}</text>`
-    : ''
-}
+      <view class="center-divider"></view>
+      <view class="center-mid">
+${digestHtml}
+      </view>
+      <view class="center-bottom">
+${page.data.noticeLabel ? `        <text class="center-hint demo">${esc(page.data.noticeLabel)}</text>` : ''}
+        <text class="center-hint">${esc(page.data.hintLine)}</text>
+        <text class="center-hint dim">${esc(page.data.statusLine)}</text>
+      </view>
     </view>`;
 
   return `<!doctype html><html><head><meta charset="utf-8">
@@ -193,6 +205,81 @@ html, body { margin: 0; padding: 0; background: #000; }
   <view class="board">
 ${cellHtml}
 ${centerHtml}
+  </view>
+</body></html>`;
+}
+
+/**
+ * 渲染对话页。
+ *
+ * ⚠️ 为什么单独渲染一张：这一版最要紧的改动是「把对话面做出来」，
+ * 而对话页是**从来没被渲染过**的一屏 —— 之前的版本没有这一屏。
+ * 不渲染出来，就没法知道它是不是真的能用（48px 的缩略带 + 会话流 + 页脚，
+ * 三个区域加起来必须正好 352px）。
+ */
+function renderChatHtml(page) {
+  const ink = fs.readFileSync(INK_PAGE, 'utf8');
+  const style = ink.slice(ink.indexOf('<style>') + 7, ink.indexOf('</style>'));
+
+  const stripHtml = (page.data.stripCells || [])
+    .map(
+      (c) =>
+        `        <text class="strip-cell ${c.activeClass}">${esc(c.short)}</text>`
+    )
+    .join('\n');
+
+  const turnHtml = (page.data.chatTurns || [])
+    .map((t) => {
+      const body = t.pending
+        ? `        <text class="turn-a loading">正在推演……</text>`
+        : `        <text class="turn-a${t.failed ? ' failed' : ''}">${esc(t.a)}</text>`;
+      const meta = t.metaLine ? `        <text class="turn-tag">${esc(t.metaLine)}</text>` : '';
+      return `      <view class="turn">
+        <text class="turn-q">${esc(t.q)}</text>
+${body}
+${meta}
+      </view>`;
+    })
+    .join('\n');
+
+  const emptyHtml = (page.data.chatTurns || []).length
+    ? ''
+    : `      <view class="chat-empty">
+        <text class="chat-empty-title">${esc(page.data.chatEmptyTitle)}</text>
+        <text class="chat-empty-sub">单击镜腿开口问　双击直接问建议语</text>
+        <text class="chat-empty-format">说生辰：1990年1月1日 早上 男</text>
+        <view class="chat-sug">
+${(page.data.suggestions || [])
+  .map((s) => `          <text class="chat-sug-item">${esc(s)}</text>`)
+  .join('\n')}
+        </view>
+      </view>`;
+
+  return `<!doctype html><html><head><meta charset="utf-8">
+<style>${style}
+view, text, scroll-view { display: block; }
+text { display: inline; }
+page { display: block; }
+html, body { margin: 0; padding: 0; background: #000; }
+</style></head><body>
+  <view class="chat">
+    <view class="strip">
+      <view class="strip-head">
+        <text class="strip-title">${esc(page.data.layerTitle)}</text>
+        <text class="strip-focus">${esc(page.data.selectedName)}</text>
+      </view>
+      <view class="strip-row">
+${stripHtml}
+      </view>
+    </view>
+    <scroll-view class="chat-scroll">
+${turnHtml}
+${emptyHtml}
+    </scroll-view>
+    <view class="chat-foot">
+      <text class="foot-hint">${esc(page.data.hintLine)}</text>
+      <text class="foot-status">${esc(page.data.statusLine)}</text>
+    </view>
   </view>
 </body></html>`;
 }
@@ -234,7 +321,13 @@ async function main() {
   if (!d.ready) problems.push('首屏没有排出来（ready=false）');
   if (!(d.cells || []).length) problems.push('盘面格子为空');
   else if (d.cells.length !== 12) problems.push(`盘面宫位数不是 12（是 ${d.cells.length}）`);
-  if (d.overlay === 'input' && !d.cells.length) problems.push('页面仍停在「说出你的生辰」浮层');
+  if (d.screen === 'input' && !d.cells.length) problems.push('页面仍停在「说出你的生辰」页');
+
+  /**
+   * 首启必须停在**盘面页** —— 这一版的盘面页中宫就是对话区，
+   * 用户第一眼看到的是「能跟我说话」，而不是一张陌生的图。
+   */
+  if (d.screen !== 'board') problems.push(`首启不在盘面页（screen=${d.screen}）`);
 
   // 首启（无入参、无存档）必须是示例盘；带入参则不是
   const expectDemo = Object.keys(query).length === 0;
@@ -247,25 +340,30 @@ async function main() {
     if (!d.statusLine || !d.statusLine.includes('端侧计算')) {
       problems.push(`中宫状态行不对（statusLine=${d.statusLine || '空'}）`);
     }
+    if (!d.digestLead) problems.push('中宫没有对话引导语（digestLead 为空）');
   } else if (d.demoLabel) {
     problems.push('带入参启动却仍被标成示例盘');
   }
 
-  // 盘面态的返回键必须能回到生辰录入（重新说生辰的唯一入口）
-  const overlayBefore = d.overlay;
+  /**
+   * 盘面态的返回键 = **退出应用**。
+   *
+   * ⚠️ 之前返回键承担的是「重新说生辰」，用户想退出退不掉，
+   * 而且一按就把自己排好的盘抹掉。现在退出归返回键，
+   * 换生辰走**语音**（对话页开口，说的是生辰就重排）。
+   */
   page.onKeyUp({ code: 'Backspace', preventDefault() {} });
-  if (d.overlay !== 'input') {
-    problems.push('盘面态按返回键没有回到生辰录入浮层');
+  const exitedByBackspace = page._finished === true;
+  if (!exitedByBackspace) {
+    problems.push('盘面态按返回键没有退出应用');
   }
-  const overlayAfterBack = d.overlay;
 
   /**
-   * 语音路径（给了 --asr 才跑）：确认键 → 听 → 解析 → 排盘 → 关掉录入浮层。
+   * 语音路径（给了 --asr 才跑）：单击 → 听 → 解析 → 排盘 → 回到盘面页。
    *
    * ⚠️ 这条路径以前**从没在本地跑到过**（模拟器没有麦克风，语音入口进不去），
-   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见：
-   * 用户说完生辰 → 排盘成功 → 录入浮层还盖在盘面上 →
-   * 而浮层态按返回键是**退出应用** ⇒ 用户永远看不到自己刚排出来的盘。
+   * 于是「解析成功后浮层没关」这个致命 bug 一直没人看见。
+   * 现在示例盘上单击就是开口，这条路径是**首启换盘的主路径**。
    */
   let asrResult = null;
   if (asrText) {
@@ -279,40 +377,47 @@ async function main() {
     const parsed = parserMod.parseBirthFromSpeech(asrText);
     const expectedNotice = parsed && parsed.hourEstimated ? '时辰按午时估算' : '';
 
+    /** 示例盘上单击 = 开口说话 */
     page.onKeyUp({ code: 'Enter', preventDefault() {} });
-    await waitFor(() => page.data.overlay === '' && page.data.ready, 8000);
+    await waitFor(() => page.data.ready && page.data.demoLabel === '', 8000);
     asrResult = {
-      overlay: page.data.overlay,
+      screen: page.data.screen,
       notice: page.data.noticeLabel || '',
       cells: (page.data.cells || []).length,
       hour: parsed ? parsed.hour : null,
-      expectedNotice,
+      expectedNotice
     };
-    if (page.data.overlay !== '') {
-      problems.push('语音识别成功后录入浮层没有关掉 —— 用户看不到自己的盘');
+    if (page.data.screen !== 'board') {
+      problems.push('语音识别成功后没有回到盘面页 —— 用户看不到自己的盘');
+    }
+    if (page.data.demoLabel) {
+      problems.push('语音识别成功后仍然是示例盘 —— 生辰没有被采纳');
     }
     if (!(page.data.cells || []).length) {
       problems.push('语音识别后排盘格子为空');
     }
     if (page.data.noticeLabel !== expectedNotice) {
       problems.push(
-        `时辰估算标注与解析器不一致（界面=${page.data.noticeLabel || '空'}｜期望=${expectedNotice || '空'}）`,
+        `时辰估算标注与解析器不一致（界面=${page.data.noticeLabel || '空'}｜期望=${expectedNotice || '空'}）`
       );
     }
   }
 
   console.log('── 本地首启模拟 ──────────────────────────────────────────');
   console.log(`  入参          : ${Object.keys(query).length ? JSON.stringify(query) : '（无）'}`);
-  console.log(`  首屏状态      : ready=${d.ready}｜浮层=${overlayBefore || '（无）'}`);
+  console.log(`  首屏状态      : ready=${d.ready}｜屏=${d.screen}`);
   console.log(`  盘面          : ${(d.cells || []).length} 宫｜层=${d.layerTitle}｜选中=${d.selectedName}`);
+  console.log(`  中宫焦点      : ${d.focusLine || '（空）'}`);
+  console.log(`  中宫详情      : ${d.focusDetail || '（空）'}`);
+  console.log(`  中宫引导      : ${d.digestLead || '（空）'}`);
   console.log(`  计算来源      : ${d.sourceLabel || '（空）'}`);
   console.log(`  运限层可用    : ${d.layersReady}`);
   console.log(`  示例盘标注    : ${d.demoLabel || '（无）'}`);
-  console.log(`  返回键→生辰录入: ${overlayAfterBack === 'input' ? '可达 ✓' : '不可达 ✗'}`);
+  console.log(`  返回键→退出  : ${exitedByBackspace ? '可达 ✓' : '不可达 ✗'}`);
   if (asrResult) {
     console.log(`  语音识别      : 「${asrText}」`);
     console.log(`  解析时辰序号  : ${asrResult.hour}`);
-    console.log(`  识别后浮层    : ${asrResult.overlay || '（无）'} ${asrResult.overlay === '' ? '✓ 已回到盘面' : '✗ 仍盖着'}`);
+    console.log(`  识别后屏      : ${asrResult.screen} ${asrResult.screen === 'board' ? '✓ 已回盘面' : '✗'}`);
     console.log(`  识别后标注    : ${asrResult.notice || '（无）'}`);
     console.log(`  识别后宫位    : ${asrResult.cells}`);
   }
@@ -337,10 +442,62 @@ async function main() {
       });
       await p.goto(`file://${tmpHtml}`, { waitUntil: 'networkidle' });
       await p.screenshot({ path: OUT_PNG });
+
+      /* 对话页预览：这一版最要紧的一屏，必须看得见 */
+      const chatPage = makePage(mod.default);
+      await chatPage.onLoad(
+        Object.keys(query).length ? query : { year: 1990, month: 1, day: 1, hour: 0, gender: 'male' }
+      );
+      await waitReady(chatPage);
+      /**
+       * ⚠️ 要写 `_turns`（真源），不能只 setData `chatTurns` ——
+       * `_syncChat()` 会用 `_turns` 重算视图模型，
+       * 直接 setData 的内容会被它覆盖掉（空态就是这么来的）。
+       */
+      chatPage._turns = [
+        {
+          id: 't1',
+          question: '命宫，今年怎么样？',
+          kind: 'reading',
+          focus: '本命命宫 · 命格总览',
+          answer:
+            '这是一段来自数据集的解读原文：主星天机化禄，思虑细腻、擅长在变化里找机会。',
+          citation: '引文正常',
+          pending: false,
+          failed: false
+        },
+        {
+          id: 't2',
+          question: '我今年事业上要注意什么',
+          kind: 'ask',
+          focus: '焦点：命宫 · 流年',
+          answer:
+            '这一年适合把手上的一件事做深，不适合同时开三摊。流年四化里，你的位置是「权」，意思是主导权在自己手上，但要靠专业度撑住。',
+          citation: '引文正常',
+          pending: false,
+          failed: false
+        }
+      ];
+      chatPage.setData({
+        screen: 'chat',
+        hintLine: '滑动翻会话　单击开口问　双击问建议语',
+        statusLine: '端侧计算'
+      });
+      chatPage._syncChat();
+      const chatHtml = renderChatHtml(chatPage);
+      const tmpChatHtml = path.join(AGENT_ROOT, 'submit-kit', 'preview', 'chat-conversation.html');
+      fs.writeFileSync(tmpChatHtml, chatHtml, 'utf8');
+      const p2 = await browser.newPage({
+        viewport: { width: 480, height: 352 },
+        deviceScaleFactor: 3,
+      });
+      await p2.goto(`file://${tmpChatHtml}`, { waitUntil: 'networkidle' });
+      await p2.screenshot({ path: OUT_CHAT_PNG });
     } finally {
       await browser.close();
     }
     console.log(`✓ 首启画面 PNG：${OUT_PNG}`);
+    console.log(`✓ 对话页 PNG  ：${OUT_CHAT_PNG}`);
     console.log('  （模拟器渲染：真实页面逻辑 + 真实端侧引擎 + 真实 Ink 样式，不是真机照片）');
   }
 

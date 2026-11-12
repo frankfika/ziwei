@@ -239,5 +239,48 @@ await sleep(50);
 assert('盘面态返回键回到生辰录入', page.data.overlay === 'input', `overlay=${page.data.overlay}`);
 assert('盘面态返回键没有退出应用', !page._finished, '_finished 被置位');
 
+/* ---- 11. 听音中按返回键 = 取消录入，迟到的识别结果不得排盘 ----
+ * 此刻停在生辰录入浮层（第 10 组）。直接驱动页面方法：
+ * listenOnce 的 resolve 至少是微任务之后，同步调用 _closeInput 必然先到。 */
+const cellsBeforeCancel = page.data.cells;
+const chartJsonBeforeCancel = page._chartJson;
+const voiceP = page._startVoiceInput();
+page._closeInput();
+await voiceP;
+await sleep(100);
+assert('听音中返回键关闭录入浮层', page.data.overlay === '', `overlay=${page.data.overlay}`);
+assert('取消后盘面未被重排', page.data.cells === cellsBeforeCancel, 'cells 被替换');
+assert('取消后 _chartJson 未被改写', page._chartJson === chartJsonBeforeCancel, '_chartJson 被替换');
+
+/* ---- 12. 换盘必清：解读缓存 + 引文标注 + 追问上下文 ---- */
+page._readingCache = [{ key: 'overview', text: '旧盘的解读' }];
+page._citationLabel = '旧标注';
+page._askTurns = [{ question: '旧问题', answer: '旧答案' }];
+const chartP = page._chart({ year: 1991, month: 2, day: 2, hour: 6, gender: 'female' });
+/** 清理是同步发生的（在 await 排盘之前） */
+assert('换盘立即清解读缓存', page._readingCache === null, `cache=${JSON.stringify(page._readingCache)}`);
+assert('换盘立即清引文标注', page._citationLabel === '', `label=${page._citationLabel}`);
+assert('换盘立即清追问上下文', page._askTurns.length === 0, `turns=${page._askTurns.length}`);
+await chartP;
+await waitFor(() => page.data.ready);
+assert('换盘后出新盘', page.data.ready && page.data.cells.length === 12, `ready=${page.data.ready}`);
+
+/* ---- 13. 浮层关闭后，迟到的追问响应不得落地 ---- */
+page.setData({ overlay: 'ask', askAnswer: '', askLoading: false });
+const seqBefore = page._askSeq;
+const askP = page._submitAsk('今年这一层盘面有什么变化');
+/** 本地没有后端，requestAsk 会失败；关键是失败分支也不得写回 */
+page._closeOverlay();
+await askP;
+await sleep(100);
+assert('关闭浮层作废追问代际', page._askSeq > seqBefore, `seq=${page._askSeq}`);
+assert('迟到的追问响应没有落地', page.data.askAnswer === '', `askAnswer=${page.data.askAnswer}`);
+assert('关闭浮层后 askLoading 复位', page.data.askLoading === false, `askLoading=${page.data.askLoading}`);
+
+/* ---- 14. _stopSensors 复位通道状态（onVoiceWakeup 才能重启） ---- */
+page._sensorMode = 'cursor';
+page._stopSensors();
+assert('_stopSensors 复位 _sensorMode', page._sensorMode === 'none', `mode=${page._sensorMode}`);
+
 console.log(`\n通过 ${passed} / 失败 ${failed}`);
 process.exit(failed ? 1 : 0);

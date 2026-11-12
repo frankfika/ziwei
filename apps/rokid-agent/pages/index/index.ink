@@ -253,6 +253,14 @@ export default {
         this._readingCache = null;
         this._citationLabel = '';
         this._lastError = '';
+        /** 语音录入代际令牌：取消录入后，迟到的识别结果不得再触发排盘 */
+        this._voiceSeq = 0;
+        /** 追问代际令牌：浮层关闭后，迟到的答案不得落地 */
+        this._askSeq = 0;
+        /** 是否正在识别中（防重复触发） */
+        this._listening = false;
+        /** 追问上下文（最近几轮问答），换盘时清空 */
+        this._askTurns = [];
         /** 四个时间层（运限）。端侧引擎不可用时全是 null。 */
         this._layers = null;
         /** 运限层是否可用 */
@@ -278,6 +286,9 @@ export default {
         this._stopSensors();
         /** 清掉挂起的镜腿确认定时器，别让回调打到已销毁的页面上 */
         if (this._input) this._input.cancel();
+        /** 作废一切挂起的语音识别 / 追问响应 */
+        this._voiceSeq += 1;
+        this._askSeq += 1;
         stopSpeaking();
     },
 
@@ -492,6 +503,13 @@ export default {
 
     async _chart(birth, opts = {}) {
         const demo = opts.demo === true;
+        /**
+         * 换盘必清：解读缓存、引文标注、追问上下文都是**上一张盘**的，
+         * 不清掉用户会读到旧人的解读（缓存按维度命中，新盘照中）。
+         */
+        this._readingCache = null;
+        this._citationLabel = '';
+        this._askTurns = [];
         this.setData({ ready: false, errorText: '' });
         try {
             const result = await resolveChart(birth);
@@ -761,6 +779,8 @@ _stepPalace(delta) {
 
             sensor.addEventListener('reading', () => {
                 this._orientGotFrame = true;
+                /** 浮层打开时转头不得在浮层背后换宫 */
+                if (this.data.overlay) return;
                 const q = sensor.quaternion;
                 if (!q) return;
                 const res = updateCursor(this._cursor, q);
@@ -804,6 +824,8 @@ _stepPalace(delta) {
             const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
             this._accel = sensor;
             sensor.addEventListener('reading', () => {
+                /** 浮层打开时抬头低头不得在浮层背后换宫 */
+                if (this.data.overlay) return;
                 const res = updateTilt(this._tilt, {
                     x: sensor.x,
                     y: sensor.y,
@@ -854,6 +876,11 @@ _stepPalace(delta) {
         }
         this._orient = null;
         this._accel = null;
+        /**
+         * 复位通道状态 —— 否则 onVoiceWakeup 的「none 才重启」判断
+         * 永远为假，传感器停过一次就再也起不来。
+         */
+        this._sensorMode = 'none';
     },
 
     /* ---------------------------------------------------------------- *
@@ -869,6 +896,12 @@ _stepPalace(delta) {
             selectedBranch: branch,
             selectedName: cell ? cell.name : ''
         });
+        /**
+         * 滑动 / 转头选宫要有声音反馈：眼镜上用户不一定盯着屏，
+         * 不报宫名就是「盲滑」。tts 模块头注释就要求每步操作出声，
+         * 之前这里是哑的。
+         */
+        if (cell) speak(cell.name);
     },
 
     async _openReading() {
@@ -910,7 +943,8 @@ _stepPalace(delta) {
                 readingLoading: false,
                 readingCitation: this._citationLabel || ''
             });
-            speak(text);
+            /** 接在宫位摘要后面播（enqueue），不打断摘要 */
+            speak(text, { replace: false });
         } catch (err) {
             this.setData({
                 readingText: '这一段解读暂时取不到，盘面本身是端侧算的，不影响查看。',
@@ -1008,6 +1042,15 @@ _stepPalace(delta) {
         const q = (question || '').trim();
         if (!q || this.data.askLoading) return;
 
+        /**
+         * 代际令牌：追问响应最长要等 120s（lib/api.js TIMEOUTS.ask），
+         * 等待期间用户可能已关掉浮层 —— 迟到的答案不得落地
+         * （更不能 speak 给一个已关的浮层）。
+         */
+        const seq = ++this._askSeq;
+        /** 带上最近几轮问答作上下文，追问才接得上话 */
+        const turns = this._askTurns.slice();
+
         this.setData({
             askLoading: true,
             askQuestion: q,
@@ -1017,7 +1060,8 @@ _stepPalace(delta) {
             askScrollTop: 0
         });
         try {
-            const res = await requestAsk(this._birth, q, [], this._focusFor(q));
+            const res = await requestAsk(this._birth, q, turns, this._focusFor(q));
+            if (seq !== this._askSeq) return;
             const answer = (res && res.answer) || '这一问暂时没有回答。';
             this.setData({
                 askAnswer: answer,
@@ -1025,8 +1069,12 @@ _stepPalace(delta) {
                 // 追问的回答同样可能含受限引文，模式一并披露
                 askCitation: (res && res.citationModeLabel) || ''
             });
+            /** 保留最近 3 轮上下文，换盘时在 _chart 里清空 */
+            this._askTurns.push({ question: q, answer });
+            if (this._askTurns.length > 3) this._askTurns.shift();
             speak(answer);
         } catch (err) {
+            if (seq !== this._askSeq) return;
             this.setData({
                 askAnswer: '追问暂时不可用，盘面和解读不受影响。',
                 askLoading: false
@@ -1035,6 +1083,8 @@ _stepPalace(delta) {
     },
 
     _closeOverlay() {
+        /** 作废等待中的追问响应 */
+        this._askSeq += 1;
         stopSpeaking();
         this.setData({ overlay: '', askLoading: false, readingLoading: false });
     },
@@ -1050,6 +1100,8 @@ _stepPalace(delta) {
      * 时可达。语音失败一次，用户就再也换不了自己的盘。
      */
     _openInput() {
+        /** 新一次录入，作废旧识别的迟到结果 */
+        this._voiceSeq += 1;
         this.setData({
             overlay: 'input',
             needInput: true,
@@ -1081,6 +1133,12 @@ _stepPalace(delta) {
      * 也会被置成 true，拿它当「有没有盘」的判据会把用户留在一个空屏上。
      */
     _closeInput() {
+        /**
+         * 作废正在进行的语音识别 —— 否则用户按返回键取消了，
+         * listenOnce 的迟到 resolve 仍会把这次生辰排成盘。
+         */
+        this._voiceSeq += 1;
+        this._listening = false;
         if (this._chartJson) {
             this.setData({
                 overlay: '',
@@ -1095,8 +1153,18 @@ _stepPalace(delta) {
     },
 
     async _startVoiceInput() {
+        /** 防重入：识别中再按单击不重复触发 */
+        if (this._listening) return;
+        this._listening = true;
+        /**
+         * 代际令牌：识别等待期间用户可能按返回键取消（_closeInput）
+         * 或重新打开录入 —— 迟到的识别结果不得再触发排盘。
+         */
+        const seq = this._voiceSeq;
         this.setData({ voiceHint: '在听……请说出你的生辰', heardText: '' });
         const text = await listenOnce();
+        if (seq !== this._voiceSeq) return;
+        this._listening = false;
         if (!text) {
             this.setData({ voiceHint: '没听清，再说一次：1990年1月1日 早上 男' });
             return;

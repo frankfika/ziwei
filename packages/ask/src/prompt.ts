@@ -26,6 +26,9 @@ export interface AskTurn {
   answer: string;
 }
 
+/** 回答语言：zh 原样；en 时只换 system 的语言行 + 追加作答要求，数据集与约束不动。 */
+export type AnswerLang = 'zh' | 'en';
+
 export interface BuildAskPromptInput {
   /** 用户生辰 */
   birth: Birth;
@@ -46,6 +49,8 @@ export interface BuildAskPromptInput {
   focus?: AskFocus;
   /** 运限事实（流年/大限），由 service 用引擎数据生成，原样附在盘面事实之后 */
   fortuneNote?: string;
+  /** 回答语言（默认 zh）。en = 英文作答，引原文附翻译；只影响 system 语言行与回答要求，不影响检索 */
+  answerLang?: AnswerLang;
 }
 
 /** 页内追问焦点：来自哪个解读维度 / 哪个宫位 / 哪个时间层。 */
@@ -203,6 +208,23 @@ export const ASK_SYSTEM_PROMPT = [
   '- 若提供了【对话上文】，它只用于理解语境（例如「那财运呢」指的是同一张盘）；上文不是可引用材料，依据仍以本盘材料为准。',
 ].join('\n');
 
+/**
+ * system 的语言行：en 时整条替换。
+ * 其余论命约束保持中文原文 —— 多语模型读中文约束没问题，检索材料本来就是中文，
+ * 只把「用什么语言回答」这一条换成英文指令。
+ */
+const LANGUAGE_LINE_ZH =
+  '- 全程简体中文大白话，不夹杂英文单词；回答里不要出现「来源：XX」「数据集」「原文节选」「检索」这类内部说法。';
+const LANGUAGE_LINE_EN =
+  '- Answer entirely in natural, colloquial English; do not mix in Chinese. ' +
+  'Never mention internals like "source:", "dataset", "excerpt" or "retrieval" in the answer.';
+
+/** 按回答语言取 system 提示（zh 返回模块常量原样，保证既有输出逐字节不变）。 */
+export function systemPromptFor(lang: AnswerLang): string {
+  if (lang === 'zh') return ASK_SYSTEM_PROMPT;
+  return ASK_SYSTEM_PROMPT.replace(LANGUAGE_LINE_ZH, LANGUAGE_LINE_EN);
+}
+
 interface ScoredDimension {
   dim: PromptDimension;
   score: number;
@@ -290,6 +312,7 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     maxContextChars = DEFAULT_MAX_CONTEXT_CHARS,
     focus,
     fortuneNote,
+    answerLang = 'zh',
   } = input;
 
   const q = (question ?? '').trim();
@@ -420,10 +443,15 @@ export function buildAskPrompt(input: BuildAskPromptInput): BuiltPrompt {
     '- 先撂断语（一两句，可加粗），再按盘理一层层倒推：哪个星/宫/四化推出什么，点与点有勾连，不许并列罗列；建议落在行文里，说完就停。',
     '- 材料是依据和参考：在此基础上叠加你的专业判断，往具体处断；确实毫无覆盖的点，末尾一句话带过。',
     '- 大白话，不要照抄大段原文，不要写「来源：XX」之类的标注。',
+    ...(answerLang === 'en'
+      ? [
+          '- The user asks in English: answer entirely in natural English. When quoting the original Chinese text, give the English translation right after the quote.',
+        ]
+      : []),
   ].join('\n');
 
   return {
-    system: ASK_SYSTEM_PROMPT,
+    system: systemPromptFor(answerLang),
     user,
     selected,
     contextChars:

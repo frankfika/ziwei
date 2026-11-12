@@ -20,8 +20,11 @@ import {
   AskProviderError,
   type AskTurn,
 } from '@ziwei/ask';
+import { cookies } from 'next/headers';
 import { providerFromUserConfig, readUserProvider } from '@/app/ai-provider';
 import { requestIp, reserveFor, type QuotaSubject } from '@/lib/askAccess';
+import { cpxConfigured } from '@/lib/cpx';
+import { langFromCookie } from '@/lib/langServer';
 import { currentUser } from '@/lib/session';
 import { packEntry } from '@/lib/trafficPacks';
 
@@ -89,6 +92,9 @@ export async function POST(request: Request) {
     return sseError('生辰参数不完整，请回到输入页重新排盘。 / Birth data is incomplete — go back and cast the chart again.');
   }
 
+  // 界面语言（cookie 前端已双写，同源 fetch 自动带上）：决定模型用什么语言回答
+  const lang = langFromCookie((await cookies()).get('ziwei_lang')?.value);
+
   // 用户自配 provider 优先；没配就用服务端环境变量（走每日限额：先占后还，失败退次）
   const userCfg = readUserProvider(formData);
   const userProvider = providerFromUserConfig(userCfg);
@@ -104,7 +110,10 @@ export async function POST(request: Request) {
     refund = r.refund;
   }
 
-  const service = new AskService(userProvider ? { provider: userProvider } : {});
+  const service = new AskService({
+    ...(userProvider ? { provider: userProvider } : {}),
+    answerLang: lang,
+  });
   const turns = parseTurns(str(formData, 'turns'));
 
   // 思考模式开关：'enabled' / 'disabled'，缺省走 provider 默认（DeepSeek 默认开）
@@ -155,6 +164,7 @@ export async function POST(request: Request) {
               : new AskService({
                   ...(userProvider ? { provider: userProvider } : {}),
                   maxTokens: RETRY_BUDGET,
+                  answerLang: lang,
                 });
           let emptyThisAttempt = false;
 
@@ -216,7 +226,9 @@ export async function POST(request: Request) {
             type: 'error',
             message:
               '模型连续两次没有产出正文（思考占满了输出预算）。可以稍后重试；' +
-              '如果反复出现，建议换用不带思考的模型（MiniMax-M2.5 等）。',
+              '如果反复出现，建议换用不带思考的模型（MiniMax-M2.5 等）。 / ' +
+              'The model returned an empty answer twice (thinking consumed the whole output budget). ' +
+              'Retry in a moment; if this keeps happening, switch to a non-reasoning model (e.g. MiniMax-M2.5).',
           });
         }
       } catch (err) {
@@ -228,7 +240,7 @@ export async function POST(request: Request) {
           console.error('[ask] provider error:', err.message);
           message = PROVIDER_ERROR_USER_MESSAGE;
         } else {
-          message = err instanceof Error ? err.message : '追问失败，请稍后重试。';
+          message = err instanceof Error ? err.message : '追问失败，请稍后重试。 / The request failed — please retry in a moment.';
         }
         send({ type: 'error', message });
       } finally {
@@ -280,6 +292,7 @@ function sseQuotaExceeded(limit: number, loggedIn: boolean): Response {
       limit,
       loggedIn,
       packEntry: packEntry(),
+      survey: cpxConfigured(),
     })}\n\n`,
     {
       status: 200,

@@ -27,6 +27,7 @@ export default function QuotaWall({
   packs,
   checkout,
   loggedIn = false,
+  survey = false,
   onPaid,
 }: {
   /** 每日上限 */
@@ -37,6 +38,8 @@ export default function QuotaWall({
   checkout: string;
   /** 是否已登录（未登录购买要先登录） */
   loggedIn?: boolean;
+  /** 服务端是否配置了问卷解锁（CPX） */
+  survey?: boolean;
   /** 支付成功回调（父组件刷新余额用） */
   onPaid?: (asks: number) => void;
 }) {
@@ -49,6 +52,10 @@ export default function QuotaWall({
   const [payError, setPayError] = useState<string | null>(null);
   // 未登录时点购买 → 先展开登录表单
   const [needLogin, setNeedLogin] = useState(false);
+  // 问卷墙：url 拿到了才渲染 iframe 弹层
+  const [surveyUrl, setSurveyUrl] = useState<string | null>(null);
+  const [surveyLoading, setSurveyLoading] = useState(false);
+  const [surveyError, setSurveyError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   // 组件卸载 / 支付结束：停掉轮询
@@ -134,6 +141,29 @@ export default function QuotaWall({
     if (end === 'closed') setPay(null);
   }
 
+  /** 问卷换次数：未登录先登录（奖励要落到账户）；已登录拿墙 URL 弹 iframe */
+  async function openSurvey() {
+    if (!loggedIn) {
+      setNeedLogin(true);
+      return;
+    }
+    setSurveyLoading(true);
+    setSurveyError(null);
+    try {
+      const res = await fetch('/api/survey/cpx', { cache: 'no-store' });
+      const j = (await res.json().catch(() => null)) as { ok?: boolean; wallUrl?: string } | null;
+      if (!j?.ok || !j.wallUrl) {
+        setSurveyError(copy.surveyLoadingFailed);
+        return;
+      }
+      setSurveyUrl(j.wallUrl);
+    } catch {
+      setSurveyError(copy.surveyLoadingFailed);
+    } finally {
+      setSurveyLoading(false);
+    }
+  }
+
   return (
     <div
       className="rounded-xl border border-hua-ke/40 bg-surface-2 px-4 py-4"
@@ -196,6 +226,49 @@ export default function QuotaWall({
               ✓ {copy.payOk(pay.pack.asks)}
             </p>
           )}
+        </div>
+      )}
+
+      {survey && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-2xs text-ink-2">{copy.surveyTitle}</p>
+          <p className="text-2xs leading-relaxed text-ink-2">{copy.surveyBody}</p>
+          <button
+            type="button"
+            onClick={openSurvey}
+            disabled={surveyLoading}
+            className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-zhu/30 bg-zhu-soft/60 px-3 py-1.5 text-xs text-zhu transition-colors hover:bg-zhu-soft disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            {surveyLoading ? copy.surveyOpen : copy.surveyCta}
+          </button>
+          {surveyError && (
+            <p className="mt-2 text-2xs text-danger" role="alert">
+              {surveyError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 问卷墙弹层：CPX iframe；关闭刷新余额（奖励 postback 是异步的） */}
+      {surveyUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="flex h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-line bg-surface">
+            <iframe
+              src={surveyUrl}
+              title={copy.surveyTitle}
+              className="min-h-0 flex-1 rounded-t-xl"
+            />
+            <div className="border-t border-line px-4 py-2.5">
+              <p className="text-2xs leading-relaxed text-ink-2">{copy.surveyDone}</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs text-ink transition-colors hover:border-ink-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+              >
+                {copy.surveyClose}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

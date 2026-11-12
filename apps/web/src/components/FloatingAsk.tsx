@@ -217,7 +217,7 @@ export default function FloatingAsk({
 
           {!aiConfigured && (
             <p className="shrink-0 px-4 pt-2 text-2xs text-danger sm:px-6">
-              {copy.noAiStatus} —— ⚙（只存本机）
+              {chat.noAiStatusLocal}
             </p>
           )}
 
@@ -245,7 +245,7 @@ export default function FloatingAsk({
             </div>
           ) : (
             <p className="flex flex-1 items-center justify-center p-4 text-center text-xs text-ink-2">
-              还没有档案。先在首页录入一张命盘，再来追问。
+              {chat.noProfileHint}
             </p>
           )}
         </div>

@@ -29,7 +29,9 @@ const SUITE_FILES = [
   'tests/index_integrity.test.ts',
   'tests/service.test.ts',
   'tests/ask_quota.test.ts',
+  'tests/ask_prompt_lang.test.ts',
   'tests/account.test.ts',
+  'tests/cpx.test.ts',
   'tests/quota_copy.test.ts',
   'tests/i18n_copy.test.ts',
 ];

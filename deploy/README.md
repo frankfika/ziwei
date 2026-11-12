@@ -259,6 +259,10 @@ docker compose -f deploy/docker-compose.yml down
 | `ZIWEI_RESEND_FROM` | `紫微助手 <onboarding@resend.dev>` | 发信人地址（Resend 需已验证域名） |
 | `ZIWEI_OTP_DEBUG` | 空 | `1` = 强制调试模式（回 debugCode，不发信）—— 生产别开 |
 | `ZIWEI_ASK_DAILY_LIMIT` | `3` | 每日免费追问次数（按账户 / 按 IP） |
+| `ZIWEI_CPX_APP_ID` | 空 | CPX Research 问卷墙 app id。**空 = 问卷入口隐藏**（国内实例的正常状态） |
+| `ZIWEI_CPX_SECRET` | 空 | CPX app secure hash（签名 + postback 验签用） |
+| `ZIWEI_CPX_ASKS_PER_USD` | `25` | 问卷每美元换几次追问（$0.04/次，贴着流量包单价） |
+| `ZIWEI_CPX_DEBUG` | 空 | `1` = postback 验签放行并打印原始参数 —— 只用于首个真实回调标定，平时别开 |
 
 > 追问 provider 留空 = 不接任何模型 API。排盘与 13 维解读（数据集检索）
 > **完全不受影响**，追问面板会明确提示「未配置 provider」，不会有出网请求。
@@ -455,3 +459,68 @@ ssh -i ~/.ssh/sp-deploy-rsa ubuntu@49.234.25.35 'docker restart ziwei-assistant'
 - 服务器磁盘 40G 已用 87%，构建镜像前先 `df -h` 确认余量 ≥ 3G，切完 `docker image prune -f`。
 - 3000 端口属 ziwei；8088 属 enterprise API；3001 被别的进程占用，冒烟测试用 3002。
 - HTTPS 证书续期失败时手动跑：`sudo certbot renew --dry-run` 排查（webroot 模式，Nginx 必须在线）。
+
+---
+
+## 10. 海外实例（Overseas VPS）标准发布流程
+
+> **定位**：海外用户访问的英文站（界面中英双语，回答语言随界面）。与国内实例**同一份代码、同一个镜像**，只是构建参数和 env 不同。
+> 海外 VPS 不需要 ICP 备案，任何域名直接可用。
+
+### 10.1 与国内实例的差异（全部靠 env / build-arg，零代码分岔）
+
+| 项 | 国内（第 9 节） | 海外（本节） |
+|---|---|---|
+| 构建参数 | 默认（daocloud + npmmirror） | `--build-arg REGISTRY=library --build-arg NPM_REGISTRY=https://registry.npmjs.org`，不带 `DEBIAN_MIRROR` |
+| 模型 provider | MiniMax 国内端点 | 选海外可达的端点（`ZIWEI_ASK_*` 照常注入；BYOK 不受影响） |
+| 支付 | 支付宝当面付（env 注入） | **不配支付宝 env** → 购买入口自动隐藏（现成机制） |
+| 问卷解锁（CPX） | 不配 → 入口隐藏 | 配 `ZIWEI_CPX_*` → 额度墙出现「问卷换次数」 |
+| OTP 发信 | Resend | Resend 同款，无需改动 |
+
+变现组合：免费日额 → 问卷换次数（CPX）→ 自备 Key 不限量。广告平台（CPX）按月给发布商打款（银行转账 / PayPal / BTC，最低 $25），不需要本地收款能力。
+
+### 10.2 首发步骤
+
+```bash
+# ① 域名：A 记录指向海外 VPS（如 DNSPod / Cloudflare），无需备案
+# ② 同步代码（同 9.2 ①，换目标主机）
+rsync -az --rsync-path='sudo rsync' \
+  --exclude=data --exclude=node_modules --exclude=.next --exclude=.git \
+  --exclude=shots --exclude='.DS_Store' --exclude='*.log' \
+  -e "ssh -i <海外VPS key>" \
+  /Users/fangchen/Baidu/GitHub/ziwei/ <user>@<vps>:/opt/ziwei/
+
+# ③ 构建（海外源；看 BUILD_EXIT，同 9.2 ②的教训）
+ssh -i <key> <user>@<vps> '
+  sudo docker build -f /opt/ziwei/deploy/Dockerfile \
+    --build-arg REGISTRY=library \
+    --build-arg NPM_REGISTRY=https://registry.npmjs.org \
+    -t ziwei-assistant:overseas /opt/ziwei 2>&1 | tail -3
+  echo "BUILD_EXIT=${PIPESTATUS[0]}"'
+
+# ④ 准备数据（compact 形态，第 4.7 节；1.6GB 推过去）
+rsync -az --rsync-path='sudo rsync' -e "ssh -i <key>" \
+  data/compact/ <user>@<vps>:/var/lib/docker/volumes/ziwei-data/_data/compact/
+rsync -az --rsync-path='sudo rsync' -e "ssh -i <key>" \
+  data/index/ <user>@<vps>:/var/lib/docker/volumes/ziwei-data/_data/index/
+
+# ⑤ 起容器（.env 海外版：ZIWEI_ASK_* + ZIWEI_CPX_* + Resend；不配支付宝）
+ssh -i <key> <user>@<vps> '
+  docker run -d --name ziwei-overseas --restart unless-stopped -p 3000:3000 \
+    --env-file /opt/ziwei/apps/web/.env.overseas \
+    -v ziwei-data:/app/data -v ziwei-state:/app/state \
+    ziwei-assistant:overseas'
+
+# ⑥ 宿主机 Nginx 反代 + certbot（同第 9 节结构），然后公网验证
+curl -s -o /dev/null -w "%{http_code}\n" https://<海外域名>/
+curl -s "https://<海外域名>/chart?y=2021&m=6&d=15&h=4&g=male" | grep -c 【命格总览】
+curl -s -X POST https://<海外域名>/api/ask -H 'Cookie: ziwei_lang=en' \
+  -F question=test -F year=2000 -F month=1 -F day=1 -F hour=0 -F gender=male | head -2
+```
+
+### 10.3 CPX 问卷接入 checklist
+
+1. CPX Research 注册发布商账号（18+ 个人可注册）→ 拿到 `app_id` 和 `app_secure_hash`，填进 `.env.overseas` 的 `ZIWEI_CPX_APP_ID` / `ZIWEI_CPX_SECRET`。
+2. CPX 后台 Postback Settings-Tab 填 `https://<海外域名>/api/reward/cpx?tx={transaction_id}&uid={ext_user_id}&usd={payout_usd}&sig={hash}`（参数宏以后台列表为准）。
+3. **首个真实回调标定**：临时设 `ZIWEI_CPX_DEBUG=1` 重启容器，自己答一份问卷，对照日志里的原始参数核对 `verifyCpxPostback` 的预期公式（`lib/cpx.ts` 单点维护，不对只改这一处），然后关掉 debug。
+4. 额度墙出现「问卷换次数」即接入成功；奖励走 `addPackBalance`，「我的额度」页可见。

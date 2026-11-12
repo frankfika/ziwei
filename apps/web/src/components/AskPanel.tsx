@@ -131,9 +131,9 @@ function AnswerAvatar({
   return (
     <p className="mb-1 flex items-center gap-1.5">
       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zhu text-[10px] leading-none text-white">
-        紫
+        {copy.answerGlyph}
       </span>
-      <span className="text-2xs font-medium text-ink-2">紫微</span>
+      <span className="text-2xs font-medium text-ink-2">{copy.botName}</span>
       {model && (
         <span className="text-2xs text-ink-2">
           · {model}
@@ -142,7 +142,7 @@ function AnswerAvatar({
         </span>
       )}
       {cited && cited.length > 0 && (
-        <span className="text-2xs text-ink-2">· 参 {cited.join('、')}</span>
+        <span className="text-2xs text-ink-2">{copy.citedBrief(cited.join(lang === 'en' ? ', ' : '、'))}</span>
       )}
     </p>
   );
@@ -182,6 +182,8 @@ type Transient =
       loggedIn: boolean;
       packs: { id: string; asks: number; priceCny: number; priceUsd: number }[];
       checkout: string;
+      /** 服务端是否配置了问卷解锁（CPX） */
+      survey: boolean;
     };
 
 function suspectsOf(v: AskStreamVerification, copy: ChatCopy): string[] {
@@ -197,7 +199,7 @@ function MessageMeta({ message }: { message: AskMessage }) {
   const copy = CHAT_COPY[lang];
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-2xs text-ink-2">
-      <span className={ASK_MARK_CLASS}>答</span>
+      <span className={ASK_MARK_CLASS}>{copy.answerMarkGlyph}</span>
       <span>
         {new Date(message.at).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', {
           month: 'numeric',
@@ -565,7 +567,7 @@ export default function AskPanel({
             setStream(null);
           },
           onQuotaExceeded: (p) => {
-            // 额度墙：不是普通报错 —— 说清为什么被墙 + 流量包入口
+            // 额度墙：不是普通报错 —— 说清为什么被墙 + 流量包入口 + 问卷入口
             setTransient({
               kind: 'quota-exceeded',
               message: p.message,
@@ -573,6 +575,7 @@ export default function AskPanel({
               loggedIn: p.loggedIn,
               packs: p.packEntry.packs,
               checkout: p.packEntry.checkout,
+              survey: p.survey,
             });
             setStream(null);
           },
@@ -650,7 +653,7 @@ export default function AskPanel({
         </h2>
         {!expanded && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-2xs font-medium text-ink-2">推荐追问：</span>
+            <span className="text-2xs font-medium text-ink-2">{copy.recommendedTitle}</span>
             {presets.slice(0, 2).map((p) => (
               <button
                 key={p.question}
@@ -1051,7 +1054,7 @@ export default function AskPanel({
               style={motionStyle(DURATION.sanfang)}
               role="status"
             >
-              <span className="sr-only">查证中</span>
+              <span className="sr-only">{copy.verifying}</span>
               <p className="text-right">
                 <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                   {pendingQuestion}
@@ -1110,7 +1113,7 @@ export default function AskPanel({
                         className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-zhu motion-reduce:animate-none"
                         aria-hidden="true"
                       />
-                      <p className="text-xs text-ink-2">星图检索中…</p>
+                      <p className="text-xs text-ink-2">{copy.searching}</p>
                     </div>
                     <p className="mt-1.5 text-2xs text-ink-2">
                       {copy.verifyingIntro}
@@ -1129,6 +1132,7 @@ export default function AskPanel({
                   packs={transient.packs}
                   checkout={transient.checkout}
                   loggedIn={transient.loggedIn}
+                  survey={transient.survey}
                 />
               </div>
             ) : (

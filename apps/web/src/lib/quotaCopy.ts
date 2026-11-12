@@ -40,6 +40,14 @@ export interface QuotaCopy {
   buy: string;
   /** 引导去填自己的 Key */
   ownKeyHint: string;
+  /** 问卷换次数（CPX）——额度墙的第三条出路 */
+  surveyTitle: string;
+  surveyBody: string;
+  surveyCta: string;
+  surveyOpen: string;
+  surveyLoadingFailed: string;
+  surveyClose: string;
+  surveyDone: string;
   /** 「换成自己的 Key 就不限量」的小注 */
   ownKeyNote: string;
   /** 还没配 AI 时的提示 */
@@ -152,6 +160,13 @@ const ZH: QuotaCopy = {
   packAsks: (n) => `${n} 次追问`,
   buy: '购买',
   ownKeyHint: '填自己的 API Key 不限量 —— 点右上角 ⚙ AI 设置。',
+  surveyTitle: '问卷换次数',
+  surveyBody: '答一份市场调研问卷（通常 2–5 分钟），完成后追问次数自动到账。',
+  surveyCta: '去答问卷，得追问次数',
+  surveyOpen: '正在打开问卷…',
+  surveyLoadingFailed: '问卷加载失败，请稍后重试。',
+  surveyClose: '关闭并刷新余额',
+  surveyDone: '问卷奖励通常在完成后几分钟内到账；关闭后刷新页面即可看到最新余额。',
   ownKeyNote: '换成自己的 Key 就不限量。配置只存在这台设备的浏览器里，不上传。',
   noAiHint: '当前 AI：无 —— 下面填一个 Key 才能追问',
   noAiStatus: 'AI 还没配置 —— 点这里填 Key',
@@ -220,6 +235,13 @@ const EN: QuotaCopy = {
   packAsks: (n) => `${n} follow-ups`,
   buy: 'Buy',
   ownKeyHint: 'Use your own API key for unlimited asks — ⚙ AI settings, top right.',
+  surveyTitle: 'Earn asks with surveys',
+  surveyBody: 'Answer one market-research survey (usually 2–5 minutes) and the asks land in your balance automatically.',
+  surveyCta: 'Take a survey, earn asks',
+  surveyOpen: 'Opening the survey…',
+  surveyLoadingFailed: 'Could not load the survey — please retry in a moment.',
+  surveyClose: 'Close & refresh balance',
+  surveyDone: 'Survey rewards usually land within a few minutes; close this and refresh the page to see your latest balance.',
   ownKeyNote: 'Switch to your own key and there is no limit. It stays in this browser and is never uploaded.',
   noAiHint: 'Current AI: none — add a key below to start asking',
   noAiStatus: 'AI is not configured — click to add a key',

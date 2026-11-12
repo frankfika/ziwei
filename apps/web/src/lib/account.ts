@@ -20,6 +20,7 @@ import {
  *   · sessions.json —— 会话 token
  *   · orders.json   —— 流量包订单（stub）
  *   · otp.json      —— 邮箱验证码
+ *   · cpx-tx.json   —— CPX 问卷 postback 台账（幂等防重复发奖）
  *
  * 结构刻意保持「一张表一个文件、字段直白」，以后换 SQLite/Postgres 时
  * 只需替换本文件的读写实现，上层 API 契约不变。
@@ -167,6 +168,28 @@ export function addPackBalance(userId: string, asks: number): User {
 /** 取账户（按 id） */
 export function getUserById(userId: string): User | null {
   return users()[userId] ?? null;
+}
+
+// ── 问卷奖励台账（CPX postback 幂等） ──────────────────────────────
+
+type CpxTxTable = Record<string, { userId: string; asks: number; at: string }>;
+
+function cpxTxs(): CpxTxTable {
+  return readJson<CpxTxTable>('cpx-tx.json', {});
+}
+
+/**
+ * 登记一笔 CPX 问卷 postback（txId = CPX 侧交易号）。
+ * **幂等**：txId 已存在返回 false（重复回调不重复发奖）；
+ * 返回 true 表示首次登记，调用方随后 addPackBalance 发奖。
+ */
+export function recordCpxTx(txId: string, userId: string, asks: number): boolean {
+  if (!txId) return false;
+  const table = cpxTxs();
+  if (table[txId]) return false;
+  table[txId] = { userId, asks, at: new Date().toISOString() };
+  writeJson('cpx-tx.json', table);
+  return true;
 }
 
 // ── 会话 ────────────────────────────────────────────────────────────

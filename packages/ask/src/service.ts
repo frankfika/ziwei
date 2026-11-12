@@ -16,6 +16,7 @@ import { ZiweiService, chartSummary, liuNianLayer, daXianLayer, type Birth } fro
 import {
   buildAskPrompt,
   DEFAULT_MAX_CONTEXT_CHARS,
+  type AnswerLang,
   type AskFocus,
   type AskTurn,
   type BuiltPrompt,
@@ -43,6 +44,8 @@ export interface AskServiceOptions {
   maxTokens?: number;
   /** 传给 provider 的 temperature。 */
   temperature?: number;
+  /** 回答语言（默认 zh）：进 prompt 的语言行与回答要求，不影响检索。 */
+  answerLang?: AnswerLang;
 }
 
 export type AskResult =
@@ -110,6 +113,7 @@ export class AskService {
   private readonly maxContextChars: number;
   private readonly maxTokens?: number;
   private readonly temperature?: number;
+  private readonly answerLang: AnswerLang;
 
   constructor(opts: AskServiceOptions = {}) {
     this.service = opts.service ?? new ZiweiService();
@@ -117,6 +121,7 @@ export class AskService {
     this.maxContextChars = opts.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
     this.maxTokens = opts.maxTokens;
     this.temperature = opts.temperature;
+    this.answerLang = opts.answerLang ?? 'zh';
   }
 
   /**
@@ -136,6 +141,7 @@ export class AskService {
       chartSummary: chartSummary(chart),
       dimensions: reading.dimensions,
       maxContextChars: this.maxContextChars,
+      answerLang: this.answerLang,
     });
     return { prompt, chart };
   }
@@ -234,6 +240,7 @@ export class AskService {
       ...(options?.focus ? { focus: options.focus } : {}),
       ...(fortuneNote ? { fortuneNote } : {}),
       maxContextChars: this.maxContextChars,
+      answerLang: this.answerLang,
     });
 
     return {

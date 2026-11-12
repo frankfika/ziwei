@@ -6,6 +6,7 @@ export {
   DEFAULT_MAX_CONTEXT_CHARS,
   DIMENSION_KEYWORDS,
   PALACE_TO_DIMENSION,
+  systemPromptFor,
 } from './prompt';
 export type {
   AskFocus,
@@ -14,6 +15,7 @@ export type {
   BuiltPrompt,
   PromptDimension,
   SelectedDimension,
+  AnswerLang,
 } from './prompt';
 export {
   verifyAnswer,

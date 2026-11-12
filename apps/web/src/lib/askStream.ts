@@ -41,7 +41,7 @@ export interface AskStreamHandlers {
   onQuotaExceeded?(payload: AskStreamQuotaExceeded): void;
 }
 
-/** 额度用尽：QUOTA_EXCEEDED + 流量包入口 */
+/** 额度用尽：QUOTA_EXCEEDED + 流量包入口 + 问卷入口 */
 export interface AskStreamQuotaExceeded {
   code: 'QUOTA_EXCEEDED';
   message: string;
@@ -51,6 +51,8 @@ export interface AskStreamQuotaExceeded {
   loggedIn: boolean;
   /** 流量包入口（套餐 + checkout stub 路径） */
   packEntry: { packs: TrafficPack[]; checkout: string };
+  /** 服务端是否配置了问卷解锁（CPX） */
+  survey: boolean;
 }
 
 interface RawEvent {
@@ -66,6 +68,7 @@ interface RawEvent {
   limit?: number;
   loggedIn?: boolean;
   packEntry?: { packs: TrafficPack[]; checkout: string };
+  survey?: boolean;
 }
 
 /**
@@ -153,6 +156,7 @@ function dispatch(evt: RawEvent, handlers: AskStreamHandlers): void {
         limit: evt.limit ?? 0,
         loggedIn: evt.loggedIn ?? false,
         packEntry: evt.packEntry ?? { packs: [], checkout: '/api/checkout' },
+        survey: evt.survey ?? false,
       });
       return;
     default:

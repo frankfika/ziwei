@@ -15,6 +15,11 @@
 # 构建：
 #   docker build -f deploy/Dockerfile -t ziwei-assistant:latest .
 #
+# 基础镜像源与 npm registry 参数化：国内构建默认走 daocloud/npmmirror；
+# 海外构建传 --build-arg REGISTRY=library --build-arg NPM_REGISTRY=https://registry.npmjs.org
+ARG REGISTRY=docker.m.daocloud.io/library
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 # 基础镜像走 daocloud 国内镜像：生产服务器到 registry-1.docker.io 的 DNS 被污染、
 # 直连必然超时（2026-11-06 实测解析到 Facebook IP），改用国内镜像源才能构建。
 # 运行：
@@ -23,11 +28,13 @@
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 1：依赖（只复制清单文件，让 pnpm install 命中层缓存）
 # ═══════════════════════════════════════════════════════════════════
-FROM docker.m.daocloud.io/library/node:22-slim AS deps
+FROM ${REGISTRY}/node:22-slim AS deps
 
 WORKDIR /app
 ENV NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false
+
+ARG NPM_REGISTRY
 
 # pnpm workspace：依赖声明用 workspace:* 协议（npm 不认），权威 lockfile 是
 # pnpm-lock.yaml。每个 importer 的 package.json 都要复制，缺一个 --frozen-lockfile 就报不同步。
@@ -46,13 +53,13 @@ COPY packages/reading-index/package.json     packages/reading-index/package.json
 # node-linker=hoisted：扁平化布局（next/tsx 全在根 node_modules/.bin），
 # 否则 build 阶段 COPY apps 源码会覆盖掉子包自己的 node_modules。
 RUN echo 'node-linker=hoisted' > /app/.npmrc \
- && npm i -g pnpm@10 --registry=https://registry.npmmirror.com \
- && pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
+ && npm i -g pnpm@10 --registry=${NPM_REGISTRY} \
+ && pnpm install --frozen-lockfile --registry=${NPM_REGISTRY}
 
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 2：构建 Next.js 生产产物
 # ═══════════════════════════════════════════════════════════════════
-FROM docker.m.daocloud.io/library/node:22-slim AS build
+FROM ${REGISTRY}/node:22-slim AS build
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -71,7 +78,7 @@ RUN npm run web:build
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 3：运行时
 # ═══════════════════════════════════════════════════════════════════
-FROM docker.m.daocloud.io/library/node:22-slim AS runtime
+FROM ${REGISTRY}/node:22-slim AS runtime
 
 WORKDIR /app
 

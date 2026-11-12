@@ -93,6 +93,19 @@ export interface ChatCopy {
   exampleCareer: string;
   verifying: string;
   followUp: string;
+  /** 推荐追问 chips 的小标题 */
+  recommendedTitle: string;
+  /** 等首字时的检索态文案 */
+  searching: string;
+  /** 回答者头像字 / 名字 */
+  answerGlyph: string;
+  botName: string;
+  /** 用户消息行首的「答」字标记 */
+  answerMarkGlyph: string;
+  /** 悬浮球 noAiStatus 的本地存储尾巴（整句，不复用 noAiStatus） */
+  noAiStatusLocal: string;
+  /** 回答者身份行尾：引用维度速记（传已 join 好的字符串） */
+  citedBrief: (dims: string) => string;
   hintVerifying: string;
   hintContinue: string;
   hintFirst: string;
@@ -103,6 +116,8 @@ export interface ChatCopy {
   yourQuestion: string;
   nonBareDelete: string;
   disclaimerShort: string;
+  /** 悬浮球里「还没排盘」的空态提示 */
+  noProfileHint: string;
   // AI 设置
   aiPanelTitle: string;
 }
@@ -133,6 +148,13 @@ const ZH: ChatCopy = {
   exampleCareer: '例如：这份命盘在职业方向上有什么特点？',
   verifying: '正在查证…',
   followUp: '追问',
+  recommendedTitle: '推荐追问：',
+  searching: '星图检索中…',
+  answerGlyph: '紫',
+  botName: '紫微',
+  answerMarkGlyph: '答',
+  noAiStatusLocal: '当前 AI：无 —— ⚙（只存本机）',
+  citedBrief: (dims) => `· 参 ${dims}`,
   hintVerifying: '查证进行中，请稍候。',
   hintContinue: '会带上这张盘之前的对话作为语境。也可 ⌘/Ctrl + Enter。',
   hintFirst: '提交后将依据本盘与数据集原文作答。也可 ⌘/Ctrl + Enter。',
@@ -142,6 +164,7 @@ const ZH: ChatCopy = {
   yourQuestion: '你的问题',
   nonBareDelete: '删除这段对话',
   disclaimerShort: '回答只依据这张盘的已有材料推演：先给结论，再逐条讲依据。内容仅供参考，不构成医疗、法律或投资建议。',
+  noProfileHint: '还没有档案。先在首页录入一张命盘，再来追问。',
 
   homeTitle: '和你的命盘聊聊',
   heroTitle: '紫微斗数',
@@ -228,6 +251,13 @@ const EN: ChatCopy = {
   exampleCareer: 'E.g. “What are the career strengths in this chart?”',
   verifying: 'Verifying…',
   followUp: 'Ask',
+  recommendedTitle: 'Suggested:',
+  searching: 'Consulting the corpus…',
+  answerGlyph: 'Z',
+  botName: 'Ziwei',
+  answerMarkGlyph: 'A',
+  noAiStatusLocal: 'Current AI: none — ⚙ (stored locally only)',
+  citedBrief: (dims) => `· ${dims}`,
   hintVerifying: 'Verifying against your chart — please wait.',
   hintContinue: 'Prior turns are sent as context. ⌘/Ctrl + Enter also works.',
   hintFirst: 'The answer draws on this chart and the dataset text. ⌘/Ctrl + Enter also works.',
@@ -237,6 +267,7 @@ const EN: ChatCopy = {
   yourQuestion: 'Your question',
   nonBareDelete: 'Delete this chat',
   disclaimerShort: 'Answers are reasoned only from this chart’s existing material: conclusion first, then the basis. For reference only — not medical, legal or investment advice.',
+  noProfileHint: 'No profiles yet. Cast a chart on the home page first, then come back to ask.',
 
   homeTitle: 'Talk with your chart',
   heroTitle: 'Ziwei Astrology',

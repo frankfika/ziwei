@@ -11,6 +11,8 @@
  *  · 眼镜上不能白屏：所有失败都必须静默降级，不抛给用户看技术错误。
  */
 
+import { toPlainText } from './plain-text.js';
+
 /** 后端地址。提审前用真实域名，模拟器联调可临时改这里。 */
 export const API_BASE = 'https://ziwei.secondplanet.cc';
 
@@ -115,17 +117,31 @@ export function requestChart(birth) {
 /**
  * 取 13 维解读原文。
  *
+ * ⚠️ **正文在这里就被洗成纯文本**（`lib/plain-text.js`）：
+ * 后端返回的是带 Markdown 的富文本（`**【福德总览】**`、`## ✦ 标题`、🟢🔵🔴🟡），
+ * 而眼镜是**单色绿屏** —— 那些标记在屏上全是噪声（实测正文里有 46 处 `**`）。
+ * 在这一层洗掉，界面与 TTS 拿到的就都是干净文本（只删标记，不改内容）。
+ *
  * @param {{ year: number, month: number, day: number, hour: number, gender: string }} birth
  * @returns {Promise<{ status: string, key?: string, dimensions?: Array<{key: string, label: string, text: string}>, message?: string, citationMode?: string, citationModeLabel?: string }>}
  *   citationModeLabel 是**要在界面上披露**的降级模式说明
  *   （例如「引文已降级（《天纪》原话以「引文略」代替）」）。
  */
-export function requestReading(birth) {
-  return postJson('/api/agent/reading', birth, TIMEOUTS.reading);
+export async function requestReading(birth) {
+  const res = await postJson('/api/agent/reading', birth, TIMEOUTS.reading);
+  if (res && Array.isArray(res.dimensions)) {
+    res.dimensions = res.dimensions.map((d) => ({
+      ...d,
+      text: toPlainText(d && d.text)
+    }));
+  }
+  return res;
 }
 
 /**
  * 基于命盘追问。
+ *
+ * ⚠️ 回答同样在这里洗成纯文本（原因见 `requestReading`）。
  *
  * @param {Object} birth
  * @param {string} question
@@ -133,10 +149,14 @@ export function requestReading(birth) {
  * @param {Object} [focus] 页内焦点（维度 / 宫位）
  * @returns {Promise<{ answer: string, cited: string[], verification: string, model: string, citationMode?: string, citationModeLabel?: string }>}
  */
-export function requestAsk(birth, question, turns = [], focus = {}) {
-  return postJson(
+export async function requestAsk(birth, question, turns = [], focus = {}) {
+  const res = await postJson(
     '/api/agent/ask',
     { ...birth, question, turns, focus },
     TIMEOUTS.ask,
   );
+  if (res && typeof res.answer === 'string') {
+    res.answer = toPlainText(res.answer);
+  }
+  return res;
 }

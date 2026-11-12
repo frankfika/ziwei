@@ -34,6 +34,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AGENT_ROOT } from './forbidden-terms.mjs';
+import {
+  readStyle,
+  renderBoardHtml,
+  renderChatHtml as renderChatPageHtml
+} from './preview-html.mjs';
 
 const REPO = path.resolve(AGENT_ROOT, '..', '..');
 const INK_PAGE = path.join(AGENT_ROOT, 'pages', 'index', 'index.ink');
@@ -140,73 +145,14 @@ async function waitFor(fn, timeoutMs = 8000) {
   return false;
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-}
-
-/** 用真实 CSS + 真实页面数据渲染首屏 */
+/**
+ * 用真实 CSS + 真实页面数据渲染盘面页。
+ *
+ * ⚠️ HTML 的生成在 `scripts/preview-html.mjs`（与提审预览视频共用）——
+ * 页面模板一改，两边必须一起变，各写一份就会漂移成「文档里的界面」。
+ */
 function renderHtml(page) {
-  const ink = fs.readFileSync(INK_PAGE, 'utf8');
-  const style = ink.slice(ink.indexOf('<style>') + 7, ink.indexOf('</style>'));
-
-  const cellHtml = (page.data.cells || [])
-    .map(
-      (c) => `    <view class="cell p${c.branch} ${c.activeClass}">
-      <view class="cell-head">
-        <view class="head-left">
-          <text class="palace-name">${esc(c.name)}</text>
-          ${c.fortuneShort ? `<text class="fortune-name">${esc(c.fortuneShort)}</text>` : ''}
-        </view>
-        <text class="gan-zhi">${esc(c.stemName)}${esc(c.branchName)}</text>
-      </view>
-      <text class="major">${esc(c.majorText)}</text>
-      <text class="minor">${esc(c.minorText)}</text>
-    </view>`,
-    )
-    .join('\n');
-
-  /**
-   * 中宫 = **常驻对话区**（这一版的核心改动）。
-   *
-   * 之前这里渲染的是「命主/身主/阴阳男女/农历/四化」的静态数据区，
-   * 整屏没有一点「对话」的痕迹。现在中宫第一行是焦点，
-   * 下面就是最近一问一答 —— 渲染必须跟真实页面一致，
-   * 否则这张 PNG 就成了「文档里的图」，跟眼镜上看到的不是一回事。
-   */
-  const digestHtml = page.data.digestQuestion
-    ? `      <text class="digest-q">${esc(page.data.digestQuestion)}</text>
-      <text class="digest-a">${esc(page.data.digestAnswer)}</text>`
-    : `      <text class="digest-lead">${esc(page.data.digestLead)}</text>
-      <text class="center-suggest">试试问：${esc(page.data.suggestionText)}</text>`;
-
-  const centerHtml = `    <view class="center">
-      <view class="center-top">
-        <text class="focus-line">${esc(page.data.focusLine)}</text>
-        ${page.data.focusDetail ? `<text class="focus-detail">${esc(page.data.focusDetail)}</text>` : ''}
-      </view>
-      <view class="center-divider"></view>
-      <view class="center-mid">
-${digestHtml}
-      </view>
-      <view class="center-bottom">
-${page.data.noticeLabel ? `        <text class="center-hint demo">${esc(page.data.noticeLabel)}</text>` : ''}
-        <text class="center-hint">${esc(page.data.hintLine)}</text>
-        <text class="center-hint dim">${esc(page.data.statusLine)}</text>
-      </view>
-    </view>`;
-
-  return `<!doctype html><html><head><meta charset="utf-8">
-<style>${style}
-view, text, scroll-view { display: block; }
-text { display: inline; }
-page { display: block; }
-html, body { margin: 0; padding: 0; background: #000; }
-</style></head><body>
-  <view class="board">
-${cellHtml}
-${centerHtml}
-  </view>
-</body></html>`;
+  return renderBoardHtml(page.data, readStyle());
 }
 
 /**
@@ -218,71 +164,9 @@ ${centerHtml}
  * 三个区域加起来必须正好 352px）。
  */
 function renderChatHtml(page) {
-  const ink = fs.readFileSync(INK_PAGE, 'utf8');
-  const style = ink.slice(ink.indexOf('<style>') + 7, ink.indexOf('</style>'));
-
-  const stripHtml = (page.data.stripCells || [])
-    .map(
-      (c) =>
-        `        <text class="strip-cell ${c.activeClass}">${esc(c.short)}</text>`
-    )
-    .join('\n');
-
-  const turnHtml = (page.data.chatTurns || [])
-    .map((t) => {
-      const body = t.pending
-        ? `        <text class="turn-a loading">正在推演……</text>`
-        : `        <text class="turn-a${t.failed ? ' failed' : ''}">${esc(t.a)}</text>`;
-      const meta = t.metaLine ? `        <text class="turn-tag">${esc(t.metaLine)}</text>` : '';
-      return `      <view class="turn">
-        <text class="turn-q">${esc(t.q)}</text>
-${body}
-${meta}
-      </view>`;
-    })
-    .join('\n');
-
-  const emptyHtml = (page.data.chatTurns || []).length
-    ? ''
-    : `      <view class="chat-empty">
-        <text class="chat-empty-title">${esc(page.data.chatEmptyTitle)}</text>
-        <text class="chat-empty-sub">单击镜腿开口问　双击直接问建议语</text>
-        <text class="chat-empty-format">说生辰：1990年1月1日 早上 男</text>
-        <view class="chat-sug">
-${(page.data.suggestions || [])
-  .map((s) => `          <text class="chat-sug-item">${esc(s)}</text>`)
-  .join('\n')}
-        </view>
-      </view>`;
-
-  return `<!doctype html><html><head><meta charset="utf-8">
-<style>${style}
-view, text, scroll-view { display: block; }
-text { display: inline; }
-page { display: block; }
-html, body { margin: 0; padding: 0; background: #000; }
-</style></head><body>
-  <view class="chat">
-    <view class="strip">
-      <view class="strip-head">
-        <text class="strip-title">${esc(page.data.layerTitle)}</text>
-        <text class="strip-focus">${esc(page.data.selectedName)}</text>
-      </view>
-      <view class="strip-row">
-${stripHtml}
-      </view>
-    </view>
-    <scroll-view class="chat-scroll">
-${turnHtml}
-${emptyHtml}
-    </scroll-view>
-    <view class="chat-foot">
-      <text class="foot-hint">${esc(page.data.hintLine)}</text>
-      <text class="foot-status">${esc(page.data.statusLine)}</text>
-    </view>
-  </view>
-</body></html>`;
+  return renderChatPageHtml(page.data, readStyle());
 }
+
 
 async function main() {
   const queryArg = arg('--query', '');

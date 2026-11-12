@@ -49,8 +49,10 @@ const SUBMITTED_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794105155119.aix';
 const RESUBMITTED_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794133305274.aix';
 /** 2026-11-08 19:19 重打（含追问超时修复 + Intl 兜底 + 时辰入口改造） */
 const PREV_CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794136722831.aix';
-/** 2026-11-12 22:37 重打（含 11-12 早间两轮交互修复）—— 现行版（v1.0.15 拟提审） */
-const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794494267342.aix';
+/** 2026-11-12 22:37 重打（含 11-12 早间两轮交互修复）—— v1.0.15（已被 v1.0.16 取代） */
+const V1015_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794494267342.aix';
+/** 2026-11-13 00:4x 重打 —— **v1.0.16**：含交互整体重做 `56fb2e2` + 正文纯文本化 */
+const CURRENT_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794501516854.aix';
 /** 2026-11-08 16:57 重打（首帧修复版预览视频） */
 const HEADFIX_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794128239691.aix';
 /** 2026-11-08 18:12 那一版 —— 端侧引擎带了第一版坏补丁，眼镜上直接崩，已作废 */
@@ -66,6 +68,7 @@ const HANDOFF_AIX = 'bcdceff1163f4e6e8dea474d03b5f0c9-1794328393796.aix';
 /** 文档里允许出现的 AIX 包名白名单 —— 出了这个集合就是笔误 */
 const KNOWN_AIX = new Set([
   CURRENT_AIX,
+  V1015_AIX,
   PREV_CURRENT_AIX,
   RESUBMITTED_AIX,
   SUBMITTED_AIX,

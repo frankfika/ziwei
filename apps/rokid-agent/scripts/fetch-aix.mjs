@@ -54,10 +54,17 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794494267342.aix`,
+    md5: 'dcd16bc45783e8d51574b4e082cad13a',
+    note: '2026-11-12 22:37 重打，8.48 MB；**v1.0.15 拟提审版**。含 2026-11-12 早间两轮交互修复（cdcda9b + db2b387）+ 追问超时 120s + 端侧引擎 Intl.PluralRules 兜底 + 时辰入口改造；`npm run aix:fetch` 全项核验通过（index.ink 行数一致 / 追问超时一致 / 出生参数三级兜底 9/9 / 端侧排盘+运限三层 8/8 / 晚子时口径 / 十二宫外圈巡宫），定点 grep 确认含 `cancelListen`、代际令牌 `_voiceSeq`/`_readingSeq`/`_askSeq`、「返回键回盘面」',
+    current: true,
+  },
+  {
+    key: 'prev-1108-1919',
     file: `${AGENT_ID}-1794136722831.aix`,
     md5: '676f6c4f6d1bcbed5fa756e6024b8cfc',
-    note: '2026-11-08 19:19 重打，8.63 MB；含追问超时修复（120s）+ 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版）+ **时辰入口改造**（提示改口语、缺时辰落午时并标估算、修掉「解析成功浮层不关」致命 bug）',
-    current: true,
+    note: '2026-11-08 19:19 重打，8.63 MB；含追问超时修复（120s）+ 端侧引擎 Intl.PluralRules 兜底（模块作用域遮蔽版）+ **时辰入口改造**（提示改口语、缺时辰落午时并标估算、修掉「解析成功浮层不关」致命 bug）。⚠️ **不含 2026-11-12 两轮交互修复**（cdcda9b + db2b387），已被 v1.0.15 取代',
+    current: false,
   },
   {
     key: 'prev-intl-shim',

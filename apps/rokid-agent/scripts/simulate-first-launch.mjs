@@ -78,8 +78,8 @@ async function loadPageModule(asrText = '') {
   if (asrText) {
     const before = body;
     body = body.replace(
-      /import\s*\{\s*listenOnce\s*\}\s*from\s*'[^']*voice-input\.js';/,
-      `const listenOnce = async () => ${JSON.stringify(asrText)};`,
+      /import\s*\{\s*listenOnce\s*(?:,\s*cancelListen\s*)?\}\s*from\s*'[^']*voice-input\.js';/,
+      `const listenOnce = async () => ${JSON.stringify(asrText)};\nconst cancelListen = () => {};`,
     );
     if (body === before) {
       throw new Error('没能替换掉 listenOnce 导入 —— index.ink 的导入写法变了？');

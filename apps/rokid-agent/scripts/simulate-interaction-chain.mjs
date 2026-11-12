@@ -282,5 +282,23 @@ page._sensorMode = 'cursor';
 page._stopSensors();
 assert('_stopSensors 复位 _sensorMode', page._sensorMode === 'none', `mode=${page._sensorMode}`);
 
+/* ---- 15. 解读浮层关闭后，迟到的解读正文不得落地、不得播报 ---- */
+const origReadingFor = page._readingFor;
+let resolveLate;
+page._readingFor = () => new Promise((r) => { resolveLate = r; });
+const openP = page._openReading();
+await sleep(50);
+assert('解读浮层已打开', page.data.overlay === 'reading', `overlay=${page.data.overlay}`);
+assert('解读正在加载', page.data.readingLoading === true, `readingLoading=${page.data.readingLoading}`);
+page._closeOverlay();
+const seqAfterClose = page._readingSeq;
+resolveLate('这是一段迟到的解读正文');
+await openP;
+await sleep(50);
+page._readingFor = origReadingFor;
+assert('关闭浮层作废解读代际', seqAfterClose > 0 && page._readingSeq === seqAfterClose, `seq=${page._readingSeq}`);
+assert('迟到的解读正文没有写回', page.data.readingText !== '这是一段迟到的解读正文', `readingText=${page.data.readingText}`);
+assert('关闭浮层后 readingLoading 复位', page.data.readingLoading === false, `readingLoading=${page.data.readingLoading}`);
+
 console.log(`\n通过 ${passed} / 失败 ${failed}`);
 process.exit(failed ? 1 : 0);

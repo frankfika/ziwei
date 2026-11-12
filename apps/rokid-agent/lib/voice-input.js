@@ -13,6 +13,30 @@
 /** 识别超时（毫秒） */
 export const LISTEN_TIMEOUT = 8000;
 
+/** 当前进行中的识别的取消器（没有则为 null） */
+let activeCancel = null;
+
+/**
+ * 取消正在进行的识别（尽力而为）。
+ *
+ * 用户按返回键退出录入时调用：逻辑层有代际令牌兜底，
+ * 但设备麦克风还在收音到超时（8s）——能停就停，别让用户对着空气说话。
+ * wx 风格若宿主提供 stopRecognition 就调，没有就靠提前 resolve 收尾。
+ *
+ * @returns {void}
+ */
+export function cancelListen() {
+  const cancel = activeCancel;
+  activeCancel = null;
+  if (cancel) {
+    try {
+      cancel();
+    } catch (err) {
+      /* ignore */
+    }
+  }
+}
+
 /**
  * 听一句话。
  *
@@ -33,9 +57,21 @@ export async function listenOnce(options = {}) {
         const finish = (text) => {
           if (settled) return;
           settled = true;
+          activeCancel = null;
           resolve(typeof text === 'string' ? text.trim() : '');
         };
         const timer = setTimeout(() => finish(''), timeout);
+        activeCancel = () => {
+          clearTimeout(timer);
+          try {
+            if (typeof mod.speech.stopRecognition === 'function') {
+              mod.speech.stopRecognition();
+            }
+          } catch (err) {
+            /* ignore */
+          }
+          finish('');
+        };
         try {
           mod.speech.startRecognition({
             lang: 'zh-CN',
@@ -75,6 +111,7 @@ export async function listenOnce(options = {}) {
       const finish = (text) => {
         if (settled) return;
         settled = true;
+        activeCancel = null;
         try {
           rec.stop();
         } catch (err) {
@@ -83,6 +120,15 @@ export async function listenOnce(options = {}) {
         resolve(typeof text === 'string' ? text.trim() : '');
       };
       const timer = setTimeout(() => finish(''), timeout);
+      activeCancel = () => {
+        clearTimeout(timer);
+        try {
+          rec.abort();
+        } catch (err) {
+          /* ignore */
+        }
+        finish('');
+      };
       rec.lang = 'zh-CN';
       rec.maxAlternatives = 1;
       rec.onresult = (event) => {

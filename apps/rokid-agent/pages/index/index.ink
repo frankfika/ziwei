@@ -74,7 +74,7 @@ import { latestProfile, upsertProfile } from '../../lib/storage.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
-import { listenOnce } from '../../lib/voice-input.js';
+import { listenOnce, cancelListen } from '../../lib/voice-input.js';
 
 /**
  * 传感器采样频率（Hz）与首帧超时
@@ -257,6 +257,8 @@ export default {
         this._voiceSeq = 0;
         /** 追问代际令牌：浮层关闭后，迟到的答案不得落地 */
         this._askSeq = 0;
+        /** 解读代际令牌：浮层关闭后，迟到的解读正文不得落地、不得播报 */
+        this._readingSeq = 0;
         /** 是否正在识别中（防重复触发） */
         this._listening = false;
         /** 追问上下文（最近几轮问答），换盘时清空 */
@@ -286,9 +288,11 @@ export default {
         this._stopSensors();
         /** 清掉挂起的镜腿确认定时器，别让回调打到已销毁的页面上 */
         if (this._input) this._input.cancel();
-        /** 作废一切挂起的语音识别 / 追问响应 */
+        /** 作废一切挂起的语音识别 / 追问 / 解读响应 */
         this._voiceSeq += 1;
         this._askSeq += 1;
+        this._readingSeq += 1;
+        cancelListen();
         stopSpeaking();
     },
 
@@ -598,8 +602,14 @@ export default {
                 demoLabel: '',
                 hourNote: '',
                 noticeLabel: '',
-                /** 排盘失败 = 没有盘，返回键只能退出应用 */
-                inputHint: '单击开始识别　返回键退出',
+                /**
+                 * 返回键语义跟「有没有盘」走（与 _openInput 同一判据）：
+                 * 已有盘的重录失败 = 取消重录回盘面；首启失败 = 退出应用。
+                 * 之前这里写死「返回键退出」，有盘时文案与实际行为矛盾。
+                 */
+                inputHint: this._chartJson
+                    ? '单击开始识别　返回键回盘面'
+                    : '单击开始识别　返回键退出',
                 errorText: '排盘失败，请重新说出生辰。'
             });
         }
@@ -909,6 +919,12 @@ _stepPalace(delta) {
         const cell = cellAt(this.data.cells, branch);
         if (!cell) return;
 
+        /**
+         * 代际令牌：解读原文要走网络（最长 10s），等待期间用户可能
+         * 已关掉浮层 —— 迟到的正文不得写回，更不得 speak 给已关的浮层。
+         */
+        const seq = ++this._readingSeq;
+
         const dimension = dimensionOfPalace(cell.name);
         /**
          * 解读原文来自**本命盘**的数据集（13 维按本命宫位收录，没有运限版本），
@@ -938,6 +954,7 @@ _stepPalace(delta) {
 
         try {
             const text = await this._readingFor(cell, dimension);
+            if (seq !== this._readingSeq) return;
             this.setData({
                 readingText: text,
                 readingLoading: false,
@@ -946,6 +963,7 @@ _stepPalace(delta) {
             /** 接在宫位摘要后面播（enqueue），不打断摘要 */
             speak(text, { replace: false });
         } catch (err) {
+            if (seq !== this._readingSeq) return;
             this.setData({
                 readingText: '这一段解读暂时取不到，盘面本身是端侧算的，不影响查看。',
                 readingLoading: false
@@ -1021,6 +1039,8 @@ _stepPalace(delta) {
     },
 
     _openAsk() {
+        /** 解读长文可能还在念：浮层切走了，声音也必须跟着切 */
+        stopSpeaking();
         const question = this.data.presets[0];
         this.setData({
             overlay: 'ask',
@@ -1029,6 +1049,8 @@ _stepPalace(delta) {
             askFocus: this._focusLabel(question),
             askScrollTop: 0
         });
+        /** 眼镜上用户不一定盯着屏：追问浮层打开了什么，要念出来 */
+        speak(`追问，${question}`);
     },
 
     _cyclePreset(delta) {
@@ -1036,6 +1058,8 @@ _stepPalace(delta) {
         const current = list.indexOf(this.data.askQuestion);
         const next = list[((current < 0 ? 0 : current) + delta + list.length) % list.length];
         this.setData({ askQuestion: next, askFocus: this._focusLabel(next) });
+        /** 双击换问题也要有声音反馈 —— 不换声用户根本不知道换成了什么 */
+        speak(next);
     },
 
     async _submitAsk(question) {
@@ -1083,8 +1107,9 @@ _stepPalace(delta) {
     },
 
     _closeOverlay() {
-        /** 作废等待中的追问响应 */
+        /** 作废等待中的追问 / 解读响应 */
         this._askSeq += 1;
+        this._readingSeq += 1;
         stopSpeaking();
         this.setData({ overlay: '', askLoading: false, readingLoading: false });
     },
@@ -1100,8 +1125,9 @@ _stepPalace(delta) {
      * 时可达。语音失败一次，用户就再也换不了自己的盘。
      */
     _openInput() {
-        /** 新一次录入，作废旧识别的迟到结果 */
+        /** 新一次录入，作废旧识别的迟到结果，停掉可能还在念的播报 */
         this._voiceSeq += 1;
+        stopSpeaking();
         this.setData({
             overlay: 'input',
             needInput: true,
@@ -1136,9 +1162,11 @@ _stepPalace(delta) {
         /**
          * 作废正在进行的语音识别 —— 否则用户按返回键取消了，
          * listenOnce 的迟到 resolve 仍会把这次生辰排成盘。
+         * cancelListen 尽力把设备上的识别也停掉（麦克风别对着空气收音）。
          */
         this._voiceSeq += 1;
         this._listening = false;
+        cancelListen();
         if (this._chartJson) {
             this.setData({
                 overlay: '',

@@ -11,7 +11,7 @@
  *  · provider 未配置 / 样本库未覆盖，**原样显示服务端给的说明**，不自己编措辞。
  */
 
-import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useLang } from '@/lib/lang';
 import { CHAT_COPY, type ChatCopy } from '@/lib/chatCopy';
@@ -110,6 +110,26 @@ function relDay(ts: number, day: { today: string; yesterday: string }): string {
   if (same(d, now)) return day.today;
   if (same(d, yest)) return day.yesterday;
   return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 对话线程里的日期分隔线：今天 / 昨天 / M月D日（跨年带年份） */
+function daySepLabel(ts: number, lang: string, day: { today: string; yesterday: string }): string {
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return day.today;
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return day.yesterday;
+  if (lang === 'en') {
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}),
+    });
+  }
+  return d.getFullYear() !== now.getFullYear()
+    ? `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+    : `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 /** 「问」标记：冷玉小方（深底 + 紫字，无高饱和紫底） */
@@ -276,10 +296,18 @@ export default function AskPanel({
     messages,
     append,
     threads,
+    archived,
+    trash,
+    storageFull,
     activeId,
     newThread,
     selectThread,
+    renameThread,
+    setArchived,
     deleteThread,
+    restoreThread,
+    destroyThread,
+    emptyTrash,
   } = useAskThread(identity);
   const [question, setQuestion] = useState('');
   /** 界面语言：界面骨架走 chatCopy；问句发给模型仍用中文（数据集是中文原文） */
@@ -298,8 +326,68 @@ export default function AskPanel({
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   /** 正在流式生成的回答（还没进线程）；thinking = 模型思考过程，只作等待期进度展示 */
   const [stream, setStream] = useState<{ question: string; text: string; thinking: string } | null>(null);
-  /** 全量显示：聊天即主屏，回来就该看到整段对话（发给模型的轮数服务端另有上限） */
-  const visibleMessages = messages;
+
+  // ── 长会话：渐进渲染 ──────────────────────────────────────
+  /** 首屏只渲染最近 N 条，顶部「显示更早」按页往前翻（长会话不全量进 DOM） */
+  const PAGE = 15;
+  const [showCount, setShowCount] = useState(PAGE);
+  // 换对话时回到只显示最近一页
+  useEffect(() => {
+    setShowCount(PAGE);
+    setFoldedOpen(new Set());
+  }, [activeId]);
+  const earlierCount = Math.max(0, messages.length - showCount);
+  const shownMessages = messages.slice(-showCount);
+  /** 点「显示更早」时记住滚动位置，prepend 后还原（不然视线被顶飞） */
+  const prependAnchorRef = useRef<{ height: number; top: number } | null>(null);
+  const showEarlier = () => {
+    const el = scrollRef.current;
+    if (el) prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    setShowCount((c) => c + PAGE);
+  };
+  useEffect(() => {
+    const el = scrollRef.current;
+    const anchor = prependAnchorRef.current;
+    if (!el || !anchor) return;
+    prependAnchorRef.current = null;
+    el.scrollTop = anchor.top + (el.scrollHeight - anchor.height);
+  }, [showCount]);
+
+  /** 非最新的长回答默认折叠（>600 字）：长会话回看不用滚过所有长文 */
+  const FOLD_CHARS = 600;
+  const [foldedOpen, setFoldedOpen] = useState<Set<string>>(new Set());
+  const toggleFold = (id: string) =>
+    setFoldedOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  /** 「回到底部」：上翻超过一屏后浮出，流式期间不跟滚时尤其需要 */
+  const [showJump, setShowJump] = useState(false);
+  const jumpToBottom = () => {
+    stickRef.current = true;
+    setShowJump(false);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: preferredScrollBehavior() });
+  };
+
+  /** 删除对话后的撤销 toast（回收站里还有，一键恢复） */
+  const [undoToast, setUndoToast] = useState<{ id: string; title: string } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!undoToast) return;
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 5000);
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
+  }, [undoToast]);
+
+  /** 删除 = 进回收站 + 撤销提示（不再直接物理删除） */
+  const handleDeleteThread = (id: string, title: string) => {
+    deleteThread(id);
+    setUndoToast({ id, title });
+  };
 
   /** 用户点名切换一段旧对话 */
   const handleSelectThread = (id: string) => {
@@ -344,6 +432,11 @@ export default function AskPanel({
 
   /** 对话抽屉：话题列表 / 新话题 / 档案 / AI 设置入口，都收在这里 */
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** 抽屉里「⋯」展开操作菜单的对话 id（一次只开一行） */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** 已归档 / 已删除两个折叠区的展开态 */
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
   const headerTitle = activeThread ? topicTitle(activeThread) : copy.newChatTitle;
 
@@ -425,7 +518,10 @@ export default function AskPanel({
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
-      stickRef.current = el.scrollHeight - (el.scrollTop + el.clientHeight) < 40;
+      const gap = el.scrollHeight - (el.scrollTop + el.clientHeight);
+      stickRef.current = gap < 40;
+      // 上翻超过约一屏：浮出「回到底部」
+      setShowJump(gap > 240);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
@@ -512,7 +608,7 @@ export default function AskPanel({
     fd.set(
       'turns',
       JSON.stringify(
-        visibleMessages
+        messages
           .slice(-CONTEXT_TURNS)
           .map((m) => ({ question: m.question, answer: m.answer })),
       ),
@@ -689,7 +785,7 @@ export default function AskPanel({
       <div
         id="ask-panel-content"
         hidden={!bare && !expanded}
-        className={bare ? 'chat-stage flex min-h-0 flex-1 flex-col' : 'panel p-5 sm:p-6'}
+        className={bare ? 'chat-stage relative flex min-h-0 flex-1 flex-col' : 'panel relative p-5 sm:p-6'}
       >
         {!providerConfigured && !bare && (
           <div
@@ -700,6 +796,16 @@ export default function AskPanel({
             <p className="text-xs leading-relaxed text-ink-2">
               {copy.askUnavailable}
             </p>
+          </div>
+        )}
+
+        {/* 本机存储写不进去：明示 + 指引清理（以前静默丢回答） */}
+        {storageFull && (
+          <div
+            className="mb-3 rounded-lg border border-lineSoft bg-surface-2 px-4 py-3"
+            role="alert"
+          >
+            <p className="text-xs leading-relaxed text-danger">{copy.storageFull}</p>
           </div>
         )}
 
@@ -768,40 +874,171 @@ export default function AskPanel({
                         {threads.map((t) => {
                           const isActive = t.id === activeId;
                           return (
-                            <li key={t.id} className="flex items-center gap-0.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleSelectThread(t.id);
-                                  setSheetOpen(false);
-                                }}
-                                aria-current={isActive || undefined}
-                                className={`flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                                  isActive
-                                    ? 'bg-zhu-soft text-ink'
-                                    : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
-                                }`}
-                              >
-                                <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
-                                <span className="shrink-0 text-2xs text-ink-3">
-                                  {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={`${copy.deleteThread}：${topicTitle(t)}`}
-                                title={copy.deleteThread}
-                                onClick={() => {
-                                  if (window.confirm(copy.deleteThreadConfirm)) deleteThread(t.id);
-                                }}
-                                className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
-                              >
-                                ✕
-                              </button>
+                            <li key={t.id}>
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectThread(t.id);
+                                    setSheetOpen(false);
+                                  }}
+                                  aria-current={isActive || undefined}
+                                  className={`flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                    isActive
+                                      ? 'bg-zhu-soft text-ink'
+                                      : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
+                                  }`}
+                                >
+                                  <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
+                                  <span className="shrink-0 text-2xs text-ink-3">
+                                    {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
+                                  </span>
+                                </button>
+                                {/* 「⋯」操作菜单：重命名 / 归档 / 删除收进二级，不再给误触留机会 */}
+                                <button
+                                  type="button"
+                                  aria-label={`${copy.threadActions}：${topicTitle(t)}`}
+                                  aria-expanded={menuFor === t.id}
+                                  onClick={() => setMenuFor((cur) => (cur === t.id ? null : t.id))}
+                                  className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                >
+                                  ⋯
+                                </button>
+                              </div>
+                              {menuFor === t.id && (
+                                <div className="mx-2 mb-1 flex gap-1 rounded-lg border border-lineSoft bg-paper/60 px-2 py-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = window.prompt(copy.renameThreadPrompt, topicTitle(t));
+                                      if (next !== null) renameThread(t.id, next);
+                                      setMenuFor(null);
+                                    }}
+                                    className="rounded-md px-2.5 py-1.5 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                  >
+                                    {copy.renameThread}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setArchived(t.id, true);
+                                      setMenuFor(null);
+                                    }}
+                                    className="rounded-md px-2.5 py-1.5 text-2xs text-ink-2 transition-colors hover:bg-surface hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                  >
+                                    {copy.archiveThread}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleDeleteThread(t.id, topicTitle(t));
+                                      setMenuFor(null);
+                                    }}
+                                    className="rounded-md px-2.5 py-1.5 text-2xs text-danger/80 transition-colors hover:bg-surface hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                  >
+                                    {copy.deleteThread}
+                                  </button>
+                                </div>
+                              )}
                             </li>
                           );
                         })}
                       </ul>
+                    )}
+
+                    {/* 已归档：不删数据，只是不占主列表；随时恢复 */}
+                    {archived.length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setArchivedOpen((v) => !v)}
+                          aria-expanded={archivedOpen}
+                          className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-2xs text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                        >
+                          <span>{copy.archivedSection(archived.length)}</span>
+                          <span aria-hidden="true" className={`transition-transform ${archivedOpen ? 'rotate-180' : ''}`}>▾</span>
+                        </button>
+                        {archivedOpen && (
+                          <ul>
+                            {archived.map((t) => (
+                              <li key={t.id} className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setArchived(t.id, false)}
+                                  title={copy.unarchiveThread}
+                                  className="flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-2.5 py-2 text-left text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                                >
+                                  <span className="min-w-0 flex-1 truncate font-serif text-sm">{topicTitle(t)}</span>
+                                  <span className="shrink-0 text-2xs text-ink-3">
+                                    {relDay(t.updatedAt, copy)} · {copy.msgCount(t.messages.length)}
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={`${copy.unarchiveThread}：${topicTitle(t)}`}
+                                  onClick={() => setArchived(t.id, false)}
+                                  className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                >
+                                  {copy.restoreThread}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 已删除（回收站）：30 天内可恢复，也可彻底删 */}
+                    {trash.length > 0 && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setTrashOpen((v) => !v)}
+                            aria-expanded={trashOpen}
+                            className="flex flex-1 items-center justify-between rounded-lg px-2.5 py-1.5 text-2xs text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                          >
+                            <span>{copy.trashSection(trash.length)}</span>
+                            <span aria-hidden="true" className={`transition-transform ${trashOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                          {trashOpen && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(copy.emptyTrashConfirm)) emptyTrash();
+                              }}
+                              className="shrink-0 rounded-lg px-2 py-1.5 text-2xs text-danger/80 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                            >
+                              {copy.emptyTrash}
+                            </button>
+                          )}
+                        </div>
+                        {trashOpen && (
+                          <ul>
+                            {trash.map((t) => (
+                              <li key={t.id} className="flex items-center gap-0.5">
+                                <span className="min-w-0 flex-1 truncate px-2.5 py-2 font-serif text-sm text-ink-3">
+                                  {topicTitle(t)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => restoreThread(t.id)}
+                                  className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-ink-3/70 transition-colors hover:bg-surface-2 hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                >
+                                  {copy.restoreThread}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => destroyThread(t.id)}
+                                  className="shrink-0 self-center rounded-full px-2 py-1.5 text-2xs text-danger/70 transition-colors hover:bg-surface-2 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                                >
+                                  {copy.destroyThread}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
                   </section>
 
@@ -920,7 +1157,7 @@ export default function AskPanel({
           {/* mt-auto：内容少时把对话压到输入框上方（贴底），内容多了照常内部滚动 */}
           <div className={bare ? 'mt-auto space-y-5' : 'space-y-5'}>
             {/* 话题题头：像签纸一样安静地标注这段对话是谁 */}
-            {bare && activeThread && visibleMessages.length > 0 && (
+            {bare && activeThread && shownMessages.length > 0 && (
               <p className="pb-1 text-center font-serif text-2xs tracking-[0.25em] text-ink-3">
                 {topicTitle(activeThread)}
                 <span className="mx-1.5 tracking-normal">·</span>
@@ -936,16 +1173,57 @@ export default function AskPanel({
                 {copy.maxNotice(MAX_MESSAGES)}
               </p>
             )}
-            {visibleMessages.map((m) => {
+            {/* 长会话：更早的消息按页往前翻，不全量进 DOM */}
+            {earlierCount > 0 && (
+              <p className="text-center">
+                <button
+                  type="button"
+                  onClick={showEarlier}
+                  className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-4 py-1.5 text-2xs text-ink-2 transition-colors hover:border-ink-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  {copy.showEarlier(Math.min(PAGE, earlierCount))}
+                </button>
+              </p>
+            )}
+            {shownMessages.map((m, mi) => {
               const isLatest = m.id === latestId;
+              /* 跨天分隔：与上一条（已显示的）不在同一天时插一条日期线 */
+              const prevAt = mi > 0 ? shownMessages[mi - 1].at : null;
+              const msgDay = new Date(m.at).toDateString();
+              const daySep =
+                prevAt === null || new Date(prevAt).toDateString() !== msgDay
+                  ? daySepLabel(m.at, lang, copy)
+                  : null;
+              /* 非最新的长回答默认折叠 */
+              const foldable = !isLatest && m.answer.length > FOLD_CHARS;
+              const folded = foldable && !foldedOpen.has(m.id);
+              const foldToggle = foldable ? (
+                <button
+                  type="button"
+                  onClick={() => toggleFold(m.id)}
+                  className="mt-1.5 text-2xs text-ink-2 underline underline-offset-2 transition-colors hover:text-zhu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+                >
+                  {folded ? copy.expandAnswer : copy.collapseAnswer}
+                </button>
+              ) : null;
+              const sepEl = daySep ? (
+                <p
+                  key={`sep-${m.id}`}
+                  className="pt-2 text-center text-2xs tracking-wide2 text-ink-3"
+                  aria-hidden="true"
+                >
+                  — {daySep} —
+                </p>
+              ) : null;
               if (bare) {
                 return (
-                  <div
-                    key={m.id}
-                    ref={isLatest ? lastMessageRef : undefined}
-                    className="space-y-1.5"
-                    {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
-                  >
+                  <Fragment key={m.id}>
+                    {sepEl}
+                    <div
+                      ref={isLatest ? lastMessageRef : undefined}
+                      className="space-y-1.5"
+                      {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
+                    >
                     <p className="text-right">
                       <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-[linear-gradient(180deg,rgba(61,90,133,0.97),rgba(61,90,133,0.86))] px-3.5 py-2.5 text-left text-[13px] leading-relaxed text-white shadow-[0_2px_10px_rgba(61,90,133,0.16)]">
                         {m.question}
@@ -953,12 +1231,21 @@ export default function AskPanel({
                     </p>
                     <div className="max-w-[95%]">
                       <AnswerAvatar cited={m.cited} model={m.model} source={m.source} />
-                      <div
-                        className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
-                        data-ask-answer=""
-                      >
-                        <Markdown text={m.answer} />
+                      <div className={folded ? 'relative max-h-44 overflow-hidden' : undefined}>
+                        <div
+                          className="rounded-2xl rounded-tl-sm border border-lineSoft bg-surface-2 px-4 py-3 font-serif text-[15px] leading-[1.9] text-ink shadow-[0_1px_4px_rgba(28,35,51,0.04)] [&_p:first-of-type]:mt-0 [&_p:last-of-type]:mb-0"
+                          data-ask-answer=""
+                        >
+                          <Markdown text={m.answer} />
+                        </div>
+                        {folded && (
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface-2 to-transparent"
+                          />
+                        )}
                       </div>
+                      {foldToggle}
                     </div>
                     <MessageVerification suspects={m.suspects} isLatest={isLatest} />
                     {embedChart && miniChart && (
@@ -986,28 +1273,39 @@ export default function AskPanel({
                         </button>
                       )
                     )}
-                  </div>
+                    </div>
+                  </Fragment>
                 );
               }
               return (
-                <div
-                  key={m.id}
-                  ref={isLatest ? lastMessageRef : undefined}
-                  className="rounded-xl border border-line bg-surface-2 px-4 py-4"
-                  {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
-                >
+                <Fragment key={m.id}>
+                  {sepEl}
+                  <div
+                    ref={isLatest ? lastMessageRef : undefined}
+                    className="rounded-xl border border-line bg-surface-2 px-4 py-4"
+                    {...(isLatest ? { 'data-ask-state': 'ok' } : {})}
+                  >
                   <p className="text-xs font-medium text-ink">
                     <span className={ASK_MARK_CLASS}>问</span>
                     {m.question}
                   </p>
                   <div className="mt-3 border-t border-lineSoft pt-3">
                     <MessageMeta message={m} />
-                    <div
-                      className="text-sm leading-[1.95] text-ink-2 [&_p:first-of-type]:mt-0"
-                      data-ask-answer=""
-                    >
-                      <Markdown text={m.answer} />
+                    <div className={folded ? 'relative max-h-44 overflow-hidden' : undefined}>
+                      <div
+                        className="text-sm leading-[1.95] text-ink-2 [&_p:first-of-type]:mt-0"
+                        data-ask-answer=""
+                      >
+                        <Markdown text={m.answer} />
+                      </div>
+                      {folded && (
+                        <div
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-surface-2 to-transparent"
+                        />
+                      )}
                     </div>
+                    {foldToggle}
                     <MessageVerification suspects={m.suspects} isLatest={isLatest} />
 
                     {/* 对话内嵌盘：回答后就地展开，不跳走 */}
@@ -1043,7 +1341,8 @@ export default function AskPanel({
                       </div>
                     )}
                   </div>
-                </div>
+                  </div>
+                </Fragment>
               );
             })}
           </div>
@@ -1168,6 +1467,39 @@ export default function AskPanel({
             )
           )}
         </div>
+
+        {/* 回到底部：上翻超过一屏后浮出；流式期间不跟滚时尤其需要 */}
+        {bare && showJump && (
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            aria-label={copy.backToBottom}
+            title={copy.backToBottom}
+            className="absolute bottom-24 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-sm text-ink-2 shadow-[0_6px_18px_rgba(28,35,51,0.16)] transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
+          >
+            ↓
+          </button>
+        )}
+
+        {/* 删除对话的撤销条：回收站里还有，一键恢复 */}
+        {undoToast && (
+          <div
+            role="status"
+            className="pointer-events-auto absolute bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink px-4 py-2 text-xs text-paper shadow-[0_8px_24px_rgba(36,33,29,0.3)]"
+          >
+            <span className="max-w-48 truncate">{copy.deletedToast(undoToast.title)}</span>
+            <button
+              type="button"
+              onClick={() => {
+                restoreThread(undoToast.id);
+                setUndoToast(null);
+              }}
+              className="shrink-0 font-medium text-white underline underline-offset-2 transition-colors hover:text-zhu-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              {copy.undo}
+            </button>
+          </div>
+        )}
 
         {/* 输入区：bare = 聊天式胶囊输入（Enter 发送），非 bare = 表单式 */}
         {bare ? (
@@ -1304,7 +1636,7 @@ export default function AskPanel({
             <button
               type="button"
               onClick={() => {
-                if (activeId && window.confirm(copy.deleteThreadConfirm)) deleteThread(activeId);
+                if (activeThread) handleDeleteThread(activeThread.id, topicTitle(activeThread));
               }}
               className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-2xs text-ink-2 transition-colors hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zhu"
             >

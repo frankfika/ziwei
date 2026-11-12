@@ -5,6 +5,8 @@
  *
  * 排盘日与时辰序号一律由引擎自带的 `resolveChartDate()` / `shichenFromClock()` 得出，
  * 浏览器端的镜像实现只用于表单内的实时预览，不参与最终计算。
+ *
+ * 校验失败：带着原表单值回跳 /new（不再弹去首页、不再丢表单）。
  */
 import { redirect } from 'next/navigation';
 import { resolveChartDate, shichenFromClock } from '@ziwei/chart-engine';
@@ -16,6 +18,20 @@ function str(formData: FormData, key: string): string {
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
+}
+
+/** 把用户已填的内容原样带回 /new，配合 error 码恢复表单现场 */
+function backToForm(code: string, formData: FormData): never {
+  const params = new URLSearchParams({ error: code });
+  for (const key of [
+    'name', 'year', 'month', 'day',
+    'timeMode', 'shichen', 'ziVariant',
+    'clockHour', 'clockMinute', 'gender',
+  ]) {
+    const v = str(formData, key);
+    if (v) params.set(key, v);
+  }
+  redirect(`/new?${params.toString()}`);
 }
 
 export async function startChart(formData: FormData): Promise<void> {
@@ -31,13 +47,13 @@ export async function startChart(formData: FormData): Promise<void> {
   const gender = str(formData, 'gender') === 'female' ? 'female' : 'male';
 
   if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-    redirect('/?error=year');
+    backToForm('year', formData);
   }
   if (!Number.isInteger(month) || month < 1 || month > 12) {
-    redirect('/?error=month');
+    backToForm('month', formData);
   }
   if (!Number.isInteger(day) || day < 1 || day > 31) {
-    redirect('/?error=day');
+    backToForm('day', formData);
   }
   const probe = new Date(year, month - 1, day);
   if (
@@ -45,7 +61,7 @@ export async function startChart(formData: FormData): Promise<void> {
     probe.getMonth() !== month - 1 ||
     probe.getDate() !== day
   ) {
-    redirect('/?error=date');
+    backToForm('date', formData);
   }
 
   let chartYear = year;
@@ -59,7 +75,7 @@ export async function startChart(formData: FormData): Promise<void> {
       !Number.isInteger(clockHour) || clockHour < 0 || clockHour > 23 ||
       !Number.isInteger(clockMinute) || clockMinute < 0 || clockMinute > 59
     ) {
-      redirect('/?error=clock');
+      backToForm('clock', formData);
     }
     const r = resolveChartDate(year, month, day, clockHour, clockMinute);
     chartYear = r.year;
@@ -68,8 +84,8 @@ export async function startChart(formData: FormData): Promise<void> {
     hour = r.hour;
     lateZi = chartYear !== year || chartMonth !== month || chartDay !== day;
   } else {
-    if (!Number.isInteger(shichen) || shichen < 0 || shichen > 11) {
-      redirect('/?error=shichen');
+    if (str(formData, 'shichen') === '' || !Number.isInteger(shichen) || shichen < 0 || shichen > 11) {
+      backToForm('shichen', formData);
     }
     if (shichen === 0 && ziVariant === 'next') {
       // 晚子时：按次日排盘（与钟点 23:xx 走同一条规则）

@@ -560,8 +560,34 @@ async function main() {
   const fps = Number(arg('--fps', '24'));
   const outFile = path.resolve(arg('--out', path.join(OUT_DIR, 'ziwei-preview.mp4')));
 
-  console.log('→ 加载真实页面（pages/index/index.ink 的 <script setup>）');
-  const collected = await collectScenes();
+  /**
+   * 采集场景：**整轮重来**，最多 3 次。
+   *
+   * 为什么不能只重试「追问那一步」：追问失败时页面会留下一条
+   * 「这一问暂时没有回答，单击重试。」的失败轮，留在会话流里就污染了画面。
+   * 整轮重来 = 换一张干净的页面重跑，拿到的是**没有失败痕迹**的场景。
+   *
+   * 为什么要重来：生产域名的 `/api/agent/ask` 响应时间在 15–57s 之间波动，
+   * 且偶发整次失败（2026-11-13 实测）—— 这是外部依赖的抖动，不是脚本的 bug。
+   */
+  let collected = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    console.log(`→ 加载真实页面（pages/index/index.ink 的 <script setup>）｜第 ${attempt}/3 次`);
+    try {
+      collected = await collectScenes();
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`  ⚠️ 采集失败：${err.message}`);
+      if (attempt < 3) {
+        console.warn('  ↻ 换一张干净的页面整轮重来');
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+  }
+  if (!collected) throw lastErr;
+
   console.log(
     `✓ 采集到 ${collected.scenes.length} 个场景｜解读 ${collected.meta.readingLen} 字｜` +
       `追问 ${collected.meta.askLen} 字｜末层 ${collected.meta.layerKey}`,

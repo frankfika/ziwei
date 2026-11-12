@@ -51,9 +51,24 @@ async function fetchWithTimeout(url, options = {}) {
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const err = new Error(`HTTP ${response.status}`);
+      /** 5xx 值得重试（服务端瞬时过载），4xx 不值得（请求本身有问题） */
+      err.isServerError = response.status >= 500;
+      throw err;
     }
     return await response.json();
+  } catch (err) {
+    /**
+     * 超时要**打标记**，不能和「网络断了」混为一谈：
+     * 超时说明后端已经跑了很久，用户也等了很久 ⇒ 再重试一次只是让等待翻倍；
+     * 网络抖动 / 5xx 才是「再来一次就好」的情况。
+     */
+    if (err && err.name === 'AbortError') {
+      const timeoutErr = new Error(`请求超时（${timeout}ms）`);
+      timeoutErr.isTimeout = true;
+      throw timeoutErr;
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -88,7 +103,9 @@ export async function postJson(path, payload, timeout = 10000) {
       });
       const status = res && res.statusCode;
       if (status && status >= 400) {
-        throw new Error(`HTTP ${status}`);
+        const err = new Error(`HTTP ${status}`);
+        err.isServerError = status >= 500;
+        throw err;
       }
       return res.data;
     }
@@ -143,6 +160,19 @@ export async function requestReading(birth) {
  *
  * ⚠️ 回答同样在这里洗成纯文本（原因见 `requestReading`）。
  *
+ * ⚠️ **瞬时故障重试一次**。
+ *
+ * 为什么：实测生产域名的 `/api/agent/ask` 响应时间在 **15.8s / 29.6s / 34.2s /
+ * 36.5s / 47.6s / 57.5s** 之间大幅波动（模型负载），而且**偶发整次失败**
+ * （2026-11-13 渲染提审视频时实测到一次失败，页面只能显示
+ * 「这一问暂时没有回答，单击重试。」）。
+ * 眼镜上没有键盘、用户只能重按一次镜腿 —— 而录制赛事作品视频时
+ * 一次失败就得整段重拍，所以这里替用户**自动重试一次**。
+ *
+ * ⚠️ **超时不重试**：超时说明后端已经跑了很久、用户也等了很久，
+ * 再来一轮只会让等待翻倍（120s → 240s）。超时是「这次真的不行」，
+ * 网络抖动与 5xx 才是「再来一次就好」。
+ *
  * @param {Object} birth
  * @param {string} question
  * @param {Array<{ question: string, answer: string }>} [turns] 上文
@@ -150,11 +180,20 @@ export async function requestReading(birth) {
  * @returns {Promise<{ answer: string, cited: string[], verification: string, model: string, citationMode?: string, citationModeLabel?: string }>}
  */
 export async function requestAsk(birth, question, turns = [], focus = {}) {
-  const res = await postJson(
-    '/api/agent/ask',
-    { ...birth, question, turns, focus },
-    TIMEOUTS.ask,
-  );
+  const payload = { ...birth, question, turns, focus };
+  let res;
+  try {
+    res = await postJson('/api/agent/ask', payload, TIMEOUTS.ask);
+  } catch (err) {
+    if (err && err.isTimeout) throw err;
+    console.info(
+      '[ziwei-agent] 追问失败，重试一次：',
+      err && err.message ? err.message : String(err)
+    );
+    /** 稍等一下再试：后端刚失败过一次，立刻重试大概率还占着同一个坏槽位 */
+    await new Promise((r) => setTimeout(r, 1500));
+    res = await postJson('/api/agent/ask', payload, TIMEOUTS.ask);
+  }
   if (res && typeof res.answer === 'string') {
     res.answer = toPlainText(res.answer);
   }

@@ -1104,6 +1104,15 @@ export default {
         } catch (err) {
             if (seq !== this._askSeq) return;
             this._askLoading = false;
+            /**
+             * 把失败原因打出来 —— 真机上没有开发者工具，
+             * 页面自带的 `[ziwei-agent] …` 日志是**唯一的诊断入口**。
+             * DEVICE-CHECKLIST §1.5 T2 就是靠它确认设备到底报了什么。
+             */
+            console.info(
+                '[ziwei-agent] 追问失败：',
+                err && err.message ? err.message : String(err)
+            );
             this._settleTurn(turn.id, {
                 answer: '这一问暂时没有回答，单击重试。',
                 failed: true

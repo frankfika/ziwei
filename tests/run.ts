@@ -34,6 +34,7 @@ const SUITE_FILES = [
   'tests/rokid_agent.test.ts',
   'tests/rokid_chat.test.ts',
   'tests/rokid_plain_text.test.ts',
+  'tests/rokid_api_retry.test.ts',
   'tests/rokid_first_launch.test.ts',
   'tests/agent_citation.test.ts',
   'tests/rokid_compliance.test.ts',

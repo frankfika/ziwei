@@ -1659,6 +1659,8 @@ export default {
             </view>
         </view>
 
+        <text class="chat-disclaimer">仅供传统文化学习与研究之用 · 不构成医疗、法律、投资或人生决策建议</text>
+
         <scroll-view class="chat-scroll" scroll-y="{{true}}" scroll-top="{{chatScrollTop}}">
             <view class="row" ink:for="{{chatRows}}" ink:key="id">
                 <text class="{{item.cls}}">{{item.text}}</text>
@@ -2021,6 +2023,18 @@ page {
 .chat-scroll {
     flex: 1;
     padding: 8px 12px;
+}
+/**
+ * 眼镜端的免责声明（合规要求：眼镜上能看到）。
+ * ⚠️ v1.0.20 重做显示层时把它删掉了（旧版在解读浮层底部的 overlay-note），
+ * 2026-11-13 review 发现合规清单还在声称「代码已有」—— 已补回，常驻对话页缩略带下方。
+ * 放在**滚动区之外**：会话流会滚，声明必须一直看得见。
+ * 放在**页脚之外**：页脚按设计只留「端侧计算」（E22 第⑤项）。
+ */
+.chat-disclaimer {
+    font-size: 10px;
+    color: #2f7a46;
+    padding: 2px 12px 0 12px;
 }
 
 /*

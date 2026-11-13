@@ -22,7 +22,7 @@
 ```
 先交代一下这是什么，免得误会。
 
-我在做一个跑在 Rokid AI Glasses 上的 AIUI 智能体：说出生辰，它在 HUD 上画出一张紫微斗数的十二宫盘面，你抬头低头用准星点中哪一宫，轻点一下镜腿，它就讲那一宫。盘面还能在本命、大限、流年、流月四层之间切换。它是一个「传统术数的结构化学习与研究工具」——文化兴趣向，不做任何人生决策建议。
+我在做一个跑在 Rokid AI Glasses 上的 AIUI 智能体：说出生辰，它在 HUD 上画出一张紫微斗数的十二宫盘面，你抬头低头用准星点中哪一宫，轻点一下镜腿问它，它就讲那一宫。盘面还能在本命、大限、流年、流月四层之间切换。它是一个「传统术数的结构化学习与研究工具」——文化兴趣向，不做任何人生决策建议。
 
 这帖主要想聊一个设计选择：**为什么排盘这一步，我不交给模型。**
 
@@ -52,7 +52,9 @@
 
 改成外圈是被逼出来的：如果还做网格式横移，中宫挡在盘面中间，**辰、卯、酉、戌 四个宫根本选不到**，模拟器里根本选不满十二宫。而眼镜没有触摸屏，镜腿手势是唯一的选择通道——选不满十二宫，这个作品在评审手上就走不通。外圈巡宫还带来一个副产品：+1 恰好等于地支 +1，跟抬头低头选宫是同一个方向，两套通道不打架。
 
-第二次改动是**商店审核驳回之后**做的，也是这次最值钱的一课。我原先把镜腿按键当成标准键盘用：左右选宫、上下切层、确认键听解读。放到真机上一测才发现，镜腿根本没有独立的上下键——**一次滑动发的是一对方向键**（前滑 `ArrowRight`+`ArrowDown`，后滑 `ArrowLeft`+`ArrowUp`），上下键只是配对键，从来不是独立手势。于是我那套「上下键切层」在真机上等于一次滑动同时触发「切宫 + 切层」两个动作，点按还会因为镜腿点按后补发的确认键而执行两遍——审核原话是「焦点切换问题 / arrow 滑动事件问题 无法切换 / 无法正常产生交互」。现在改成按真机手势重新分工：滑动全部让给选宫，轻点镜腿是确认，连点两下切时间层，上层加了一个手势契约层专门处理按下抬起配对与回声。
+第二次改动是**商店审核驳回之后**做的，也是这次最值钱的一课。我原先把镜腿按键当成标准键盘用：左右选宫、上下切层、确认键听解读。放到真机上一测才发现，镜腿根本没有独立的上下键——**一次滑动发的是一对方向键**（前滑 `ArrowRight`+`ArrowDown`，后滑 `ArrowLeft`+`ArrowUp`），上下键只是配对键，从来不是独立手势。于是我那套「上下键切层」在真机上等于一次滑动同时触发「切宫 + 切层」两个动作，点按还会因为镜腿点按后补发的确认键而执行两遍——审核原话是「焦点切换问题 / arrow 滑动事件问题 无法切换 / 无法正常产生交互」。现在改成按真机手势重新分工，并且**按屏分**：盘面页上滑动选宫、轻点问这一宫、连点两下切时间层、返回键退出应用；对话页上轻点开口问、连点两下用内置建议语发问、滑动翻看更早的对话、返回键回盘面。**换生辰不占任何手势**——在对话页开口，说的是生辰就重排一张盘，说的是问题就追问。上层加了一个手势契约层专门处理按下抬起配对与回声。
+
+顺带一提，把「换生辰」从手势里拿掉是同一轮改的。原来盘面页有五个动作（选宫、问这宫、切层、换生辰、退出）却只有四个手势，硬塞下去必然有一个手势背两个意思——而「双击换生辰」在真机上最容易误触成切层，一按就把辛苦排的盘抹掉。眼镜上说话本来就是最自然的输入，所以换生辰改成开口说。
 
 HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上根本读不完。所以信息分配是「屏幕管结构、声音管长文本」——这块也是被硬件逼出来的，不是加个朗读按钮。
 
@@ -101,7 +103,7 @@ HUD 是 480×352 单色绿屏，13 个维度的正文动辄几千字，视觉上
 ```
 Some context first, so there is no confusion about what this is.
 
-I am building an AIUI agent for Rokid AI Glasses: say your birth date and time, and it draws a twelve-palace Ziwei Doushu chart on the HUD. You look up and down to aim a crosshair at a palace, press the confirm key, and it reads out that palace. The chart also cycles through four layers: natal, decade, yearly and monthly. It is a structured tool for studying a traditional chart-casting system - cultural interest, no life advice of any kind.
+I am building an AIUI agent for Rokid AI Glasses: say your birth date and time, and it draws a twelve-palace Ziwei Doushu chart on the HUD. You look up and down to aim a crosshair at a palace, tap the temple once to ask about it, and it reads that palace out. The chart also cycles through four layers: natal, decade, yearly and monthly. It is a structured tool for studying a traditional chart-casting system - cultural interest, no life advice of any kind.
 
 The main thing I want to discuss is a design choice: **why I do not let the model cast the chart.**
 
@@ -125,17 +127,21 @@ I chose B for three reasons:
 
 The chart is a 4x4 spatial layout with a two-cell centre that holds no stars. I derive a **continuous two-dimensional crosshair** from absolute head orientation (AbsoluteOrientationSensor, quaternion to Euler angles): yaw +/-22 degrees and pitch +/-16 degrees cover the whole chart, and whatever cell the crosshair lands in is the selected one. A 0.2 guard band near cell edges keeps it from flickering on a boundary.
 
-Some other community projects use discrete gestures, like a nod to advance. I use continuous two-dimensional pointing because the chart is inherently spatial: "where you look" maps directly onto "which cell you mean", and there is no need to learn where the content lives. Accelerometer tilt and the temple buttons remain as fallbacks.
+Some other community projects use discrete gestures, like a nod to advance. I use continuous two-dimensional pointing because the chart is inherently spatial: "where you look" maps directly onto "which cell you mean", and there is no need to learn where the content lives. Accelerometer tilt and the temple gestures remain as fallbacks.
 
-I changed how the temple keys are allocated once, and it is worth a paragraph. With the centre cell removed, the twelve palaces form exactly **one ring**: 巳 午 未 申 酉 戌 亥 子 丑 寅 卯 辰. That ring happens to be exactly the traditional palace order (Life, Brothers, Spouse, ...), so walking it with the left and right keys is walking the palaces in their traditional sequence, and a Ziwei reader does not have to relearn anything.
+I reallocated the temple gestures twice, and both times were forced on me. First, with the centre cell removed, the twelve palaces form exactly **one ring**: 巳 午 未 申 酉 戌 亥 子 丑 寅 卯 辰. That ring happens to be exactly the traditional palace order (Life, Brothers, Spouse, ...), so walking it is walking the palaces in their traditional sequence, and a Ziwei reader does not have to relearn anything.
 
-Going round the ring was forced on me: the up and down keys were needed for switching time layers (the main feature of the piece), and if the left and right keys still panned the grid, the centre cell would block the 辰, 卯, 酉 and 戌 palaces - you simply could not reach all twelve. The glasses have no touchscreen, so in the simulator the four-way keys are the only way to select anything; not being able to reach all twelve means the piece cannot be demonstrated at all. The ring also gives a bonus: +1 there is exactly +1 on the branches, which is the same direction as the tilt-to-select gesture, so the two channels do not fight each other.
+Going round the ring was forced: if I had kept a grid pan, the centre cell would block the 辰, 卯, 酉 and 戌 palaces - you simply could not reach all twelve. The glasses have no touchscreen, and the temple gestures are the only way to select anything; not being able to reach all twelve means the piece cannot be demonstrated at all. The ring also gives a bonus: +1 there is exactly +1 on the branches, which is the same direction as the tilt-to-select gesture, so the two channels do not fight each other.
+
+The second reallocation came **after the store review rejected the app**, and it is the most valuable lesson of the whole project. I had treated the temple as a standard keyboard: left and right to select a palace, up and down to switch the time layer, a confirm key to hear the reading. On the real glasses I measured that the temple has no independent up and down keys - **one swipe emits a pair of direction keys** (forward `ArrowRight`+`ArrowDown`, backward `ArrowLeft`+`ArrowUp`); the up and down keys are only pairing keys, never a gesture of their own. So my "up and down switches the layer" was, on real hardware, one swipe firing two action domains at once, and a tap firing twice because the temple re-sends a confirm key after the press. The review's words were "focus switching issue / arrow swipe event issue, cannot switch / cannot interact normally".
+
+Everything is now reallocated by measured gesture and **by screen**: on the chart view, sliding selects a palace, a single tap asks about it, a double tap switches the time layer, and the back key exits; in the conversation view, a single tap starts a spoken question, a double tap sends one of four built-in suggested questions, sliding scrolls back through earlier turns, and the back key returns to the chart. Changing your birth details takes no gesture at all - you say it in the conversation view: say a birth date and it re-casts the chart, say a question and it answers. I also added a gesture-contract layer on top to handle press/release pairing and echo.
 
 The HUD is a 480x352 monochrome green display, and the text across 13 dimensions runs to thousands of characters - it cannot be read visually. So the split is: the screen carries structure, the voice carries long text. The hardware forced that; it is not a read-aloud button bolted on.
 
 ### On the time layers
 
-The chart has four layers - natal, decade, yearly and monthly - and the up and down keys cycle through them. I only added this after working out why it was worth doing: **the natal chart is static**. You cast it once and it never changes, so there is no reason to come back. The time layers are not static: the decade limit turns over every ten years, the yearly layer every year, the monthly layer every month. "Which step am I at now" has a new answer every month, and that is a genuine reason to return.
+The chart has four layers - natal, decade, yearly and monthly - and a double tap on the temple cycles through them. I only added this after working out why it was worth doing: **the natal chart is static**. You cast it once and it never changes, so there is no reason to come back. The time layers are not static: the decade limit turns over every ten years, the yearly layer every year, the monthly layer every month. "Which step am I at now" has a new answer every month, and that is a genuine reason to return.
 
 The deliberate trade-off: a layer gives **structural placement only** - where that layer's Life palace lands, and which palaces the four transformations touch. It does not forecast and it does not advise. The thirteen dimensions of interpretation text still come from the natal dataset, and the layer does not rewrite that text. The HUD is monochrome green, so transformations carry a "限" or "流" prefix to tell the layers apart, and the natal transformations are simply hidden once you are on another layer.
 

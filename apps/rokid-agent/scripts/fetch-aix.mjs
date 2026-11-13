@@ -14,13 +14,19 @@
  *   （底层是 `rokid-basecloud.oss-cn-hangzhou.aliyuncs.com`，同样的路径）
  *   免鉴权、可直接 curl —— `HEAD` 就能拿到 content-length 与 MD5 对账。
  *
- * 本脚本做四件事，任何一件不过就退出码非 0：
+ * 本脚本做五件事，除了「仓库领先本版」这一种预期状态，其余任何一件不过就退出码非 0：
  *   1. 下载 AIX（也可传 --url 直接给地址），校验 MD5（给了 --expect-md5 才校验）
  *   2. 解包，逐项核对 manifest 里的 sha256
  *   3. **行为等价比对**：把**包内**的引擎与出生参数模块，跟**仓库里**的跑同一批输入，
  *      输出必须逐字段一致 —— 这才是「包里是最新代码」的硬证据
  *      （包内代码被「资源优化 等级2」压过，字节比不了，只能比行为）
  *   4. 核对关键文件确实在包里：index.ink、lib/birth-source.js、assets/engine.js
+ *   5. **对外文案逐字一致**：JS 字面量 + 模板区中文，**双向**查（包缺 / 包多）
+ *
+ * ⚠ 「仓库领先本版」是**预期状态**，不算失败（2026-11-13 晚加）：
+ *   改了 index.ink 之后，仓库必然领先已发布的那个包（还没重打包）。
+ *   老的两态写法会把这种状态判成失败 ⇒ 每改一行代码核验就假红一次。
+ *   三态判定见 main() 里的注释；鉴别力用旧包反证（--pkg prev-v1018 必须红）。
  *
  * 用法：
  *   node apps/rokid-agent/scripts/fetch-aix.mjs                     # 拉「当前版」
@@ -65,6 +71,14 @@ const KNOWN_PACKAGES = [
     key: 'current',
     file: `${AGENT_ID}-1794538212787.aix`,
     md5: '8eecb8194aba2b12f2d935251f572ecd',
+    /**
+     * 已发布基线行数 = **打包那一刻**仓库里 index.ink 的行数。
+     * 用途：区分两种「行数不一致」——
+     *   ① 仓库领先（本地改了、还没重打包）⇒ 预期状态，只告警；
+     *   ② 装错包（包内行数连基线都不是）⇒ 真失败。
+     * 没有这条基线，仓库每改一行核验脚本就会假红一次。
+     */
+    inkLines: 2227,
     note: '2026-11-13 10:5x 重打，**3.61 MB / 3,788,156 B**；**v1.0.20 —— 现行版，Frank 装这一版**。含本轮七件事：① 显示层整体优化（正文按段落渲染 + 最新一轮置顶 + 标注行提前 + 状态行分层 + 字号 9→11px）；② 语音输入致命缺陷修复（空结果不清空已听文本 / 迟到结果丢弃 / 硬超时 14s 看门狗 / wx 契约对齐）；③ 模板注释被当文字渲染 + 自己的盘引导语写错；④ **对外说明里的手势口径修正**（工具 description 原来写「双击换生辰」，实际「连点两下」是切运限层、换生辰走语音）。核验新增两条断言：「语音输入 wx 宿主行为 8/8」（造 wx 宿主桩给包内/仓库喂同一串事件比对）与「对外文案逐字一致 8 条中文字面量」（专治「改了字、没改行数」—— 行数检查抓不到等行数的内容变更）',
     current: true,
   },
@@ -246,6 +260,8 @@ function checkAskTimeout(pkgRoot) {
   if (pkgVal !== repoVal) {
     return {
       ok: false,
+      /** soft = 「仓库领先本版」时这只是一条预期差异，不是「装错包」的证据 */
+      soft: true,
       message: `追问超时不一致：包内 ${pkgVal}ms，仓库 ${repoVal}ms —— 包不是最新代码`,
     };
   }
@@ -492,6 +508,36 @@ function extractUiLiterals(src) {
  *
  *   这条断言专治这一类：**改了字、没改行数**。
  */
+/**
+ * 抽出「模板区」里的中文文本片段。
+ *
+ * 为什么单独抽（2026-11-13 晚加）：
+ *   `extractUiLiterals` 只抽 **JS 字符串字面量**，抽不到模板里的裸文本。
+ *   而页面上最要命的那批对外文案 —— 盘面页提示「滑动选宫　单击问这宫　双击切层」、
+ *   对话页提示「向前滑动看更早　单击开口问　双击问建议语」、
+ *   以及**眼镜端免责声明** —— **全都在模板区**，一个字都不是字面量。
+ *   ⇒ 光靠字面量检查，这些文案改了核验脚本看不见。
+ *
+ * 实测（2026-11-13）：包内模板区 11 段中文 vs 仓库 13 段，
+ * 逐字对得上，唯一差异就是 review 期间新加的免责声明那一行 ⇒ 这条检查可放心用。
+ */
+function extractTemplateChunks(src) {
+  const styleStart = src.indexOf('<style>');
+  const setupEnd = src.lastIndexOf('</script>', styleStart);
+  const region =
+    setupEnd >= 0
+      ? src.slice(setupEnd + '</script>'.length, styleStart >= 0 ? styleStart : src.length)
+      : '';
+  // 去掉标签，剩下的裸文本按空白切块
+  const text = region.replace(/<[^>]*>/g, ' ');
+  const out = new Set();
+  for (const chunk of text.split(/\s+/)) {
+    const s = chunk.trim();
+    if (s && /[一-鿿]/.test(s)) out.add(s);
+  }
+  return out;
+}
+
 function checkUiLiterals(pkgRoot) {
   const pkgSrc = readFileSync(path.join(pkgRoot, 'pages/index/index.ink'), 'utf8');
   const repoSrc = readFileSync(
@@ -499,17 +545,65 @@ function checkUiLiterals(pkgRoot) {
     'utf8',
   );
   const repoLiterals = [...extractUiLiterals(repoSrc)];
+  const pkgLiterals = [...extractUiLiterals(pkgSrc)];
+  /** 正向：仓库里有、包里没有 ⇒ 仓库改过/加过，包还是旧的 */
   const missing = repoLiterals.filter((s) => !pkgSrc.includes(s));
-  if (missing.length) {
-    return {
-      ok: false,
-      message:
-        `包内的对外文案有 ${missing.length} 条与仓库不一致（包里缺这些原文）：\n` +
-        missing.map((s) => `      · ${s}`).join('\n'),
-      count: repoLiterals.length,
-    };
+  /**
+   * 反向（2026-11-13 晚加）：包里有、仓库里已经没有 ⇒ **包里是旧文案**。
+   *
+   * 为什么必须查这一边：上一轮真出过「改了字、没改行数」的 bug
+   * （手势口径从「双击换生辰」改成「连点两下切运限层」）。
+   * 正向检查抓不到这种「同一句话被改写」的情形 ——
+   * 仓库里已经是新句子，包里是旧句子，正向看是「包里有新句子吗」→ 有（如果新句子恰好也在别处）。
+   * 反向看才抓得到：**包里那句话，仓库里已经找不到了**。
+   */
+  const stale = pkgLiterals.filter((s) => !repoLiterals.includes(s));
+
+  // ── 模板区（页面上真正显示的字）──
+  const repoChunks = [...extractTemplateChunks(repoSrc)];
+  const pkgChunks = [...extractTemplateChunks(pkgSrc)];
+  const tplMissing = repoChunks.filter((s) => !pkgChunks.includes(s));
+  const tplStale = pkgChunks.filter((s) => !repoChunks.includes(s));
+
+  return {
+    ok: !missing.length && !stale.length && !tplMissing.length && !tplStale.length,
+    missing,
+    stale,
+    tplMissing,
+    tplStale,
+    count: repoLiterals.length + repoChunks.length,
+  };
+}
+
+/** 把 checkUiLiterals 的结果拼成人读的文本 */
+function formatUiLiteralsProblem(uiCheck) {
+  const lines = [];
+  const bullet = (arr) => arr.map((s) => `      · ${s}`).join('\n');
+  if (uiCheck.missing.length) {
+    lines.push(
+      `包内缺 ${uiCheck.missing.length} 条仓库已有的 JS 字面量（仓库领先本版时属预期）：\n` +
+        bullet(uiCheck.missing),
+    );
   }
-  return { ok: true, count: repoLiterals.length };
+  if (uiCheck.stale.length) {
+    lines.push(
+      `包内还有 ${uiCheck.stale.length} 条仓库已删/已改的 JS 字面量（包里是旧文案）：\n` +
+        bullet(uiCheck.stale),
+    );
+  }
+  if (uiCheck.tplMissing.length) {
+    lines.push(
+      `包内模板区缺 ${uiCheck.tplMissing.length} 段仓库已有的中文（页面上显示的字，仓库领先本版时属预期）：\n` +
+        bullet(uiCheck.tplMissing),
+    );
+  }
+  if (uiCheck.tplStale.length) {
+    lines.push(
+      `包内模板区还有 ${uiCheck.tplStale.length} 段仓库已删/已改的中文（页面上显示的旧文案）：\n` +
+        bullet(uiCheck.tplStale),
+    );
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -648,6 +742,7 @@ async function main() {
      * 现在改成收集制：一次跑完，红项全列出来。
      */
     const failures = [];
+    const warnings = [];
 
     // ── 关键文件必须在包里 ──
     const required = [
@@ -668,24 +763,51 @@ async function main() {
       console.log(`✓ 关键文件齐备（${required.length} 项）`);
     }
 
-    // ── index.ink 行数必须和仓库一致 ──
+    /**
+     * ── index.ink 行数：包内 vs 仓库 ──
+     *
+     * ⚠ **三态**，不是两态（2026-11-13 晚 review 后改）：
+     *   ① 包内 == 仓库                        → ✓ 一致
+     *   ② 包内 == 已发布基线 && 仓库 > 基线   → ⚠「仓库领先本版」（本地改了、还没重打包）
+     *   ③ 其余                                 → ✗ 失败（装错包 / 仓库被回退）
+     *
+     * 为什么要 ②：改 index.ink（比如补眼镜端免责声明）之后，仓库必然领先已发布的 v1.0.20。
+     * 老的两态写法把这个**预期状态**判成失败 ⇒ 每改一行代码核验脚本就假红一次，
+     * 真失败反而被淹没（这正是本轮差点发生的事）。
+     * 而 ③ 必须保留鉴别力：拿旧包（v1.0.18 等）来跑核验一定要红。
+     */
+    let repoAhead = false;
     if (!missing.length) {
       const pkgInkLines = readFileSync(path.join(root, 'pages/index/index.ink'), 'utf8').split('\n').length;
       const repoInkLines = readFileSync(
         path.join(REPO_ROOT, 'apps/rokid-agent/pages/index/index.ink'),
         'utf8',
       ).split('\n').length;
-      if (pkgInkLines !== repoInkLines) {
-        failures.push(`index.ink 行数不一致：包内 ${pkgInkLines}，仓库 ${repoInkLines} —— 包不是最新代码`);
-      } else {
+      const baseline = pkg.inkLines ?? null;
+      if (pkgInkLines === repoInkLines) {
         console.log(`✓ index.ink 行数一致（${pkgInkLines}）`);
+      } else if (baseline !== null && pkgInkLines === baseline && repoInkLines > baseline) {
+        repoAhead = true;
+        console.log(
+          `⚠ 仓库领先本版：包内 ${pkgInkLines} 行（= 已发布基线 ${baseline}），仓库 ${repoInkLines} 行` +
+            ` —— 本地代码已改、尚未重打包（预期状态，不算失败）`,
+        );
+      } else if (pkgInkLines > repoInkLines) {
+        failures.push(
+          `index.ink 行数不一致：包内 ${pkgInkLines} > 仓库 ${repoInkLines} —— 包比仓库还新（仓库被回退了？）`,
+        );
+      } else {
+        failures.push(
+          `index.ink 行数不一致：包内 ${pkgInkLines}，仓库 ${repoInkLines} —— 包不是最新代码`,
+        );
       }
     }
 
     // ── 追问超时必须一致（证明包里带了 2026-11-08 的超时修复）──
     const askCheck = checkAskTimeout(root);
     if (!askCheck.ok) {
-      failures.push(askCheck.message);
+      // soft 的差异在「仓库领先本版」时只是预期状态，不是装错包
+      (askCheck.soft && repoAhead ? warnings : failures).push(askCheck.message);
     } else {
       console.log(`✓ 追问超时一致（${askCheck.value}ms）—— 包里带了超时修复`);
     }
@@ -693,23 +815,40 @@ async function main() {
     // ── 对外文案必须逐字一致（专治「改了字、没改行数」）──
     const uiCheck = checkUiLiterals(root);
     if (!uiCheck.ok) {
-      failures.push(uiCheck.message);
+      (repoAhead ? warnings : failures).push(formatUiLiteralsProblem(uiCheck));
     } else {
-      console.log(`✓ 对外文案逐字一致（${uiCheck.count} 条中文字面量）—— 包里带的说明与仓库一致`);
+      console.log(
+        `✓ 对外文案逐字一致（${uiCheck.count} 条中文文本：JS 字面量 + 模板区）—— 包里带的说明与仓库一致`,
+      );
     }
 
     // ── 行为等价 ──
     const { problems, checks } = await compareBehaviour(root);
     console.log('');
     for (const c of checks) console.log(`✓ ${c}`);
-    failures.push(...problems);
+    (repoAhead ? warnings : failures).push(...problems);
+
+    if (warnings.length) {
+      console.warn(`\n⚠ ${warnings.length} 处告警（不判失败）：`);
+      for (const w of warnings) console.warn(`  · ${w}`);
+      if (repoAhead) {
+        console.warn(
+          `\n  ⓘ 上面这些差异来自「仓库比已发布包领先」—— 本地代码已改但还没重打包。` +
+            `\n     已发布的 ${pkg.file} 仍是当前唯一该装到眼镜上的版本。`,
+        );
+      }
+    }
 
     if (failures.length) {
       console.error(`\n✗ 核验发现 ${failures.length} 处问题：`);
       for (const p of failures) console.error(`  · ${p}`);
       process.exit(1);
     }
-    console.log('\n✓ 包内代码与仓库源码行为完全一致 —— 包里就是最新代码');
+    console.log(
+      repoAhead
+        ? '\n✓ 包内代码 = 当前已发布版本；仓库有尚未打包的新改动（不算失败）'
+        : '\n✓ 包内代码与仓库源码行为完全一致 —— 包里就是最新代码',
+    );
 
     // ── 留一份到 gitignore 的目录，方便真机调试前先下载本地 ──
     if (!existsSync(OUT_DIR)) {

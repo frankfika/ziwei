@@ -41,6 +41,57 @@ export const SILENCE_WINDOW = 4000;
 let activeCancel = null;
 
 /**
+ * 识别会话的**硬超时**（毫秒）—— 页面层的看门狗。
+ *
+ * ⚠️ 为什么不能只靠识别层自己的超时：
+ * 宿主有可能既不回调 `onend`、也不给结果，
+ * `await` 就永远挂着 ⇒ 页面的「正在听」锁永远不解 ⇒
+ * **之后每一次开口都被挡掉，语音输入彻底死掉**。
+ * 眼镜上没有键盘，用户唯一的出路是重开应用 —— 不能接受。
+ *
+ * 取 14000：比识别层的 LISTEN_TIMEOUT（12s）多留 2s，
+ * 让识别层自己收尾的那一段不被误杀。
+ */
+export const VOICE_HARD_TIMEOUT = 14000;
+
+/**
+ * 给一个 Promise 加一道**硬超时**。
+ *
+ * 超时不是「失败」，而是「没听到」——
+ * 调用方把它当成空结果处理（提示用户再说一次），
+ * 绝不能让它把页面留在半路。
+ *
+ * @template T
+ * @param {Promise<T>} promise 被看护的 Promise
+ * @param {number} ms 超时毫秒
+ * @returns {Promise<T>}
+ */
+export function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+        let done = false;
+        const timer = setTimeout(() => {
+            if (done) return;
+            done = true;
+            reject(new Error('语音识别超时'));
+        }, ms);
+        Promise.resolve(promise).then(
+            (value) => {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (err) => {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                reject(err);
+            }
+        );
+    });
+}
+
+/**
  * 取消正在进行的识别（尽力而为）。
  *
  * 用户按返回键退出录入时调用：逻辑层有代际令牌兜底，
@@ -85,6 +136,8 @@ export async function listenSession(options = {}) {
       return await new Promise((resolve) => {
         let settled = false;
         let accumulated = '';
+        /** 最后一次**非空**的识别文本（空结果不许清空它） */
+        let lastText = '';
         let silenceTimer = null;
 
         const clearTimers = () => {
@@ -103,7 +156,7 @@ export async function listenSession(options = {}) {
           resolve(typeof text === 'string' ? text.trim() : '');
         };
 
-        const timer = setTimeout(() => finish(accumulated), timeout);
+        const timer = setTimeout(() => finish(settledText()), timeout);
 
         const push = (chunk) => {
           if (typeof chunk !== 'string' || !chunk) return;
@@ -111,7 +164,7 @@ export async function listenSession(options = {}) {
           if (onPartial) onPartial(accumulated.trim());
           clearTimers();
           if (continuous) {
-            silenceTimer = setTimeout(() => finish(accumulated), silenceMs);
+            silenceTimer = setTimeout(() => finish(settledText()), silenceMs);
           }
         };
 
@@ -124,8 +177,19 @@ export async function listenSession(options = {}) {
           } catch (err) {
             /* ignore */
           }
-          finish(accumulated);
+          finish(settledText());
         };
+
+        /**
+         * 收尾用的文本：优先用「听过的最后一句」。
+         *
+         * ⚠️ 和 Web 分支同一个坑（2026-11-13 实测）：
+         * 宿主可能先给一次文本、再给一次空结果，
+         * 收尾那一刻手上是空的 ⇒ 白白丢掉已经听到的话。
+         */
+        function settledText() {
+          return lastText || accumulated;
+        }
 
         try {
           mod.speech.startRecognition({
@@ -138,12 +202,64 @@ export async function listenSession(options = {}) {
              * 比在页面层猜「宿主是不是分句派发」可靠。
              */
             continuous,
+            /**
+             * 中间结果开关 —— **Rokid ink 运行时的真实契约**。
+             *
+             * ⚠️ 2026-11-13 在 AIUI Studio 的真实运行时里拆过
+             * `ink_web_bg.wasm` 的字符串表，宿主的 `wx.speech.startRecognition`
+             * 读的是这几个键：`continuous` / `interimResults` / `maxAlternatives`
+             * / `onresult` / `onend` —— **不认 `success` / `fail`**。
+             *
+             * 所以下面 `onresult` / `onend` 才是正路，
+             * `success` / `fail` 只是给老宿主留的兼容位（多余字段被忽略，无害）。
+             */
+            interimResults: continuous,
+            maxAlternatives: 1,
+            /**
+             * 宿主的识别结果回调。
+             *
+             * payload 有两种可能形状，两种都认：
+             * · `{transcript, isFinal, resultIndex, confidence, sessionId}`
+             *   —— ink 运行时的形状（一次给一句）；
+             * · `{result | text | value, partialText}`
+             *   —— 兼容老宿主的形状（一次给全文）。
+             */
+            onresult: (res) => {
+              if (settled) return;
+              const chunk =
+                res && typeof res.transcript === 'string'
+                  ? res.transcript
+                  : res && typeof res.result === 'string'
+                    ? res.result
+                    : res && typeof res.text === 'string'
+                      ? res.text
+                      : res && typeof res.value === 'string'
+                        ? res.value
+                        : '';
+              const partial = res && typeof res.partialText === 'string' ? res.partialText : '';
+              if (chunk) accumulated = chunk;
+              if (partial) accumulated += partial;
+              const text = accumulated.trim();
+              if (text) lastText = text;
+              if (onPartial) onPartial(text);
+              clearTimers();
+              if (continuous) {
+                silenceTimer = setTimeout(() => finish(settledText()), silenceMs);
+              } else {
+                finish(settledText());
+              }
+            },
+            /** 宿主收尾了 —— 有内容就交 */
+            onend: () => {
+              finish(settledText());
+            },
             success: (res) => {
               /**
                * 宿主可能只给最终结果（`result` / `text` / `value`），
                * 也可能同时给增量（`partialText`）。
                * 两种都收：最终结果**替换**掉上一次，增量**追加**。
                */
+              if (settled) return;
               const finalText =
                 res && (res.result !== undefined ? res.result : res.text !== undefined ? res.text : res.value);
               const partial = res && res.partialText;
@@ -155,20 +271,22 @@ export async function listenSession(options = {}) {
               if (typeof partial === 'string' && partial) {
                 accumulated += partial;
               }
-              if (onPartial) onPartial(accumulated.trim());
+              const text = accumulated.trim();
+              if (text) lastText = text;
+              if (onPartial) onPartial(text);
               clearTimers();
               if (continuous) {
-                silenceTimer = setTimeout(() => finish(accumulated), silenceMs);
+                silenceTimer = setTimeout(() => finish(settledText()), silenceMs);
               } else {
-                finish(accumulated);
+                finish(settledText());
               }
             },
             fail: () => {
-              finish(accumulated);
+              finish(settledText());
             },
           });
         } catch (err) {
-          finish(accumulated);
+          finish(settledText());
         }
       });
     }
@@ -190,6 +308,20 @@ export async function listenSession(options = {}) {
       let settled = false;
       let finalText = '';
       let interimText = '';
+      /**
+       * 最后一次**非空**的识别文本。
+       *
+       * ⚠️ 为什么必须单独记一份（2026-11-13 在 AIUI Studio 实测踩到）：
+       * 宿主的 `onresult` 每次都带**完整结果集**，但它**不保证每次都非空** ——
+       * 实测顺序是「先给一次文本，紧接着又给一次空结果，然后才 `onend`」。
+       * 而 `onend` 收尾时读的是**当时**的 `finalText + interimText`，
+       * 那一刻已经被空结果清空了 ⇒ 明明听清了「1989年12月5日 子时 男」，
+       * 交给页面的却是**空串** ⇒ 生辰解析失败、盘面不重排。
+       *
+       * 记一份「听过的最后一句话」，收尾时用它兜底，
+       * 空结果就再也丢不掉已经听到的内容。
+       */
+      let lastText = '';
       let silenceTimer = null;
 
       const clearTimers = () => {
@@ -200,6 +332,9 @@ export async function listenSession(options = {}) {
       };
 
       const current = () => (finalText + interimText).trim();
+
+      /** 收尾用的文本：优先用「听过的最后一句」，没有才用当前结果 */
+      const settledText = () => lastText || current();
 
       const finish = (text) => {
         if (settled) return;
@@ -216,7 +351,7 @@ export async function listenSession(options = {}) {
       };
 
       const rec = new Ctor();
-      const timer = setTimeout(() => finish(current()), timeout);
+      const timer = setTimeout(() => finish(settledText()), timeout);
 
       activeCancel = () => {
         clearTimers();
@@ -225,7 +360,7 @@ export async function listenSession(options = {}) {
         } catch (err) {
           /* ignore */
         }
-        finish(current());
+        finish(settledText());
       };
 
       rec.lang = 'zh-CN';
@@ -241,6 +376,16 @@ export async function listenSession(options = {}) {
 
       rec.onresult = (event) => {
         /**
+         * **会话已收尾就不要再报**（2026-11-13 实测踩到的坑）。
+         *
+         * 宿主可能把结果**晚于** `onend` 送到。
+         * 那时页面已经把「没听清」显示出来了，
+         * 如果这里还把文本报上去，状态行会从「没听清」跳回「在听：xxx」——
+         * 用户看到的是「我明明说了话，页面却一直显示在听」。
+         * ⇒ 收尾之后到达的一切结果一律丢弃。
+         */
+        if (settled) return;
+        /**
          * 每一次都**从头重算**，不增量追加 ——
          * 因为同一个 result 会从「非最终」变成「最终」，
          * 增量追加会把它算两遍。
@@ -255,22 +400,25 @@ export async function listenSession(options = {}) {
           if (r.isFinal) finalText += alt.transcript;
           else interimText += alt.transcript;
         }
-        if (onPartial) onPartial(current());
+        const text = current();
+        /** 空结果不清空「听过的最后一句」 */
+        if (text) lastText = text;
+        if (onPartial) onPartial(text);
         clearTimers();
         if (continuous) {
-          silenceTimer = setTimeout(() => finish(current()), silenceMs);
+          silenceTimer = setTimeout(() => finish(settledText()), silenceMs);
         } else {
-          finish(current());
+          finish(settledText());
         }
       };
 
       rec.onerror = () => {
-        finish(finalText.trim());
+        finish(settledText());
       };
 
       rec.onend = () => {
         /** 识别器自己收尾了 —— 有内容就交，没内容就当没听到 */
-        finish(current());
+        finish(settledText());
       };
 
       try {

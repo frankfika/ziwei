@@ -75,7 +75,13 @@ import { latestProfile, upsertProfile } from '../../lib/storage.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
-import { listenOnce, listenContinuous, cancelListen } from '../../lib/voice-input.js';
+import {
+    listenOnce,
+    listenContinuous,
+    cancelListen,
+    withTimeout,
+    VOICE_HARD_TIMEOUT
+} from '../../lib/voice-input.js';
 import {
     TURN_KIND,
     MAX_TURNS,
@@ -1065,14 +1071,39 @@ export default {
         const seq = ++this._voiceSeq;
         this.setData({ hintLine: this._hintFor(SCREEN.CHAT) });
         this._refreshStatus('在听……请说出你的问题');
-        const text = await listenContinuous({
-            onPartial: (partial) => {
-                if (seq !== this._voiceSeq) return;
-                this._refreshStatus(partial ? `在听：${summarize(partial, 18)}` : '在听……');
-            }
-        });
+        let text = '';
+        try {
+            /**
+             * 看门狗：识别会话**必须**有终点。
+             *
+             * ⚠️ 为什么不能只靠 listenSession 自己的超时（2026-11-13 实测）：
+             * 宿主有可能既不回调 `onend`、也不给结果，
+             * 于是 `await` 永远挂着 ⇒ `_listening` 永远是 true
+             * ⇒ **这之后的每一次开口都被 `if (this._listening) return;` 挡掉**
+             * ⇒ 语音输入在真机上彻底死掉，而且用户没有任何办法恢复。
+             * 眼镜上没有键盘，「重开应用」是唯一的出路 —— 不能接受。
+             *
+             * 所以这里再套一层**硬超时**：超了就算没听到，
+             * 状态行回到「没听清，再说一次」，`_listening` 复位，下一次开口照常能用。
+             */
+            text = await withTimeout(
+                listenContinuous({
+                    onPartial: (partial) => {
+                        /** 会话已经结束就别再改状态行（迟到的回调不许把界面说谎） */
+                        if (seq !== this._voiceSeq || !this._listening) return;
+                        this._refreshStatus(partial ? `在听：${summarize(partial, 18)}` : '在听……');
+                    }
+                }),
+                VOICE_HARD_TIMEOUT
+            );
+        } catch (err) {
+            /** 超时/异常都当「没听到」，不能把页面卡在「在听……」 */
+            text = '';
+        } finally {
+            /** 只有还是这一轮的时候才复位，别把后来那一轮的锁给拆了 */
+            if (seq === this._voiceSeq) this._listening = false;
+        }
         if (seq !== this._voiceSeq) return;
-        this._listening = false;
 
         const question = normalizeQuestion(text);
         if (!question) {
@@ -1410,6 +1441,14 @@ export default {
     _openInput() {
         /** 新一次录入，作废旧识别的迟到结果，停掉可能还在念的播报 */
         this._voiceSeq += 1;
+        /**
+         * ⚠️ 必须同时解掉「正在听」那把锁：
+         * `_voiceSeq` 作废了旧会话，但 `_listening` 还是 true 的话，
+         * 这一页上再开口说话会被 `if (this._listening) return;` 直接挡掉 ——
+         * 用户在这个页面上唯一能做的事就是说话，挡掉就等于页面死了。
+         */
+        this._listening = false;
+        cancelListen();
         stopSpeaking();
         this.setData({
             screen: SCREEN.INPUT,
@@ -1472,14 +1511,24 @@ export default {
          * ⚠️ 连续识别：生辰是「1990年1月1日早上男」这种**多个信息位**的话，
          * 一次性识别会把后半句截断（社区实战踩过的坑）。
          */
-        const text = await listenOnce({
-            onPartial: (partial) => {
-                if (seq !== this._voiceSeq) return;
-                this.setData({ voiceHint: '在听……', heardText: partial });
-            }
-        });
+        let text = '';
+        try {
+            /** 同样的看门狗：识别必须有终点，否则这一页上的说话功能会死掉 */
+            text = await withTimeout(
+                listenOnce({
+                    onPartial: (partial) => {
+                        if (seq !== this._voiceSeq || !this._listening) return;
+                        this.setData({ voiceHint: '在听……', heardText: partial });
+                    }
+                }),
+                VOICE_HARD_TIMEOUT
+            );
+        } catch (err) {
+            text = '';
+        } finally {
+            if (seq === this._voiceSeq) this._listening = false;
+        }
         if (seq !== this._voiceSeq) return;
-        this._listening = false;
         if (!text) {
             this.setData({ voiceHint: '没听清，再说一次：1990年1月1日 早上 男' });
             return;

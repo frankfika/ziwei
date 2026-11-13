@@ -82,20 +82,42 @@ async function loadPageModule(asrText = '') {
 
   // 语音识别桩：把 listenOnce / listenContinuous 换成固定返回值的假函数，
   // 这样「单击 → 听 → 解析 → 排盘」整条路径能在本地跑通。
+  //
+  // ⚠️ 桩是**照着 import 列表自动生成**的（不是手写一串）——
+  // 2026-11-13 加了 `withTimeout` / `VOICE_HARD_TIMEOUT` 两个导出，
+  // 手写桩没跟上 ⇒ 页面里 `withTimeout is not defined` ⇒
+  // 首启模拟整条链路挂掉，回归变红。现在多一个导出就会自动多一个桩。
   if (asrText) {
-    const before = body;
+    const importRe = /import\s*\{([^}]*)\}\s*from\s*'[^']*voice-input\.js';/;
+    const matched = body.match(importRe);
+    if (!matched) {
+      throw new Error('没能找到 voice-input 导入 —— index.ink 的导入写法变了？');
+    }
+    const names = matched[1]
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
+    /** 每个导出对应的桩；表里没有的名字一律报错，不许静默跳过 */
+    const stubs = {
+      listenOnce: `const listenOnce = __say;`,
+      listenContinuous: `const listenContinuous = __say;`,
+      cancelListen: `const cancelListen = () => {};`,
+      withTimeout: `const withTimeout = async (p) => p;`,
+      VOICE_HARD_TIMEOUT: `const VOICE_HARD_TIMEOUT = 14000;`
+    };
+    const unknown = names.filter((n) => !(n in stubs));
+    if (unknown.length) {
+      throw new Error(
+        `voice-input 的新导出没有桩：${unknown.join('、')} —— 请在 simulate-first-launch.mjs 的 stubs 表里补上`
+      );
+    }
     body = body.replace(
-      /import\s*\{[^}]*\}\s*from\s*'[^']*voice-input\.js';/,
+      importRe,
       [
         `const __say = async () => ${JSON.stringify(asrText)};`,
-        'const listenOnce = __say;',
-        'const listenContinuous = __say;',
-        'const cancelListen = () => {};'
+        ...names.map((n) => stubs[n])
       ].join('\n')
     );
-    if (body === before) {
-      throw new Error('没能替换掉 voice-input 导入 —— index.ink 的导入写法变了？');
-    }
   }
 
   const tmp = path.join(os.tmpdir(), `ziwei-ink-setup-${process.pid}.mjs`);

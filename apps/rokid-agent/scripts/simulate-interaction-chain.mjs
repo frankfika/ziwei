@@ -75,17 +75,39 @@ async function loadPageModule() {
     );
 
     /* 语音桩：__stubSpeech 决定「用户说了什么」 */
+    // ⚠️ 桩是**照着 import 列表自动生成**的（不是手写一串）——
+    // 新增导出时忘了补桩 ⇒ 页面里 `xxx is not defined` ⇒ 整条交互链断在半路。
+    const voiceImportRe = /import\s*\{([^}]*)\}\s*from\s*'[^']*voice-input\.js';/;
+    const voiceMatched = body.match(voiceImportRe);
+    if (!voiceMatched) {
+      throw new Error('没能找到 voice-input 导入 —— index.ink 的导入写法变了？');
+    }
+    const voiceNames = voiceMatched[1]
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean);
+    const voiceStubs = {
+        listenOnce: 'const listenOnce = __say;',
+        listenContinuous: 'const listenContinuous = __say;',
+        cancelListen: 'const cancelListen = () => {};',
+        withTimeout: 'const withTimeout = async (p) => p;',
+        VOICE_HARD_TIMEOUT: 'const VOICE_HARD_TIMEOUT = 14000;'
+    };
+    const voiceUnknown = voiceNames.filter((n) => !(n in voiceStubs));
+    if (voiceUnknown.length) {
+        throw new Error(
+            `voice-input 的新导出没有桩：${voiceUnknown.join('、')} —— 请在 simulate-interaction-chain.mjs 的 voiceStubs 表里补上`
+        );
+    }
     body = body.replace(
-        /import\s*\{[^}]*\}\s*from\s*'[^']*voice-input\.js';/,
+        voiceImportRe,
         [
             'const __say = async (opts) => {',
             '    const text = globalThis.__stubSpeech || "";',
             '    if (opts && typeof opts.onPartial === "function") opts.onPartial(text);',
             '    return text;',
             '};',
-            'const listenOnce = __say;',
-            'const listenContinuous = __say;',
-            'const cancelListen = () => {};'
+            ...voiceNames.map((n) => voiceStubs[n])
         ].join('\n'),
     );
 

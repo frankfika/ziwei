@@ -31,7 +31,16 @@
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -54,10 +63,24 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794537604280.aix`,
+    md5: 'b788ed4db4fce874ea43f0360d9ad6ff',
+    note: '2026-11-13 10:4x 重打，**3.60 MB / 3,777,818 B**；**v1.0.19 —— 现行版，Frank 装这一版**。含本轮三笔：① 显示层整体优化（正文按段落渲染 + 最新一轮置顶 + 标注行提前 + 状态行分层 + 字号 9→11px）；② 语音输入致命缺陷修复（空结果不清空已听文本 / 迟到结果丢弃 / 硬超时 14s 看门狗 / wx 契约对齐）；③ 模板注释被当文字渲染 + 自己的盘引导语写错。⚠️ **包比上一版小 5.06 MB 不是丢东西** —— 是包内嵌的预览视频从 6.1 MB 的旧版换成了 1.0 MB 的重渲版（差值正好对上）。核验新增「语音输入 wx 宿主行为 8/8」这条断言（造 wx 宿主桩给包内/仓库喂同一串事件比对）',
+    current: true,
+  },
+  {
+    key: 'prev-v1018',
+    file: `${AGENT_ID}-1794503370363.aix`,
+    md5: 'fdd8bc98ccbdec340c8282f4e00b6a77',
+    note: '2026-11-13 01:1x 重打，8.66 MB；**v1.0.18**。含交互整体重做 + 正文纯文本化 + 追问瞬时故障重试；**不含**本轮三笔（显示层优化 / 语音致命缺陷 / 模板注释）。用它试跑核验可以自证新断言有鉴别力（语音场景会红）',
+    current: false,
+  },
+  {
+    key: 'prev-v1015',
     file: `${AGENT_ID}-1794494267342.aix`,
     md5: 'dcd16bc45783e8d51574b4e082cad13a',
     note: '2026-11-12 22:37 重打，8.48 MB；**v1.0.15 拟提审版**。含 2026-11-12 早间两轮交互修复（cdcda9b + db2b387）+ 追问超时 120s + 端侧引擎 Intl.PluralRules 兜底 + 时辰入口改造；`npm run aix:fetch` 全项核验通过（index.ink 行数一致 / 追问超时一致 / 出生参数三级兜底 9/9 / 端侧排盘+运限三层 8/8 / 晚子时口径 / 十二宫外圈巡宫），定点 grep 确认含 `cancelListen`、代际令牌 `_voiceSeq`/`_readingSeq`/`_askSeq`、「返回键回盘面」',
-    current: true,
+    current: false,
   },
   {
     key: 'prev-1108-1919',
@@ -229,6 +252,197 @@ function checkAskTimeout(pkgRoot) {
 }
 
 /**
+ * wx 宿主桩 —— 用来把 `wx.speech.startRecognition` 的回调**按剧本**触发。
+ *
+ * 为什么需要桩：
+ *   `lib/voice-input.js` 里唯一一条 `import('wx')` 是动态导入。
+ *   在 node 里直接跑，它会导入失败 → 落到 Web 分支 → node 没有
+ *   `SpeechRecognition` → 直接返回空串 ⇒ **什么都测不到**。
+ *
+ * 所以给包内版和仓库版各配一份沙箱（沙箱里放 node_modules/wx 桩），
+ * 两边喂**同一串事件**，比对最终拿到的文本。
+ *
+ * 桩实现的是宿主真实契约（2026-11-13 从 ink_web_bg.wasm 的字符串表里核过）：
+ *   读 `continuous` / `interimResults` / `maxAlternatives`，
+ *   回调 `onresult` / `onend`（**不认** `success` / `fail`，但老宿主会用）。
+ */
+const VOICE_WX_STUB = `export const speech = {
+  startRecognition(opts) {
+    globalThis.__wxVoiceCtl = {
+      opts,
+      result(payload) { if (typeof opts.onresult === 'function') opts.onresult(payload); },
+      end() { if (typeof opts.onend === 'function') opts.onend(); },
+      success(payload) { if (typeof opts.success === 'function') opts.success(payload); },
+      fail() { if (typeof opts.fail === 'function') opts.fail(); },
+    };
+  },
+  stopRecognition() {},
+};
+export default { speech };
+`;
+
+/**
+ * 语音输入行为场景。
+ *
+ * `expect` 是**从仓库源码推导**出来的期望值，不是从包内跑出来的 ——
+ * 所以「两边一致」且「两边都等于 expect」才算过。
+ * 只要包内少了那一行 `if (text) lastText = text;`，这条就会红。
+ */
+const VOICE_SCENARIOS = [
+  {
+    name: '宿主先给文本、再给空结果（空结果不许清空已听到的话）',
+    events: [
+      { k: 'result', p: { transcript: '1989年12月5日 子时 男' } },
+      { k: 'result', p: { transcript: '' } },
+      { k: 'end' },
+    ],
+    expect: '1989年12月5日 子时 男',
+  },
+  {
+    name: '只有一次结果就收尾',
+    events: [{ k: 'result', p: { transcript: '今天财运如何' } }, { k: 'end' }],
+    expect: '今天财运如何',
+  },
+  {
+    name: '宿主不收尾（靠静音窗口收工）',
+    events: [{ k: 'result', p: { transcript: '静音收尾测试' } }, { k: 'wait', ms: 320 }],
+    expect: '静音收尾测试',
+  },
+  {
+    name: '收尾之后才到的结果必须被丢弃',
+    events: [
+      { k: 'result', p: { transcript: '先到的那句' } },
+      { k: 'end' },
+      { k: 'wait', ms: 30 },
+      { k: 'result', p: { transcript: '迟到的结果' } },
+    ],
+    expect: '先到的那句',
+  },
+  {
+    name: '宿主完全不回调（硬超时后返回空串，不能挂死）',
+    events: [],
+    expect: '',
+  },
+  {
+    name: '最终结果 + 增量（partialText 追加）',
+    events: [
+      { k: 'result', p: { transcript: '前半句' } },
+      { k: 'result', p: { partialText: '后半句' } },
+      { k: 'end' },
+    ],
+    expect: '前半句后半句',
+  },
+  {
+    name: '老宿主的 success 契约（只给最终结果）',
+    events: [{ k: 'success', p: { result: '完整的一句' } }, { k: 'end' }],
+    expect: '完整的一句',
+  },
+  {
+    name: '老宿主的 fail 契约（没听到东西）',
+    events: [{ k: 'fail' }],
+    expect: '',
+  },
+];
+
+/** 在沙箱里放一份 voice-input.js + wx 宿主桩，返回可 import 的路径 */
+function prepareVoiceSandbox(srcPath, dir) {
+  mkdirSync(path.join(dir, 'node_modules/wx'), { recursive: true });
+  copyFileSync(srcPath, path.join(dir, 'voice-input.js'));
+  writeFileSync(
+    path.join(dir, 'node_modules/wx/package.json'),
+    JSON.stringify({ name: 'wx', version: '0.0.0', type: 'module', main: 'index.mjs' }),
+  );
+  writeFileSync(path.join(dir, 'node_modules/wx/index.mjs'), VOICE_WX_STUB);
+  return path.join(dir, 'voice-input.js');
+}
+
+/** 按剧本跑一个场景，返回识别到的文本 */
+async function runVoiceScenario(mod, scenario) {
+  globalThis.__wxVoiceCtl = null;
+  const p = mod.listenSession({ timeout: 400, silenceMs: 150, continuous: true });
+  await new Promise((r) => setTimeout(r, 25));
+  const ctl = globalThis.__wxVoiceCtl;
+  if (!ctl) return { value: null, error: '宿主桩没被调用（说明没走 wx 分支）' };
+  for (const ev of scenario.events) {
+    if (ev.k === 'result') ctl.result(ev.p);
+    else if (ev.k === 'end') ctl.end();
+    else if (ev.k === 'success') ctl.success(ev.p);
+    else if (ev.k === 'fail') ctl.fail();
+    else if (ev.k === 'wait') await new Promise((r) => setTimeout(r, ev.ms));
+  }
+  const value = await p;
+  return { value, error: null };
+}
+
+/**
+ * 比对「包内的语音输入模块」与「仓库里的」行为是否一致。
+ *
+ * 为什么单独加这条（2026-11-13）：
+ *   这一轮的核心修复**全在** lib/voice-input.js 里 ——
+ *   ① 宿主先给一次文本、再给一次**空**结果时，收尾不能把已经听到的话丢掉
+ *      （2026-11-13 实测宿主事件顺序正是 onresult(文本) → onresult(空) → onend）；
+ *   ② 识别器不收尾时必须有硬超时，不能让页面的「正在听」永远不解
+ *      （眼镜上没有键盘，卡死等于只能重开应用）。
+ *   而旧的核验**只比了** birth-source / engine / chart-layout ——
+ *   恰好漏掉了这个最要命的文件。
+ */
+async function compareVoiceInput(pkgRoot) {
+  const problems = [];
+  const checks = [];
+
+  const sandbox = mkdtempSync(path.join(tmpdir(), 'aix-voice-'));
+  try {
+    const pkgEntry = prepareVoiceSandbox(
+      path.join(pkgRoot, 'lib/voice-input.js'),
+      path.join(sandbox, 'pkg'),
+    );
+    const repoEntry = prepareVoiceSandbox(
+      path.join(REPO_ROOT, 'apps/rokid-agent/lib/voice-input.js'),
+      path.join(sandbox, 'repo'),
+    );
+    const pkgMod = await load(pkgEntry);
+    const repoMod = await load(repoEntry);
+
+    let same = 0;
+    let correct = 0;
+    for (const sc of VOICE_SCENARIOS) {
+      const pkgRes = await runVoiceScenario(pkgMod, sc);
+      const repoRes = await runVoiceScenario(repoMod, sc);
+      if (pkgRes.error || repoRes.error) {
+        problems.push(`语音场景「${sc.name}」跑不起来：${pkgRes.error || repoRes.error}`);
+        continue;
+      }
+      if (pkgRes.value !== repoRes.value) {
+        problems.push(
+          `语音场景「${sc.name}」包内与仓库不一致：包内 ${JSON.stringify(pkgRes.value)}，仓库 ${JSON.stringify(repoRes.value)}`,
+        );
+        continue;
+      }
+      same++;
+      if (pkgRes.value !== sc.expect) {
+        problems.push(
+          `语音场景「${sc.name}」结果不对：实际 ${JSON.stringify(pkgRes.value)}，期望 ${JSON.stringify(sc.expect)}`,
+        );
+        continue;
+      }
+      correct++;
+    }
+    checks.push(
+      `语音输入 wx 宿主行为：${correct}/${VOICE_SCENARIOS.length} 个场景包内与仓库逐字一致且符合预期（包内↔仓库一致 ${same}/${VOICE_SCENARIOS.length}）`,
+    );
+  } finally {
+    if (!process.env.AIX_KEEP_SANDBOX) {
+      try {
+        rmSync(sandbox, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return { problems, checks };
+}
+
+/**
  * 比对「包内的模块」与「仓库里的模块」行为是否一致。
  * 包内代码被「资源优化 等级2」压过（去注释、去空白、部分改名），
  * 字节比不了 —— 只能比行为。
@@ -304,6 +518,11 @@ async function compareBehaviour(pkgRoot) {
     checks.push('十二宫外圈巡宫（stepRing）行为一致');
   }
 
+  // ── 语音输入：wx 宿主契约 + 空结果不清空 + 硬超时 ──
+  const voice = await compareVoiceInput(pkgRoot);
+  problems.push(...voice.problems);
+  checks.push(...voice.checks);
+
   return { problems, checks };
 }
 
@@ -349,6 +568,17 @@ async function main() {
     const root = unzip(buffer, work);
     console.log(`\n解包   ${root}`);
 
+    /**
+     * ⚠️ 所有失败项**收集齐再一起报**，不要遇到第一个就 exit。
+     *
+     * 为什么：核验这个脚本的价值一半在「一次跑完看到全部问题」。
+     * 早先的写法是「行数不符 → 立刻 exit」，
+     * 于是拿旧包试跑时**只看得到行数不符**，
+     * 后面那些更有信息量的断言（语音行为不一致）根本没机会显示。
+     * 现在改成收集制：一次跑完，红项全列出来。
+     */
+    const failures = [];
+
     // ── 关键文件必须在包里 ──
     const required = [
       'app.json',
@@ -363,38 +593,42 @@ async function main() {
     ];
     const missing = required.filter((f) => !existsSync(path.join(root, f)));
     if (missing.length) {
-      console.error(`\n✗ 包内缺文件：${missing.join('、')}`);
-      process.exit(1);
+      failures.push(`包内缺文件：${missing.join('、')}`);
+    } else {
+      console.log(`✓ 关键文件齐备（${required.length} 项）`);
     }
-    console.log(`✓ 关键文件齐备（${required.length} 项）`);
 
     // ── index.ink 行数必须和仓库一致 ──
-    const pkgInkLines = readFileSync(path.join(root, 'pages/index/index.ink'), 'utf8').split('\n').length;
-    const repoInkLines = readFileSync(
-      path.join(REPO_ROOT, 'apps/rokid-agent/pages/index/index.ink'),
-      'utf8',
-    ).split('\n').length;
-    if (pkgInkLines !== repoInkLines) {
-      console.error(`\n✗ index.ink 行数不一致：包内 ${pkgInkLines}，仓库 ${repoInkLines} —— 包不是最新代码`);
-      process.exit(1);
+    if (!missing.length) {
+      const pkgInkLines = readFileSync(path.join(root, 'pages/index/index.ink'), 'utf8').split('\n').length;
+      const repoInkLines = readFileSync(
+        path.join(REPO_ROOT, 'apps/rokid-agent/pages/index/index.ink'),
+        'utf8',
+      ).split('\n').length;
+      if (pkgInkLines !== repoInkLines) {
+        failures.push(`index.ink 行数不一致：包内 ${pkgInkLines}，仓库 ${repoInkLines} —— 包不是最新代码`);
+      } else {
+        console.log(`✓ index.ink 行数一致（${pkgInkLines}）`);
+      }
     }
-    console.log(`✓ index.ink 行数一致（${pkgInkLines}）`);
 
     // ── 追问超时必须一致（证明包里带了 2026-11-08 的超时修复）──
     const askCheck = checkAskTimeout(root);
     if (!askCheck.ok) {
-      console.error(`\n✗ ${askCheck.message}`);
-      process.exit(1);
+      failures.push(askCheck.message);
+    } else {
+      console.log(`✓ 追问超时一致（${askCheck.value}ms）—— 包里带了超时修复`);
     }
-    console.log(`✓ 追问超时一致（${askCheck.value}ms）—— 包里带了超时修复`);
 
     // ── 行为等价 ──
     const { problems, checks } = await compareBehaviour(root);
     console.log('');
     for (const c of checks) console.log(`✓ ${c}`);
-    if (problems.length) {
-      console.error(`\n✗ 行为比对发现 ${problems.length} 处不一致：`);
-      for (const p of problems) console.error(`  · ${p}`);
+    failures.push(...problems);
+
+    if (failures.length) {
+      console.error(`\n✗ 核验发现 ${failures.length} 处问题：`);
+      for (const p of failures) console.error(`  · ${p}`);
       process.exit(1);
     }
     console.log('\n✓ 包内代码与仓库源码行为完全一致 —— 包里就是最新代码');

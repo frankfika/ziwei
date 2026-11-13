@@ -87,6 +87,7 @@ import {
     appendTurn,
     indexOfTurn,
     viewTurns,
+    viewRows,
     digestOf,
     nextSuggestionIndex
 } from '../../lib/chat-store.js';
@@ -208,6 +209,17 @@ export default {
         /** 状态行（端侧计算 / 正在听 / 正在推演） */
         statusLine: '',
         /**
+         * 瞬时状态（正在听 / 正在推演 / 没听清）。
+         *
+         * ⚠️ 为什么要单独一个字段：
+         * 盘面页的状态行是**诊断行**（传感器通道 + 计算来源 + 最近按键），
+         * 对话页页脚是**用户行**（计算来源 + 瞬时状态）——
+         * 两者内容不同，但都由同一份瞬时状态驱动。
+         */
+        transient: '',
+        /** 对话页页脚的状态行（不含诊断信息） */
+        footStatus: '',
+        /**
          * 示例盘标注。
          *
          * 拿不到任何出生信息时会先亮一张内置示例盘（见 lib/birth-source.js），
@@ -239,6 +251,8 @@ export default {
         /* ---- 对话页 ---- */
         /** 会话流视图模型 */
         chatTurns: [],
+        /** 会话流 → 扁平的渲染行（模板只用这一层） */
+        chatRows: [],
         /** 会话流为空 */
         chatEmpty: true,
         /** 对话页空态的标题（示例盘时改成「先说说你的生辰」） */
@@ -418,7 +432,8 @@ export default {
         const raw = rawKeyLabel(event);
         if (raw && raw !== this.data.lastInput) {
             const short = raw.length > 12 ? raw.slice(0, 12) : raw;
-            this.setData({ lastInput: short, statusLine: this._statusLine(undefined, short) });
+            this.setData({ lastInput: short });
+            this._refreshStatus(undefined, undefined, short ? `按键 ${short}` : '');
         }
 
         const emitted = this._input.feed(action, phase);
@@ -619,12 +634,15 @@ export default {
                 layerRole: '',
                 layersReady: this._layersReady,
                 sourceLabel: result.source === 'device' ? '端侧计算' : '服务端计算',
-                /** 中宫状态行：传感器通道 + 计算来源（+ 最近一次输入的原始键值） */
-                statusLine: this._statusLine(result.source === 'device' ? '端侧计算' : '服务端计算'),
                 demoLabel,
                 hourNote,
                 noticeLabel
             });
+            /**
+             * 状态行单独重算 —— 这一刻 `data.sourceLabel` 还是旧值
+             * （setData 是异步落地的），所以把来源显式传进去。
+             */
+            this._refreshStatus('', result.source === 'device' ? '端侧计算' : '服务端计算');
             this._syncChat();
         } catch (err) {
             console.info(
@@ -743,7 +761,13 @@ export default {
      */
     _hintFor(screen) {
         if (screen === SCREEN.INPUT) return this.data.inputHint;
-        if (screen === SCREEN.CHAT) return '滑动翻会话　单击开口问　双击问建议语';
+        /**
+         * ⚠️ 「向前滑动看更早」不是随口写的：
+         * 真机前滑 = `Right`+`Down` ⇒ `isPrevDirection` 为假 ⇒ 滚动量 +1 ⇒ **往下**。
+         * 而会话流是**倒序**的（最新在最上），往下 = 更早的一轮。
+         * 前滑 = 往过去翻，与盘面页「前滑 = 下一宫」是同一个方向逻辑。
+         */
+        if (screen === SCREEN.CHAT) return '向前滑动看更早　单击开口问　双击问建议语';
         return '滑动选宫　单击问这宫　双击切层';
     },
 
@@ -754,13 +778,38 @@ export default {
      * @param {string} [lastInput] 传了就用传值，否则用 data 里已有的
      * @returns {string}
      */
-    _statusLine(sourceLabel, lastInput) {
-        const parts = [
-            this.data.sensorLabel,
-            sourceLabel || this.data.sourceLabel,
-            lastInput !== undefined ? lastInput : this.data.lastInput
-        ].filter(Boolean);
-        return parts.join('　');
+    /**
+     * 重算两处状态行。
+     *
+     * ⚠️ **为什么要分成两行、两种内容**：
+     * · 盘面页中宫的 `statusLine` 是**诊断行** ——
+     *   传感器通道 + 计算来源 + 最近一次输入的**原始键值**。
+     *   真机上**看不到开发者工具**，这行是唯一能自证
+     *   「设备到底报了什么键、间隔多少」的地方（DEVICE-CHECKLIST §1.5 T2 / E19）。
+     *   但光秃秃一个 `Enter` 用户看不懂 ⇒ 前面加「按键」两个字。
+     * · 对话页页脚的 `footStatus` 是**用户行** —— 计算来源 + 瞬时状态。
+     *   传感器通道和原始键值是给验收人员看的，
+     *   不该混进用户长时间停留的页面。
+     *
+     * @param {string} [extra] 瞬时状态（正在听 / 正在推演 / 没听清）；不给就沿用 data 里的
+     * @param {string} [sourceOverride] 计算来源（排盘那一刻 data 里还是旧值）
+     * @param {string} [keyOverride] 最近按键（这一轮刚按下的）
+     * @returns {void}
+     */
+    _refreshStatus(extra, sourceOverride, keyOverride) {
+        const t = extra !== undefined ? extra : this.data.transient || '';
+        const source = sourceOverride !== undefined ? sourceOverride : this.data.sourceLabel;
+        const key =
+            keyOverride !== undefined
+                ? keyOverride
+                : this.data.lastInput
+                    ? `按键 ${this.data.lastInput}`
+                    : '';
+        this.setData({
+            transient: t,
+            statusLine: [this.data.sensorLabel, source, t || key].filter(Boolean).join('　'),
+            footStatus: [source, t].filter(Boolean).join('　')
+        });
     },
 
     /**
@@ -808,6 +857,7 @@ export default {
         const digest = digestOf(this._turns);
         this.setData({
             chatTurns: viewTurns(this._turns),
+            chatRows: viewRows(this._turns),
             chatEmpty: this._turns.length === 0,
             digestQuestion: digest.question ? summarize(digest.question, 20) : '',
             digestAnswer: digest.answer,
@@ -853,6 +903,15 @@ export default {
             pending: false,
             failed: Boolean(patch.failed)
         };
+        /**
+         * 答案落地 → 滚回顶部。
+         *
+         * ⚠️ 为什么必须回顶：
+         * 回答是最长的一屏（1400 字 ≈ 30 行），落地时正文会把下面的一切顶下去；
+         * 如果用户此刻停在别的位置，他看到的是「内容被推走」的混乱画面，
+         * 而不是刚到手的答案。最新一轮本来就在最上面，回顶正好落在它的开头。
+         */
+        this.setData({ chatScrollTop: 0 });
         this._syncChat();
     },
 
@@ -1004,14 +1063,12 @@ export default {
         if (this._listening) return;
         this._listening = true;
         const seq = ++this._voiceSeq;
-        this.setData({
-            statusLine: '在听……请说出你的问题',
-            hintLine: this._hintFor(SCREEN.CHAT)
-        });
+        this.setData({ hintLine: this._hintFor(SCREEN.CHAT) });
+        this._refreshStatus('在听……请说出你的问题');
         const text = await listenContinuous({
             onPartial: (partial) => {
                 if (seq !== this._voiceSeq) return;
-                this.setData({ statusLine: partial ? `在听：${summarize(partial, 18)}` : '在听……' });
+                this._refreshStatus(partial ? `在听：${summarize(partial, 18)}` : '在听……');
             }
         });
         if (seq !== this._voiceSeq) return;
@@ -1019,10 +1076,8 @@ export default {
 
         const question = normalizeQuestion(text);
         if (!question) {
-            this.setData({
-                statusLine: '没听清，再说一次',
-                hintLine: this._hintFor(SCREEN.CHAT)
-            });
+            this.setData({ hintLine: this._hintFor(SCREEN.CHAT) });
+            this._refreshStatus('没听清，再说一次');
             this._syncChat();
             return;
         }
@@ -1082,10 +1137,8 @@ export default {
         });
         this._turns = appendTurn(this._turns, turn, MAX_TURNS);
         this._askLoading = true;
-        this.setData({
-            statusLine: '正在推演……',
-            hintLine: this._hintFor(SCREEN.CHAT)
-        });
+        this.setData({ hintLine: this._hintFor(SCREEN.CHAT), chatScrollTop: 0 });
+        this._refreshStatus('正在推演……');
         this._syncChat();
 
         try {
@@ -1099,7 +1152,7 @@ export default {
             });
             this._askTurns.push({ question: q, answer });
             if (this._askTurns.length > 3) this._askTurns.shift();
-            this.setData({ statusLine: this._statusLine() });
+            this._refreshStatus('');
             speak(answer);
         } catch (err) {
             if (seq !== this._askSeq) return;
@@ -1117,7 +1170,7 @@ export default {
                 answer: '这一问暂时没有回答，单击重试。',
                 failed: true
             });
-            this.setData({ statusLine: this._statusLine() });
+            this._refreshStatus('');
         }
     },
 
@@ -1185,9 +1238,9 @@ export default {
         stopSpeaking();
         this.setData({
             screen: SCREEN.BOARD,
-            statusLine: this._statusLine(),
             hintLine: this._hintFor(SCREEN.BOARD)
         });
+        this._refreshStatus();
         this._syncChat();
     },
 
@@ -1242,9 +1295,9 @@ export default {
 
             this._sensorMode = 'cursor';
             this.setData({
-                sensorLabel: '头部准星',
-                statusLine: this._statusLine()
+                sensorLabel: '头部准星'
             });
+            this._refreshStatus();
         } catch (err) {
             this._fallbackToTilt();
         }
@@ -1254,9 +1307,9 @@ export default {
         if (this._sensorMode === 'tilt') return;
         this._sensorMode = 'tilt';
         this.setData({
-            sensorLabel: '抬头选宫',
-            statusLine: this._statusLine()
+            sensorLabel: '抬头选宫'
         });
+        this._refreshStatus();
 
         try {
             const sensor = new Accelerometer({ frequency: SENSOR.FREQUENCY });
@@ -1283,9 +1336,9 @@ export default {
         } catch (err) {
             this._sensorMode = 'none';
             this.setData({
-                sensorLabel: '镜腿选宫',
-                statusLine: this._statusLine()
+                sensorLabel: '镜腿选宫'
             });
+            this._refreshStatus();
         }
     },
 
@@ -1516,12 +1569,14 @@ export default {
 
         <!-- 会话流 -->
         <scroll-view class="chat-scroll" scroll-y="{{true}}" scroll-top="{{chatScrollTop}}">
-            <view class="turn" ink:for="{{chatTurns}}" ink:key="id">
-                <text class="turn-q">{{item.q}}</text>
-                <text class="turn-a loading" ink:if="{{item.pending}}">正在推演……</text>
-                <text class="turn-a failed" ink:if="{{item.failed}}">{{item.a}}</text>
-                <text class="turn-a" ink:if="{{!item.pending && !item.failed}}">{{item.a}}</text>
-                <text class="turn-tag" ink:if="{{item.metaLine}}">{{item.metaLine}}</text>
+            <!--
+                一维渲染行（lib/chat-store.js 的 viewRows）：
+                最新一轮在最上、每段正文一个 <text>、标注行提到正文之前。
+                为什么不用「轮次里再套段落」：ink 的 ink:for 嵌套没有把握，
+                一维列表只用一层 ink:for —— 能确定的才写进页面。
+            -->
+            <view class="row" ink:for="{{chatRows}}" ink:key="id">
+                <text class="{{item.cls}}">{{item.text}}</text>
             </view>
 
             <!-- 空态：告诉用户这里能说话，并给出不依赖识别的建议语 -->
@@ -1538,7 +1593,7 @@ export default {
         <!-- 页脚：提示 + 状态 -->
         <view class="chat-foot">
             <text class="foot-hint">{{hintLine}}</text>
-            <text class="foot-status" ink:if="{{statusLine}}">{{statusLine}}</text>
+            <text class="foot-status" ink:if="{{footStatus}}">{{footStatus}}</text>
         </view>
     </view>
 
@@ -1886,44 +1941,91 @@ page {
     padding: 8px 12px;
 }
 
-.turn {
-    margin-bottom: 12px;
+/*
+ * 一行 = 一个 <view>，里面一个 <text>。
+ *
+ * ⚠️ 为什么每行都要包一层 view：
+ * ink 里 `<text>` 默认是**行内**元素，直接并排会串成一行。
+ * 一行一个 view（纵向 flex）才真正一行一行往下排。
+ */
+.row {
+    display: flex;
+    flex-direction: column;
 }
 
-/* 用户问的那一句：60% 亮度 */
+/*
+ * 轮次标注行（出处 + 焦点 + 引文模式）。
+ *
+ * ⚠️ 为什么提到正文**前面**：
+ * 原来它在正文后面 —— 用户要先读完 1400 字才知道这段在讲哪一宫、
+ * 是不是降级引文。引文模式是**必须披露**的合规信息，更不该压在最后。
+ * 字号也从 9px 提到 11px：9px 在 480×352 的绿屏上基本读不出来。
+ */
+.turn-tag {
+    font-size: 11px;
+    line-height: 15px;
+    color: #269938;
+    margin-bottom: 3px;
+}
+
+/* 最新一轮在最上面，不额外留上边距 */
+.turn-tag.newest {
+    margin-top: 0;
+}
+
+/* 更早的一轮：和上一轮拉开距离 */
+.turn-tag.sep {
+    margin-top: 12px;
+}
+
+/* 用户问的那一句：60% 亮度（是「用户说的」，不是主角） */
 .turn-q {
     display: block;
     font-size: 12px;
     line-height: 17px;
     color: #269938;
+    margin-bottom: 5px;
 }
 
-/* 回答：100% 亮度，正文 */
-.turn-a {
+/*
+ * 小标题（`【命格总览】` 这种）：100% 亮度 + 加粗。
+ *
+ * ⚠️ 单色绿屏没有颜色可分，层级只能靠**字重**和**段距**拉开。
+ */
+.turn-h {
+    display: block;
+    font-size: 13px;
+    line-height: 19px;
+    font-weight: bold;
+    color: #40FF5E;
+    margin-top: 8px;
+    margin-bottom: 2px;
+}
+
+/* 正文段：100% 亮度 */
+.turn-p {
     display: block;
     font-size: 13px;
     line-height: 19px;
     color: #40FF5E;
+    margin-bottom: 7px;
 }
 
-.turn-a.loading {
+/* 列表项（推导条目）：比正文段略紧 */
+.turn-li {
+    display: block;
+    font-size: 13px;
+    line-height: 19px;
+    color: #40FF5E;
+    margin-bottom: 3px;
+}
+
+.turn-p.loading {
     color: #269938;
 }
 
-.turn-a.failed {
+.turn-p.failed {
     color: #7fe3a0;
-}
-
-.turn-meta {
-    display: flex;
-    flex-direction: row;
-    margin-top: 2px;
-}
-
-.turn-tag {
-    font-size: 9px;
-    line-height: 13px;
-    color: #269938;
 }
 
 .chat-empty {

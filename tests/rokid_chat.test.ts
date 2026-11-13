@@ -171,4 +171,110 @@ export const suite: SuiteFn = async (t) => {
       assert.ok(layout.shortPalaceName(name).length <= 2, `${name} 的短名太长`);
     }
   });
+
+  /* ================= 正文分段（ink 不认 \n 的补救） ================= */
+
+  await t.test('正文分段：按换行切，空行丢掉', () => {
+    const text = '第一段\n\n第二段\n\n\n第三段';
+    const parts = chatStore.splitParagraphs(text);
+    assert.equal(parts.length, 3);
+    assert.deepEqual(parts.map((p) => p.t), ['第一段', '第二段', '第三段']);
+    assert.deepEqual(parts.map((p) => p.i), [0, 1, 2]);
+  });
+
+  await t.test('正文分段：每一行都不含换行符', () => {
+    /**
+     * ⚠️ **这是本轮最关键的一条回归**。
+     *
+     * 2026-11-13 在 AIUI Studio 的**真实 ink 运行时**里实测：
+     * ink 的 `<text>` **不认 `\n`** —— 一段 1400 字的解读被排成一整坨，
+     * `【一句话定调】`/`【核心论断】` 全部内联到句子中间。
+     *
+     * 换行必须**在数据层**变成结构（一段一个 `<text>`），
+     * 只要有一行还带着 `\n` 漏进模板，那个段落就会糊成一坨。
+     */
+    const raw = '【命格总览】\n\n你脾气温和。\n\n【一句话定调】\n\n天同太阴坐命。';
+    const parts = chatStore.splitParagraphs(raw);
+    for (const p of parts) {
+      assert.ok(!p.t.includes('\n'), `段落里还留着换行：${p.t}`);
+      assert.ok(!p.t.includes('\r'), `段落里还留着回车：${p.t}`);
+    }
+  });
+
+  await t.test('段落分类：小标题 / 列表项 / 正文段', () => {
+    assert.equal(chatStore.paragraphClass('【命格总览】'), 'turn-h');
+    assert.equal(chatStore.paragraphClass('【一句话定调】'), 'turn-h');
+    assert.equal(chatStore.paragraphClass('【四化路径分析 · 落到你这盘】'), 'turn-h');
+    assert.equal(chatStore.paragraphClass('关键推导（倪师断法引擎 · 可回溯引文略）：'), 'turn-h');
+    assert.equal(chatStore.paragraphClass('· （引文略）贪狼化权：化权=官印'), 'turn-li');
+    assert.equal(chatStore.paragraphClass('你脾气温和，不爱跟人争。'), 'turn-p');
+  });
+
+  await t.test('段落分类：只有「整段都是标签」才算小标题', () => {
+    /**
+     * 列表项里就有 `【火星(急躁·突发)】遇紫微→解厄制化` 这种。
+     * 如果按「以【开头」判，它会被误当成标题 ⇒ 整段的层级全乱。
+     */
+    assert.equal(chatStore.paragraphClass('【火星(急躁·突发)】遇紫微→解厄制化'), 'turn-p');
+    assert.equal(chatStore.paragraphClass('「紫微+左辅」 — 吉星辅佐'), 'turn-p');
+  });
+
+  await t.test('渲染行：最新一轮在最上面，标注行在正文之前', () => {
+    /**
+     * ⚠️ 为什么必须最新在最上：
+     * 480×352 的滚动区只有 256px（≈13 行），一段解读有 30 行上下。
+     * 按时间正序的话，用户提完问题、答案落在**最底下**，
+     * 屏幕上看过去是旧内容，等待的那十几秒里屏幕**一动不动**。
+     */
+    const t1 = chatStore.createTurn({ question: '第一问' });
+    const t2 = chatStore.createTurn({ question: '第二问' });
+    const done1 = { ...t1, pending: false, answer: '答一' };
+    const done2 = { ...t2, pending: false, answer: '答二' };
+    const rows = chatStore.viewRows([done1, done2]);
+    const texts = rows.map((r) => r.text);
+    assert.ok(texts.indexOf('第二问') < texts.indexOf('第一问'), '最新一轮必须排在前面');
+    assert.ok(texts[0].startsWith('最新'), `第一行应带「最新」标记，实际：${texts[0]}`);
+    /** 标注行必须在问题之前（引文模式要尽早披露） */
+    const tagIdx = rows.findIndex((r) => r.cls.startsWith('turn-tag'));
+    const qIdx = rows.findIndex((r) => r.cls === 'turn-q');
+    assert.ok(tagIdx < qIdx, '标注行必须排在问题之前');
+  });
+
+  await t.test('渲染行：等待中 / 失败态各有各的样式', () => {
+    const pending = chatStore.createTurn({ question: '问' });
+    const rows = chatStore.viewRows([pending]);
+    const body = rows.find((r) => r.id.endsWith('-body'));
+    assert.ok(body, '等待中也要有一行正文位');
+    assert.equal(body.text, '正在推演……');
+    assert.ok(body.cls.includes('loading'));
+
+    const failed = { ...pending, pending: false, failed: true, answer: '这一问暂时没有回答。' };
+    const rows2 = chatStore.viewRows([failed]);
+    const body2 = rows2.find((r) => r.id.endsWith('-body'));
+    assert.equal(body2.text, '这一问暂时没有回答。');
+    assert.ok(body2.cls.includes('failed'));
+  });
+
+  await t.test('渲染行：id 唯一（ink:for 的 key 不能重复）', () => {
+    const t1 = chatStore.createTurn({ question: '问一' });
+    const t2 = chatStore.createTurn({ question: '问二' });
+    const rows = chatStore.viewRows([
+      { ...t1, pending: false, answer: '答一\n\n第二段' },
+      { ...t2, pending: false, answer: '答二' }
+    ]);
+    const ids = rows.map((r) => r.id);
+    assert.equal(new Set(ids).size, ids.length, `id 重复了：${ids.join(',')}`);
+  });
+
+  await t.test('渲染行：视图模型形状也能算（预览脚本复用同一份逻辑）', () => {
+    /**
+     * 预览视频脚本拿到的就是**视图模型**（q/a），
+     * 它必须能用**同一份**分段逻辑 —— 各写一份必然漂移。
+     */
+    const turn = chatStore.createTurn({ question: '命宫，今年怎么样？' });
+    const views = chatStore.viewTurns([{ ...turn, pending: false, answer: '【总览】\n\n正文一段。' }]);
+    const rows = chatStore.viewRows(views);
+    assert.ok(rows.some((r) => r.cls === 'turn-h' && r.text === '【总览】'));
+    assert.ok(rows.some((r) => r.cls === 'turn-p' && r.text === '正文一段。'));
+  });
 };

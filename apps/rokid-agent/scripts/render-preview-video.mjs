@@ -162,6 +162,64 @@ function snap(page) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 2b. 渲染行索引 —— 正文改版后，逐字显现要按「行」驱动
+ * ------------------------------------------------------------------ */
+
+/**
+ * 场景里某一轮的**正文行**下标（0 起）。
+ *
+ * ⚠️ **为什么按行下标，不再用 CSS 选择器**：
+ * 第二十八轮把正文改成「一段一个 `<text>`」之后，
+ * 旧的 `.turn:nth-of-type(n) .turn-a` 选择器**全部失效** ——
+ * 画面不会报错，只会**静默变空**（逐字显现整个失效）。
+ * 行下标取自页面自己的 `data.chatRows` ⇒ 与设备上渲染的是同一份数据。
+ *
+ * @param {Object} data 场景快照
+ * @param {number} turnIndex 第几轮（`chatTurns` 的下标，从 0 起）
+ * @returns {Array<number>}
+ */
+function bodyRowIndexes(data, turnIndex) {
+  const rows = data.chatRows || [];
+  const turns = data.chatTurns || [];
+  const t = turns[turnIndex];
+  if (!t) return [];
+  const out = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const id = rows[i].id || '';
+    if (!id.startsWith(`${t.id}-`)) continue;
+    if (/-p\d+$/.test(id) || id.endsWith('-body')) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * 把一轮的正文行按**字数**摊到时间窗上。
+ *
+ * ⚠️ 为什么按字数摊：等分的话，短标题一闪而过、长段落还没写完，
+ * 看着不像在出字。按字数摊 ⇒ 速度均匀，看着像**逐字打出来**。
+ *
+ * @param {Object} data
+ * @param {number} turnIndex
+ * @param {number} from 起始秒
+ * @param {number} to 结束秒
+ * @returns {Array<{ row: number, from: number, to: number }>}
+ */
+function scheduleRows(data, turnIndex, from, to) {
+  const rows = bodyRowIndexes(data, turnIndex);
+  const texts = rows.map((i) => (data.chatRows[i] || {}).text || '');
+  const total = texts.reduce((s, t) => s + t.length, 0) || 1;
+  const span = Math.max(0.001, to - from);
+  let acc = 0;
+  return rows.map((row, i) => {
+    const len = texts[i].length || 1;
+    const f = from + (span * acc) / total;
+    acc += len;
+    const e = from + (span * acc) / total;
+    return { row, from: f, to: Math.max(f + 0.001, e) };
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * 2. 驱动真实状态机，取场景
  * ------------------------------------------------------------------ */
 
@@ -242,14 +300,19 @@ async function collectScenes() {
   if (!reading || !reading.a || reading.a.length < 40) {
     throw new Error(`解读正文太短（${reading ? reading.a.length : 0} 字），疑似后端没返回`);
   }
+  const s4Data = snap(page);
   scenes.push({
     id: 's4',
     kind: 'chat',
-    data: snap(page),
+    data: s4Data,
     in: 7.5,
     out: 11.7,
     fade: 0.4,
-    reveals: [{ sel: '#s4 .turn:nth-of-type(1) .turn-a', from: 7.9, to: 11.3, scroll: 'head' }],
+    /**
+     * 逐段显现：段落按字数摊在 7.9~11.3 秒里，
+     * 看起来像「一段一段出字」，而不是整块砸下来。
+     */
+    reveals: scheduleRows(s4Data, 0, 7.9, 11.3),
   });
 
   /* ---- 场景 5：双击「问建议语」→ 第二轮（不依赖语音识别的兜底路径） ---- */
@@ -268,7 +331,7 @@ async function collectScenes() {
     fade: 0.3,
   });
 
-  /* ---- 场景 6：第二轮落地（多轮会话同时可见） ---- */
+  /* ---- 场景 6：第二轮落地（最新一轮在最上，往下滑能看到上一轮） ---- */
   await waitFor(
     () => (page.data.chatTurns || []).length === 2 && !page.data.chatTurns[1].pending,
     150000,
@@ -278,17 +341,24 @@ async function collectScenes() {
   if (!asking || !asking.a || asking.a.length < 20) {
     throw new Error(`追问回答太短（${asking ? asking.a.length : 0} 字），疑似后端没返回`);
   }
+  const s6Data = snap(page);
+  const olderRows = bodyRowIndexes(s6Data, 0);
   scenes.push({
     id: 's6',
     kind: 'chat',
-    data: snap(page),
+    data: s6Data,
     in: 13.1,
     out: 17.1,
     fade: 0.4,
-    reveals: [
-      { sel: '#s6 .turn:nth-of-type(1) .turn-a', from: 13.1, to: 13.1, scroll: 'bottom' },
-      { sel: '#s6 .turn:nth-of-type(2) .turn-a', from: 13.5, to: 16.7, scroll: 'bottom' },
-    ],
+    /** 最新一轮（chatTurns[1]）的正文逐段显现 */
+    reveals: scheduleRows(s6Data, 1, 13.3, 15.6),
+    /**
+     * 15.8 秒往下滑 —— **上一轮还在下面**。
+     *
+     * ⚠️ 这一条是「对话不是只有一条」的证据：
+     * 最新的问答在最上面，但历史轮次一条没丢，往下翻就能看到。
+     */
+    scrolls: olderRows.length ? [{ at: 15.8, row: olderRows[0] }] : [],
   });
 
   /* ---- 场景 7：回盘面页（中宫仍显示最近一问一答 —— 常驻对话区） ---- */
@@ -357,16 +427,14 @@ function buildTimelineHtml(collected, style) {
     .join('\n');
 
   /**
-   * 逐字显现的文本清单：`{ 场景选择器 → 完整文本 }`。
+   * 逐字显现的文本清单：`{ 场景 + 行下标 → 完整文本 }`。
    * 完整文本从场景数据里取（不是写死的），保证画面与真实页面一致。
    */
   const revealTexts = {};
   for (const s of collected.scenes) {
     for (const r of s.reveals || []) {
-      const m = /#(\w+) \.turn:nth-of-type\((\d+)\) \.turn-a/.exec(r.sel);
-      if (!m) continue;
-      const turn = (s.data.chatTurns || [])[Number(m[2]) - 1];
-      revealTexts[r.sel] = turn ? turn.a || '' : '';
+      const row = (s.data.chatRows || [])[r.row];
+      revealTexts[`${s.id}:${r.row}`] = row ? row.text || '' : '';
     }
   }
 
@@ -381,7 +449,7 @@ html, body { margin: 0; padding: 0; background: #000; }
 /* 会话流在设备上是可滚动的；预览视频里要**裁掉溢出**，
    否则长文本会盖住页脚，渲染出来的就不是眼镜上那个样子了。 */
 .chat-scroll { overflow: hidden; }
-.chat-inner { will-change: transform; }
+.chat-inner { will-change: transform; position: relative; }
 /* 角标靠右下角 —— 左下角是页脚提示行的位置，放左下会压字。 */
 .caption { position: absolute; right: 16px; bottom: 2px; font-size: 8px; line-height: 11px; color: #2f6b47; font-family: monospace; }
 </style></head><body>
@@ -398,11 +466,15 @@ ${sceneHtml}
     collected.scenes.flatMap((s) =>
       (s.reveals || []).map((r) => ({
         scene: s.id,
-        sel: r.sel,
+        row: r.row,
         from: r.from,
         to: r.to,
-        scroll: r.scroll,
       })),
+    ),
+  )};
+  var SCROLLS = ${JSON.stringify(
+    collected.scenes.flatMap((s) =>
+      (s.scrolls || []).map((c) => ({ scene: s.id, at: c.at, row: c.row })),
     ),
   )};
   var TEXTS = ${JSON.stringify(revealTexts)};
@@ -423,41 +495,51 @@ ${sceneHtml}
   }
 
   /**
-   * 逐字显现 + 滚动定位。
+   * 一行的选择器。
    *
-   * scroll = 'head'  —— **钉住开头**：问题句 + 回答的头几行留在视野里。
-   *   回答正文有两千多字，钉开头 = 让观众看到「结论第一句」，
-   *   钉末尾 = 观众只看到一大段没有上下文的字。
-   * scroll = 'bottom'—— **钉住末尾**：多轮会话时用户看的是最新一轮。
+   * ⚠️ 正文现在是「一段一个 text」，行下标来自页面的 chatRows ——
+   * 设备上渲染的就是这批行，所以 .row:nth-of-type(k) 拿到的也是同一段。
+   */
+  function rowSel(scene, row) {
+    return '#' + scene + ' .row:nth-of-type(' + (row + 1) + ') text';
+  }
+
+  /**
+   * 逐字显现。
    *
-   * ⚠️ 滚动量用元素实际高度算，不用「每行 N 字」的估算 ——
+   * ⚠️ **为什么一段一段出，而不是整块出**：
+   * 解读正文两千多字，一次砸下来在 480×352 上就是一堵墙；
+   * 逐段出字才能让人看出「这是有结构的段落」，而不是一段乱码。
+   *
+   * 滚动量用元素实际高度算，不用「每行 N 字」的估算 ——
    * 估算会差一行，末尾被裁掉。
    */
-  function reveal(sel, text, from, to, scroll) {
-    var el = document.querySelector(sel);
+  function reveal(scene, row, text, from, to) {
+    var el = document.querySelector(rowSel(scene, row));
     if (!el) return;
     var t = window.__t;
     var p = 0;
     if (t > from) p = (t - from) / Math.max(0.0001, to - from);
     var n = clip(p * text.length, text.length);
     if (el.textContent.length !== n) el.textContent = text.slice(0, n);
+  }
 
-    var inner = el.closest('.chat-inner');
+  /**
+   * 滚到指定行（证明「更早的轮次还在下面」）。
+   */
+  function scrollTo(scene, row) {
+    var sceneEl = document.getElementById(scene);
+    if (!sceneEl) return;
+    var inner = sceneEl.querySelector('.chat-inner');
     if (!inner) return;
-    var wrap = inner.parentElement;
-    var visible = wrap.clientHeight;
-    var contentH = inner.offsetHeight;
-    var maxScroll = Math.max(0, contentH - visible);
-    var y = 0;
-    if (scroll === 'bottom') {
-      y = -maxScroll;
-    }
+    var rowEl = inner.querySelector('.row:nth-of-type(' + (row + 1) + ')');
+    if (!rowEl) return;
     /**
-     * 'head' 保持 y = 0（不滚）——
-     * 会话流是 overflow:hidden 的，超出的部分自然被裁掉，
-     * 这正是设备上「从头读起、往下滚才看到后面」的样子。
+     * ⚠️ offsetTop 是相对**最近的定位祖先**算的，
+     * 这里要的是「这一行在会话流里的位置」⇒ 必须减掉 inner 自己的偏移。
      */
-    inner.style.transform = 'translateY(' + y + 'px)';
+    var y = rowEl.offsetTop - inner.offsetTop;
+    inner.style.transform = 'translateY(' + -y + 'px)';
   }
 
   window.__seek = function (t) {
@@ -468,12 +550,18 @@ ${sceneHtml}
     }
     for (var j = 0; j < REVEALS.length; j++) {
       var r = REVEALS[j];
+      var key = r.scene + ':' + r.row;
       if (t < r.from) {
-        var el0 = document.querySelector(r.sel);
+        var el0 = document.querySelector(rowSel(r.scene, r.row));
         if (el0 && el0.textContent.length !== 0) el0.textContent = '';
         continue;
       }
-      reveal(r.sel, TEXTS[r.sel] || '', r.from, r.to, r.scroll);
+      reveal(r.scene, r.row, TEXTS[key] || '', r.from, r.to);
+    }
+    for (var k = 0; k < SCROLLS.length; k++) {
+      var sc = SCROLLS[k];
+      if (t < sc.at) continue;
+      scrollTo(sc.scene, sc.row);
     }
   };
 

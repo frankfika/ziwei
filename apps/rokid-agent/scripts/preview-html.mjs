@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AGENT_ROOT } from './forbidden-terms.mjs';
+import { viewRows } from '../lib/chat-store.js';
 
 const INK_PAGE = path.join(AGENT_ROOT, 'pages', 'index', 'index.ink');
 
@@ -140,24 +141,22 @@ ${centerHtml(d)}
  * ------------------------------------------------------------------ */
 
 /**
- * 会话流里的每一轮。
+ * 会话流 → 扁平的渲染行。
  *
- * @param {Array<Object>} turns
+ * ⚠️ **必须复用页面同一份逻辑**（`lib/chat-store.js` 的 viewRows）：
+ * 各写一份必然漂移 —— 漂移的结果是「文档里的界面」和「眼镜上的界面」不是一回事，
+ * 而提审素材恰恰是要给人看的界面。
+ *
+ * @param {Array<Object>} turns 视图模型或内部轮次
  * @returns {string}
  */
 export function turnsHtml(turns) {
-  return (turns || [])
-    .map((t) => {
-      const body = t.pending
-        ? `        <text class="turn-a loading">正在推演……</text>`
-        : `        <text class="turn-a${t.failed ? ' failed' : ''}">${esc(t.a)}</text>`;
-      const meta = t.metaLine ? `        <text class="turn-tag">${esc(t.metaLine)}</text>` : '';
-      return `      <view class="turn">
-        <text class="turn-q">${esc(t.q)}</text>
-${body}
-${meta}
-      </view>`;
-    })
+  return viewRows(turns || [])
+    .map(
+      (r) => `      <view class="row">
+        <text class="${esc(r.cls)}">${esc(r.text)}</text>
+      </view>`
+    )
     .join('\n');
 }
 
@@ -217,7 +216,7 @@ ${innerClose}
     </scroll-view>
     <view class="chat-foot">
       <text class="foot-hint">${esc(d.hintLine)}</text>
-      ${d.statusLine ? `      <text class="foot-status">${esc(d.statusLine)}</text>` : ''}
+      ${d.footStatus ? `      <text class="foot-status">${esc(d.footStatus)}</text>` : ''}
     </view>
   </view>`,
   );

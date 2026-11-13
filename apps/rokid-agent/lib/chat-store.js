@@ -205,6 +205,53 @@ export function lastTurn(turns) {
 }
 
 /**
+* 一轮对话 → 视图模型（单轮）。
+*
+* @param {Object} t
+* @returns {Object}
+*/
+function viewTurn(t) {
+  const sourceLabel = t.kind === TURN_KIND.ASK ? '推演' : '原文';
+  /**
+   * 兼容两种形状：**内部轮次**（question/answer）与**视图模型**（q/a）。
+   *
+   * 为什么需要兼容：预览视频脚本（`scripts/preview-html.mjs`）
+   * 拿到的就是视图模型，它要用**和页面同一份**分段逻辑，
+   * 不能各写一份 —— 两份必然漂移成「文档里的界面」和「眼镜上的界面」。
+   */
+  const question = typeof t.question === 'string' ? t.question : typeof t.q === 'string' ? t.q : '';
+  const answer = typeof t.answer === 'string' ? t.answer : typeof t.a === 'string' ? t.a : '';
+  /**
+   * 标注行：**一行**说清「这一轮是哪来的、问的是哪一块、有没有降级引文」。
+   *
+   * ⚠️ 为什么必须挤在一行：
+   * `.turn-meta` 是 `display:flex; flex-direction:row`，
+   * 多个 text 会**并排**而不是换行 ——
+   * 分成两行反而会连成「…命格总览引文正常」这种糊在一起的东西。
+   * 对话页正文宽 456px，一行放得下（十几字）。
+   */
+  const meta = [];
+  if (t.focus) meta.push(t.focus);
+  if (t.citation) meta.push(t.citation);
+  return {
+    id: t.id,
+    q: question,
+    a: answer,
+    kind: t.kind,
+    focus: t.focus,
+    citation: t.citation,
+    pending: Boolean(t.pending),
+    failed: Boolean(t.failed),
+    /** 答案摘要（中宫用） */
+    short: summarize(answer),
+    /** 来源标签：原文 / 推演 */
+    sourceLabel,
+    /** 界面上的标注行 */
+    metaLine: meta.length ? `${sourceLabel}　${meta.join('　')}` : sourceLabel
+  };
+}
+
+/**
 * 会话流 → 界面视图模型。
 *
 * 为什么要单独转一层：模板里要做「短摘要」「空态」「失败态」的分支，
@@ -215,37 +262,116 @@ export function lastTurn(turns) {
 */
 export function viewTurns(turns) {
   if (!Array.isArray(turns)) return [];
-  return turns.map((t) => {
-    const sourceLabel = t.kind === TURN_KIND.ASK ? '推演' : '原文';
-    /**
-     * 标注行：**一行**说清「这一轮是哪来的、问的是哪一块、有没有降级引文」。
-     *
-     * ⚠️ 为什么必须挤在一行：
-     * `.turn-meta` 是 `display:flex; flex-direction:row`，
-     * 多个 text 会**并排**而不是换行 ——
-     * 分成两行反而会连成「…命格总览引文正常」这种糊在一起的东西。
-     * 对话页正文宽 456px，一行放得下（十几字）。
-     */
-    const meta = [];
-    if (t.focus) meta.push(t.focus);
-    if (t.citation) meta.push(t.citation);
-    return {
-      id: t.id,
-      q: t.question,
-      a: t.answer,
-      kind: t.kind,
-      focus: t.focus,
-      citation: t.citation,
-      pending: Boolean(t.pending),
-      failed: Boolean(t.failed),
-      /** 答案摘要（中宫用） */
-      short: summarize(t.answer),
-      /** 来源标签：原文 / 推演 */
-      sourceLabel,
-      /** 界面上的标注行 */
-      metaLine: meta.length ? `${sourceLabel}　${meta.join('　')}` : sourceLabel
-    };
-  });
+  return turns.map((t) => viewTurn(t));
+}
+
+/* ------------------------------------------------------------------ *
+* 正文分段
+* ------------------------------------------------------------------ */
+
+/**
+* 判断一段正文该用哪种样式。
+*
+* ⚠️ **判据为什么这么定**：
+* 数据集原文的段落结构是固定的（实测 `/api/agent/reading` 返回）：
+*
+*   【命格总览】\n\n你心里的事比外人看到的复杂得多。……\n\n
+*   【一句话定调】\n\n有福、日子过得舒服；……\n\n
+*   关键推导（倪师断法引擎 · 可回溯引文略）：\n· （引文略）贪狼化权：……
+*
+* 也就是三种段：**小标题**、**正文段**、**列表项**。
+* 绿屏上只有四档亮度、没有颜色 ⇒ 层级只能靠**字重**和**段距**拉开。
+*
+* @param {string} t
+* @returns {string} 样式类
+*/
+export function paragraphClass(t) {
+  const s = typeof t === 'string' ? t.trim() : '';
+  if (!s) return 'turn-p';
+  /** 列表项：「·」「•」「・」开头的推导条目 */
+  if (/^[·•・]/.test(s)) return 'turn-li';
+  /**
+   * 小标题：**整段就是一个方括号标签**（`【命格总览】`）。
+   *
+   * ⚠️ 判据必须是「整段都是标签」而不是「以【开头」——
+   * 列表项里就有 `【火星(急躁·突发)】遇紫微→解厄制化` 这种，
+   * 按「以【开头」判会被误当成标题。
+   */
+  if (/^【[^】]{1,16}】$/.test(s)) return 'turn-h';
+  /** 「关键推导（…）：」这种「短句 + 冒号」也是小标题 */
+  if (s.length <= 28 && /[：:]$/.test(s)) return 'turn-h';
+  return 'turn-p';
+}
+
+/**
+* 把一段正文切成**渲染单元**。
+*
+* ⚠️ **为什么必须切段，不能整段塞给渲染层**：
+* 2026-11-13 在 AIUI Studio 的**真实 ink 运行时**里实测过 ——
+* ink 的 `<text>` **不认 `\n`**：一段 1400 字的解读会被排成一整坨，
+* `【一句话定调】`/`【核心论断】` 这些小标题全部内联到句子中间，
+* 用户根本看不出哪里是段落。
+* 纯文本化（`lib/plain-text.js`）保留了换行（实测 81 → 81 个 `\n`），
+* 但**渲染层不吃** ⇒ 只能把换行变成**结构**：一段一个 `<text>`。
+*
+* @param {unknown} text
+* @returns {Array<{ i: number, t: string, cls: string }>}
+*/
+export function splitParagraphs(text) {
+  const raw = typeof text === 'string' ? text : '';
+  const parts = raw
+    .split(/\r?\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.map((t, i) => ({ i, t, cls: paragraphClass(t) }));
+}
+
+/**
+* 会话流 → **扁平的渲染行**。
+*
+* ⚠️ **为什么是扁平的一维列表，而不是「轮次里再套段落」**：
+* ink 的 `ink:for` 嵌在 `ink:for` 里面没有把握（真实运行时未验证），
+* 而一维列表只用了一层 `ink:for` —— **能确定的才写进页面**。
+*
+* ⚠️ **为什么最新一轮在最上面**：
+* 480×352 的滚动区只有 256px（≈13 行），一段解读有 30 行上下。
+* 如果按时间正序，用户提完问题、答案落在**最底下**，
+* 屏幕上看过去是**旧内容**，而等待的那 15~60 秒里屏幕**一动不动**——
+* 这正是「交互和逻辑全是问题」里最扎人的一种。
+* 倒序之后：新一轮永远在最上面，滚动位置 0 就是「我刚问的这段」的开头。
+*
+* @param {Array<Object>} turns
+* @returns {Array<{ id: string, cls: string, text: string }>}
+*/
+export function viewRows(turns) {
+  const list = Array.isArray(turns) ? turns : [];
+  const rows = [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const v = viewTurn(list[i]);
+    if (!v) continue;
+    const newest = rows.length === 0;
+    rows.push({
+      id: `${v.id}-meta`,
+      cls: `turn-tag${newest ? ' newest' : ' sep'}`,
+      text: newest ? `最新　${v.metaLine}` : v.metaLine
+    });
+    rows.push({ id: `${v.id}-q`, cls: 'turn-q', text: v.q });
+    if (v.pending) {
+      rows.push({ id: `${v.id}-body`, cls: 'turn-p loading', text: '正在推演……' });
+    } else if (v.failed) {
+      rows.push({ id: `${v.id}-body`, cls: 'turn-p failed', text: v.a });
+    } else {
+      const paras = splitParagraphs(v.a);
+      if (!paras.length) {
+        rows.push({ id: `${v.id}-body`, cls: 'turn-p', text: v.a });
+        continue;
+      }
+      for (const p of paras) {
+        rows.push({ id: `${v.id}-p${p.i}`, cls: p.cls, text: p.t });
+      }
+    }
+  }
+  return rows;
 }
 
 /**

@@ -1551,6 +1551,30 @@ export const suite = async (t: Tester): Promise<void> => {
       );
     });
 
+    await t.test('模板里一条 HTML 注释都不许留（ink 解析器不认注释）', () => {
+      /**
+       * 回归：2026-11-13 在 AIUI Studio 的**真实 ink 运行时**里，
+       * 对话页第一屏顶部渲染出来的是一段**开发者自己写的注释正文** ——
+       * 「、标注行提到正文之前。 为什么不用「轮次里再套段落」: … -->
+       *
+       * 根因：ink 的模板解析器**不认 HTML 注释**，
+       * 注释里出现尖括号标签时，解析器把它当成**真元素**，
+       * 注释的正文就变成普通文字被渲染到屏上。
+       *
+       * ⇒ 模板里不许有任何注释。要解释就写在 `<script setup>` 里
+       *   （或 lib/ 的源文件里）—— 那是真的注释，不会渲染。
+       */
+      const template = ink.slice(ink.indexOf('<page>'), ink.indexOf('</page>'));
+      assert.ok(
+        !template.includes('<!--'),
+        '模板里不许出现 HTML 注释（ink 解析器不认，会把注释正文渲染到屏上）'
+      );
+      assert.ok(
+        !template.includes('-->'),
+        '模板里不许出现 HTML 注释的结束标记（同上）'
+      );
+    });
+
     await t.test('时间层接线完整（双击切层 + 运限层渲染）', () => {
       // 只写规范不写代码 = 装饰。这里盯住接线点真的在页面里。
       for (const needle of [

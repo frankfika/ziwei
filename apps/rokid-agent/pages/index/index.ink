@@ -98,6 +98,31 @@ import {
     nextSuggestionIndex
 } from '../../lib/chat-store.js';
 
+/*
+ * ── 模板里的注释一律不许留（2026-11-13 真实运行时实测） ──────────
+ *
+ * ink 的模板解析器**不认 HTML 注释**。
+ * 实测：注释里只要出现尖括号标签，解析器就会把它当成**真元素**，
+ * 于是注释的正文被当成普通文字**渲染到屏幕上** ——
+ * 用户在对话页第一眼看到的是开发者写给自己的说明文字。
+ * （单行且不含尖括号的注释没炸，但不值得赌。）
+ *
+ * ⇒ 模板（页面标签之后）里**一条注释都不放**；
+ *   要解释的地方写在这里，或者写进 `lib/` 里的源文件。
+ *
+ * ⚠️ 这段说明里也**不许**写出模板标签的字面量 ——
+ * 回归用「从页面标签切到结束标签」来定位模板，
+ * 注释里写出同样的字面量会把切出来的范围搞错。
+ *
+ * ── 会话流为什么是「一维渲染行」 ──────────────────────────────
+ * `viewRows()` 把每一轮摊平成若干行（标注行 / 问题 / 小标题 / 正文段 / 列表项），
+ * 每行一个文本节点，模板只用**一层** `ink:for`。
+ * 为什么不用「轮次里再套段落」：ink 的 `ink:for` 嵌套没有把握，
+ * 一维列表只依赖一层 —— 能确定的才写进页面。
+ * 顺带解决两件事：正文按段落分行（ink 的文本节点不认换行符），
+ * 以及最新一轮在最上（滚动区只有 256px，正序的话用户看不到刚到的答案）。
+ */
+
 /**
  * 传感器采样频率（Hz）与首帧超时
  */
@@ -319,6 +344,11 @@ export default {
         this._readingSeq = 0;
         /** 是否正在识别中（防重复触发） */
         this._listening = false;
+        /**
+         * 当前是不是示例盘（首屏没有生辰时是）。
+         * 记在实例上，不靠 `data.noticeLabel` —— setData 是异步落地的。
+         */
+        this._isDemo = true;
         /** 会话流（最近 MAX_TURNS 轮） */
         this._turns = [];
         /** 给后端的上文（最近 3 轮问答） */
@@ -561,6 +591,12 @@ export default {
 
     async _chart(birth, opts = {}) {
         const demo = opts.demo === true;
+        /**
+         * 示例盘状态记在**实例**上，不靠 `data.noticeLabel` 判断 ——
+         * `setData` 是异步落地的，刚排完盘时 `data.noticeLabel` 还是旧值，
+         * 拿它判断会得出「还是示例盘」的错误结论。
+         */
+        this._isDemo = demo;
         /**
          * 换盘必清：解读缓存、引文标注、会话流、追问上下文都是**上一张盘**的，
          * 不清掉用户会读到旧人的解读（缓存按维度命中，新盘照中）。
@@ -861,12 +897,26 @@ export default {
      */
     _syncChat() {
         const digest = digestOf(this._turns);
+        /**
+         * 中宫引导语要跟着「有没有自己的盘」变。
+         *
+         * ⚠️ 之前是一句写死的话「说出生辰，或直接问我」，
+         * 但盘面页上**不能说话**（盘面页的单击是「问这宫」）——
+         * 用户说了自己的生辰之后，这句话就变成了假指引：
+         * 他在盘面页找不到开口说话的地方。
+         * ⇒ 示例盘：说生辰（盘面页的单击就是开口）；
+         *   自己的盘：先选一宫，单击就解读。
+         */
+        const digestLead = this._isDemo
+            ? '说出生辰，或直接问我'
+            : '滑动选宫　单击就解读这一宫';
         this.setData({
             chatTurns: viewTurns(this._turns),
             chatRows: viewRows(this._turns),
             chatEmpty: this._turns.length === 0,
             digestQuestion: digest.question ? summarize(digest.question, 20) : '',
             digestAnswer: digest.answer,
+            digestLead,
             focusLine: this._focusLine(),
             focusDetail: this._focusDetail(),
             stripCells: this._stripCells(),
@@ -1562,7 +1612,6 @@ export default {
 </script>
 
 <page>
-    <!-- ================= 盘面页 ================= -->
     <view class="board" ink:if="{{screen === 'board'}}">
         <view ink:for="{{cells}}" ink:key="branch" class="cell p{{item.branch}} {{item.activeClass}}">
             <view class="cell-head">
@@ -1576,9 +1625,7 @@ export default {
             <text class="minor">{{item.minorText}}</text>
         </view>
 
-        <!-- 中宫 = 常驻对话区 -->
         <view class="center">
-            <!-- 焦点块 -->
             <view class="center-top">
                 <text class="focus-line">{{focusLine}}</text>
                 <text class="focus-detail" ink:if="{{focusDetail}}">{{focusDetail}}</text>
@@ -1586,7 +1633,6 @@ export default {
 
             <view class="center-divider"></view>
 
-            <!-- 对话块：最近一问一答；没有对话时是引导语 + 建议语 -->
             <view class="center-mid">
                 <text class="digest-q" ink:if="{{digestQuestion}}">{{digestQuestion}}</text>
                 <text class="digest-a" ink:if="{{digestAnswer}}">{{digestAnswer}}</text>
@@ -1594,7 +1640,6 @@ export default {
                 <text class="center-suggest" ink:if="{{!digestQuestion && suggestionText}}">试试问：{{suggestionText}}</text>
             </view>
 
-            <!-- 底部块：示例盘标注 / 操作提示 / 计算来源 -->
             <view class="center-bottom">
                 <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
                 <text class="center-hint">{{hintLine}}</text>
@@ -1603,9 +1648,7 @@ export default {
         </view>
     </view>
 
-    <!-- ================= 对话页 ================= -->
     <view class="chat" ink:if="{{screen === 'chat'}}">
-        <!-- 顶部：盘面缩略带（保住「我在看哪」） -->
         <view class="strip">
             <view class="strip-head">
                 <text class="strip-title">{{layerTitle}}</text>
@@ -1616,19 +1659,11 @@ export default {
             </view>
         </view>
 
-        <!-- 会话流 -->
         <scroll-view class="chat-scroll" scroll-y="{{true}}" scroll-top="{{chatScrollTop}}">
-            <!--
-                一维渲染行（lib/chat-store.js 的 viewRows）：
-                最新一轮在最上、每段正文一个 <text>、标注行提到正文之前。
-                为什么不用「轮次里再套段落」：ink 的 ink:for 嵌套没有把握，
-                一维列表只用一层 ink:for —— 能确定的才写进页面。
-            -->
             <view class="row" ink:for="{{chatRows}}" ink:key="id">
                 <text class="{{item.cls}}">{{item.text}}</text>
             </view>
 
-            <!-- 空态：告诉用户这里能说话，并给出不依赖识别的建议语 -->
             <view class="chat-empty" ink:if="{{chatEmpty}}">
                 <text class="chat-empty-title">{{chatEmptyTitle}}</text>
                 <text class="chat-empty-sub">单击镜腿开口问　双击直接问建议语</text>
@@ -1639,14 +1674,12 @@ export default {
             </view>
         </scroll-view>
 
-        <!-- 页脚：提示 + 状态 -->
         <view class="chat-foot">
             <text class="foot-hint">{{hintLine}}</text>
             <text class="foot-status" ink:if="{{footStatus}}">{{footStatus}}</text>
         </view>
     </view>
 
-    <!-- ================= 生辰录入页 ================= -->
     <view class="overlay" ink:if="{{screen === 'input'}}">
         <text class="overlay-title">说出你的生辰</text>
         <text class="overlay-body">{{voiceHint}}</text>

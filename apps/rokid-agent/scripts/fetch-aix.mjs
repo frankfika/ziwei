@@ -63,16 +63,23 @@ const CDN = 'https://basecloud.rokidcdn.com/basecloud/prod';
 const KNOWN_PACKAGES = [
   {
     key: 'current',
+    file: `${AGENT_ID}-1794538212787.aix`,
+    md5: '8eecb8194aba2b12f2d935251f572ecd',
+    note: '2026-11-13 10:5x 重打，**3.61 MB / 3,788,156 B**；**v1.0.20 —— 现行版，Frank 装这一版**。含本轮七件事：① 显示层整体优化（正文按段落渲染 + 最新一轮置顶 + 标注行提前 + 状态行分层 + 字号 9→11px）；② 语音输入致命缺陷修复（空结果不清空已听文本 / 迟到结果丢弃 / 硬超时 14s 看门狗 / wx 契约对齐）；③ 模板注释被当文字渲染 + 自己的盘引导语写错；④ **对外说明里的手势口径修正**（工具 description 原来写「双击换生辰」，实际「连点两下」是切运限层、换生辰走语音）。核验新增两条断言：「语音输入 wx 宿主行为 8/8」（造 wx 宿主桩给包内/仓库喂同一串事件比对）与「对外文案逐字一致 8 条中文字面量」（专治「改了字、没改行数」—— 行数检查抓不到等行数的内容变更）',
+    current: true,
+  },
+  {
+    key: 'prev-v1019',
     file: `${AGENT_ID}-1794537604280.aix`,
     md5: 'b788ed4db4fce874ea43f0360d9ad6ff',
-    note: '2026-11-13 10:4x 重打，**3.60 MB / 3,777,818 B**；**v1.0.19 —— 现行版，Frank 装这一版**。含本轮三笔：① 显示层整体优化（正文按段落渲染 + 最新一轮置顶 + 标注行提前 + 状态行分层 + 字号 9→11px）；② 语音输入致命缺陷修复（空结果不清空已听文本 / 迟到结果丢弃 / 硬超时 14s 看门狗 / wx 契约对齐）；③ 模板注释被当文字渲染 + 自己的盘引导语写错。⚠️ **包比上一版小 5.06 MB 不是丢东西** —— 是包内嵌的预览视频从 6.1 MB 的旧版换成了 1.0 MB 的重渲版（差值正好对上）。核验新增「语音输入 wx 宿主行为 8/8」这条断言（造 wx 宿主桩给包内/仓库喂同一串事件比对）',
-    current: true,
+    note: '2026-11-13 10:4x 重打，3.60 MB；**v1.0.19**。含①②③，**不含④**（对外说明里的手势口径还是旧的「双击换生辰」）⇒ 已被 v1.0.20 取代。⚠️ 包比 v1.0.18 小 5.06 MB 不是丢东西 —— 是包内嵌的预览视频从 6.1 MB 换成了 1.0 MB 的重渲版',
+    current: false,
   },
   {
     key: 'prev-v1018',
     file: `${AGENT_ID}-1794503370363.aix`,
     md5: 'fdd8bc98ccbdec340c8282f4e00b6a77',
-    note: '2026-11-13 01:1x 重打，8.66 MB；**v1.0.18**。含交互整体重做 + 正文纯文本化 + 追问瞬时故障重试；**不含**本轮三笔（显示层优化 / 语音致命缺陷 / 模板注释）。用它试跑核验可以自证新断言有鉴别力（语音场景会红）',
+    note: '2026-11-13 01:1x 重打，8.66 MB；**v1.0.18**。含交互整体重做 + 正文纯文本化 + 追问瞬时故障重试；**不含**本轮七件事（显示层优化 / 语音致命缺陷 / 模板注释 / 对外文案口径）。用它试跑核验可以自证新断言有鉴别力（语音场景会红）',
     current: false,
   },
   {
@@ -443,6 +450,69 @@ async function compareVoiceInput(pkgRoot) {
 }
 
 /**
+ * 抽取「对外文案」里的中文字符串字面量。
+ *
+ * 为什么只抽这两块：
+ *   · `<script def>` 块 —— **商店展示的工具说明与参数描述**（用户第一眼看到的东西）；
+ *   · 模板区（最后一个 `</script>` 之后、`<style>` 之前）—— 界面上出现的每一句话。
+ * `<script setup>` 里全是代码注释，**不能抽** —— 包内注释被压掉了，抽出来必然误报。
+ *
+ * 为什么用「字符串字面量」而不是「所有中文」：
+ *   「资源优化 等级2」只去注释、改正则字面量里的**标识符**，
+ *   **字符串字面量的内容原样保留** ⇒ 字面量可以逐字比对。
+ *   而注释里的中文在包内根本不存在，抽出来会变成永远红的假警报。
+ */
+function extractUiLiterals(src) {
+  const defEnd = src.indexOf('</script>');
+  const styleStart = src.indexOf('<style>');
+  const setupEnd = styleStart >= 0 ? src.lastIndexOf('</script>', styleStart) : src.lastIndexOf('</script>');
+  const scope = [
+    defEnd >= 0 ? src.slice(0, defEnd) : '',
+    setupEnd >= 0 ? src.slice(setupEnd + '</script>'.length, styleStart >= 0 ? styleStart : src.length) : '',
+  ].join('\n');
+  const out = new Set();
+  const re = /(["'`])((?:(?!\1)[^\\\n])*)\1/g;
+  let m = re.exec(scope);
+  while (m) {
+    if (/[\u4e00-\u9fff]/.test(m[2])) out.add(m[2]);
+    m = re.exec(scope);
+  }
+  return out;
+}
+
+/**
+ * 核对「包内的对外文案」与「仓库里的」逐字一致。
+ *
+ * 为什么必须有这条（2026-11-13）：
+ *   核验里原来只有一条「`index.ink` 行数一致」——
+ *   它**抓不到等行数的内容变更**。
+ *   本轮就撞上了：把对外说明里的「双击换生辰」改成「连点两下切换运限层」，
+ *   改的是同一行 ⇒ 行数一模一样 ⇒ 旧断言全绿，
+ *   而包里可能还是那句错的手势口径（会直接让用户按错手势）。
+ *
+ *   这条断言专治这一类：**改了字、没改行数**。
+ */
+function checkUiLiterals(pkgRoot) {
+  const pkgSrc = readFileSync(path.join(pkgRoot, 'pages/index/index.ink'), 'utf8');
+  const repoSrc = readFileSync(
+    path.join(REPO_ROOT, 'apps/rokid-agent/pages/index/index.ink'),
+    'utf8',
+  );
+  const repoLiterals = [...extractUiLiterals(repoSrc)];
+  const missing = repoLiterals.filter((s) => !pkgSrc.includes(s));
+  if (missing.length) {
+    return {
+      ok: false,
+      message:
+        `包内的对外文案有 ${missing.length} 条与仓库不一致（包里缺这些原文）：\n` +
+        missing.map((s) => `      · ${s}`).join('\n'),
+      count: repoLiterals.length,
+    };
+  }
+  return { ok: true, count: repoLiterals.length };
+}
+
+/**
  * 比对「包内的模块」与「仓库里的模块」行为是否一致。
  * 包内代码被「资源优化 等级2」压过（去注释、去空白、部分改名），
  * 字节比不了 —— 只能比行为。
@@ -618,6 +688,14 @@ async function main() {
       failures.push(askCheck.message);
     } else {
       console.log(`✓ 追问超时一致（${askCheck.value}ms）—— 包里带了超时修复`);
+    }
+
+    // ── 对外文案必须逐字一致（专治「改了字、没改行数」）──
+    const uiCheck = checkUiLiterals(root);
+    if (!uiCheck.ok) {
+      failures.push(uiCheck.message);
+    } else {
+      console.log(`✓ 对外文案逐字一致（${uiCheck.count} 条中文字面量）—— 包里带的说明与仓库一致`);
     }
 
     // ── 行为等价 ──

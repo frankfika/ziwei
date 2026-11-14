@@ -72,6 +72,7 @@ import {
 import { resolveChart } from '../../lib/chart-source.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
 import { latestProfile, upsertProfile } from '../../lib/storage.js';
+import { canTypeText } from '../../lib/host-caps.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
 import { parseBirthFromSpeech } from '../../lib/birth-parser.js';
@@ -295,8 +296,31 @@ export default {
         /** 建议语（不依赖语音的兜底路径） */
         suggestions: SUGGESTIONS,
         suggestionIndex: 0,
-        /** 当前这条建议语（盘面页中宫空态展示「试试问：…」） */
+        /** 当前这条建议语（盘面页中宫 + 对话页常驻展示「试试问：…」） */
         suggestionText: SUGGESTIONS[0],
+        /**
+         * 建议语做成**可点的固定四条**（2026-11-14 交互重构）。
+         *
+         * ⚠️ 之前这四条是用 `ink:for` 循环渲染的**纯 `<text>`** —— **点不了**。
+         * 用户在模拟器里看着像按钮却按不动，只能靠猜（这正是「界面让人迷惑」的根源）。
+         *
+         * ⚠️ 为什么是四个独立字段、而不是循环 + `data-*` 传下标：
+         * ink 的 `data-*` 读取与 `{{arr[0]}}` 下标取值**都没在真机验证过**，
+         * 不拿它当赌注 —— 四个固定字段 + 四个处理器，行为完全确定。
+         */
+        sug0: SUGGESTIONS[0],
+        sug1: SUGGESTIONS[1],
+        sug2: SUGGESTIONS[2],
+        sug3: SUGGESTIONS[3],
+        /**
+         * 这个宿主能不能打字（浏览器/模拟器能，眼镜不能）—— 见 lib/host-caps.js。
+         *
+         * ⚠️ 眼镜上**必须为 false**：眼镜没有键盘，
+         * 画面上出现一个打不了字的输入框只会让人反复去点它。
+         */
+        canType: false,
+        /** 打字提问的输入内容 */
+        typedText: '',
 
         /* ---- 通用 ---- */
         /** 当前屏的操作提示（每屏只说一件事） */
@@ -313,6 +337,14 @@ export default {
      * ================================================================ */
 
     onLoad(query) {
+        /**
+         * 能不能打字 —— **眼镜上没有键盘**（lib/host-caps.js）。
+         *
+         * 探测结果决定对话页底部那条「问答入口」区出不出现：
+         *  · 有键盘（模拟器 / 电脑）⇒ 给**可点的建议语 + 输入框**；
+         *  · 没有键盘（眼镜）⇒ 只给「双击问这一句」，**不出现输入框**。
+         */
+        this.setData({ canType: canTypeText() });
         this._cursor = createCursorState();
         this._tilt = createTiltState();
         /**
@@ -1108,6 +1140,69 @@ export default {
     },
 
     /**
+     * 点一条建议语 → 直接发问（**有键盘的宿主上的鼠标路径**）。
+     *
+     * ⚠️ **眼镜上 `bindtap` 不会触发**（眼镜没有触摸）——
+     * 眼镜上的同一件事走「双击 = 问建议语」（`_askSuggestion`）
+     * 与「准星选中 + 单击」（第二批）。
+     *
+     * @param {number} index 建议语序号
+     * @returns {Promise<void>}
+     */
+    async _askSuggestionAt(index) {
+        const list = this.data.suggestions || [];
+        const question = list[index];
+        if (!question) return;
+        /** 问完自动轮到下一条，用户连点就是连问 */
+        this.setData({
+            suggestionIndex: nextSuggestionIndex(list, this.data.suggestionIndex, 1)
+        });
+        await this._submitAsk(question);
+    },
+
+    onSug0() {
+        return this._askSuggestionAt(0);
+    },
+
+    onSug1() {
+        return this._askSuggestionAt(1);
+    },
+
+    onSug2() {
+        return this._askSuggestionAt(2);
+    },
+
+    onSug3() {
+        return this._askSuggestionAt(3);
+    },
+
+    /**
+     * 打字提问（**只在有键盘的宿主上出现** —— 模拟器 / 电脑）。
+     *
+     * @param {Object} event ink 的 `bindinput` 事件
+     * @returns {void}
+     */
+    onTypeInput(event) {
+        const value = event && event.detail ? event.detail.value : '';
+        this.setData({ typedText: typeof value === 'string' ? value : '' });
+    },
+
+    /**
+     * 发送打字的问题 —— 与语音/建议语走**同一条** `_submitAsk` 通道。
+     *
+     * @returns {Promise<void>}
+     */
+    async onSendTyped() {
+        const text = normalizeQuestion(this.data.typedText);
+        if (!text) {
+            this._refreshStatus('先输入一句问题');
+            return;
+        }
+        this.setData({ typedText: '' });
+        await this._submitAsk(text);
+    },
+
+    /**
      * 对话页单击 —— **开口提问**。
      *
      * ⚠️ 走**连续识别**（lib/voice-input.js 的 listenContinuous）：
@@ -1116,7 +1211,11 @@ export default {
      * @returns {Promise<void>}
      */
     async _startVoiceQuestion() {
-        if (this._listening) return;
+        if (this._listening) {
+            /** 识别中再按一次 —— 同样不能静默丢弃（缺陷 A） */
+            this._refreshStatus('正在聆听，请稍候');
+            return;
+        }
         this._listening = true;
         const seq = ++this._voiceSeq;
         this.setData({ hintLine: this._hintFor(SCREEN.CHAT) });
@@ -1200,7 +1299,17 @@ export default {
      */
     async _submitAsk(question) {
         const q = normalizeQuestion(question);
-        if (!q || this._askLoading) return;
+        if (!q) return;
+        if (this._askLoading) {
+            /**
+             * 推演期间再按一次 —— **不能静默丢弃**（2026-11-14 缺陷 A）。
+             *
+             * ⚠️ 静默 `return` 的观感就是「按了没反应 = 程序死了」，
+             * 而真机录视频时评委看到的也是这个。必须给一句人话。
+             */
+            this._refreshStatus('正在推演，请稍候');
+            return;
+        }
 
         /**
          * 代际令牌：回答最长要等 120s（lib/api.js TIMEOUTS.ask），
@@ -1549,7 +1658,11 @@ export default {
 
     async _startVoiceInput() {
         /** 防重入：识别中再按单击不重复触发 */
-        if (this._listening) return;
+        if (this._listening) {
+            /** 但不能静默丢弃 —— 告诉用户「我在听」（缺陷 A） */
+            this._refreshStatus('正在聆听，请稍候');
+            return;
+        }
         this._listening = true;
         /**
          * 代际令牌：识别等待期间用户可能按返回键取消（_closeInput）
@@ -1675,6 +1788,24 @@ export default {
                 </view>
             </view>
         </scroll-view>
+
+        <view class="chat-ask" ink:if="{{canType}}">
+            <view class="chat-ask-row">
+                <view class="chat-chip" bindtap="onSug0">{{sug0}}</view>
+                <view class="chat-chip" bindtap="onSug1">{{sug1}}</view>
+            </view>
+            <view class="chat-ask-row">
+                <view class="chat-chip" bindtap="onSug2">{{sug2}}</view>
+                <view class="chat-chip" bindtap="onSug3">{{sug3}}</view>
+            </view>
+            <view class="chat-ask-row">
+                <input class="chat-input" value="{{typedText}}" bindinput="onTypeInput" placeholder="或在这里打字提问" />
+                <view class="chat-send" bindtap="onSendTyped">发送</view>
+            </view>
+        </view>
+        <view class="chat-ask-single" ink:if="{{!canType}}">
+            <text class="chat-ask-single-text">双击镜腿问这一句：{{suggestionText}}</text>
+        </view>
 
         <view class="chat-foot">
             <text class="foot-hint">{{hintLine}}</text>
@@ -2160,6 +2291,67 @@ page {
     display: block;
     font-size: 12px;
     line-height: 18px;
+    color: #269938;
+}
+
+/*
+ * 「怎么问」入口区（2026-11-14 交互重构）。
+ *
+ * ⚠️ 只有**有键盘的宿主**（模拟器 / 电脑）才出现 chip 与输入框；
+ * 眼镜上没有键盘 ⇒ 这里只留一行「双击问这一句」。
+ *
+ * 布局：`.chat-scroll` 是 `flex: 1` ⇒ 这一区自动占高度、正文区自动让位，
+ * 不用手算像素（记忆教训：写了宽度不等于渲染出来是那个宽度）。
+ */
+.chat-ask {
+    padding: 4px 12px 2px;
+}
+
+.chat-ask-row {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 3px;
+}
+
+.chat-chip {
+    flex: 1;
+    margin-right: 6px;
+    padding: 2px 4px;
+    border: 1px solid #40FF5E;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 15px;
+    color: #40FF5E;
+}
+
+.chat-input {
+    flex: 1;
+    height: 20px;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 15px;
+    color: #40FF5E;
+    background-color: #000000;
+    border: 1px solid #40FF5E;
+}
+
+.chat-send {
+    margin-left: 6px;
+    padding: 2px 8px;
+    border: 1px solid #40FF5E;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 15px;
+    color: #40FF5E;
+}
+
+.chat-ask-single {
+    padding: 3px 12px 2px;
+}
+
+.chat-ask-single-text {
+    font-size: 11px;
+    line-height: 15px;
     color: #269938;
 }
 

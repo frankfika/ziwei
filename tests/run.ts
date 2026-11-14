@@ -41,6 +41,7 @@ const SUITE_FILES = [
   'tests/rokid_compliance.test.ts',
   'tests/rokid_copyright.test.ts',
   'tests/rokid_preview.test.ts',
+  'tests/rokid_interaction.test.ts',
   'tests/i18n_copy.test.ts',
 ];
 

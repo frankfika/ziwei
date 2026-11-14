@@ -70,8 +70,9 @@ import {
     nextLayerKey
 } from '../../lib/time-layer.js';
 import { resolveChart } from '../../lib/chart-source.js';
+import { HOUR_LABELS } from '../../lib/birth-parser.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
-import { latestProfile, upsertProfile } from '../../lib/storage.js';
+import { latestProfile, upsertProfile, loadProfiles } from '../../lib/storage.js';
 import { canTypeText } from '../../lib/host-caps.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
@@ -162,8 +163,13 @@ const SCREEN = Object.freeze({
  * 而根视图是固定 480×352 + overflow:hidden，滚不动；
  * 页面接管方向键之后（preventDefault），scroll-view 更不会被宿主带动。
  * 长文本不自己翻页，用户就永远读不完一整段回答。
+ *
+ * ⚠️ **为什么是 120 而不是 60**（2026-11-14 缺陷 B）：
+ * 一段解读有 30~38 个渲染行，一屏只放得下约 13 行。
+ * 60px ≈ 2.4 行 ⇒ 读完一整轮要滑 **十几次** —— 用户会以为滑不动。
+ * 120px ≈ 5 行 ⇒ 读完一整轮 4~5 次就够，手感接近「翻页」。
  */
-const SCROLL_STEP_PX = 60;
+const SCROLL_STEP_PX = 120;
 
 /** 四个方向动作 */
 const DIRECTION_ACTIONS = Object.freeze([
@@ -313,6 +319,22 @@ export default {
         sug2: SUGGESTIONS[2],
         sug3: SUGGESTIONS[3],
         /**
+         * 命盘库（**本机最多 20 张**，见 lib/storage.js）。
+         *
+         * ⚠️ 2026-11-14 之前：存储层早就支持多张盘（`upsertProfile`），
+         * 但**界面上没有任何入口**能列出或切换它们 ——
+         * 用户只能「说一个生辰换一张盘」，换过的盘再也回不去。
+         */
+        profilePanel: false,
+        /** 命盘库里的盘（视图行） */
+        profileRows: [],
+        /** 面板里高亮的那一张 */
+        profileIndex: 0,
+        /** 面板里高亮那一张的文字（单独存一份，模板不碰数组下标） */
+        profileCurrent: { id: '', label: '还没有你的盘 —— 说个生辰吧' },
+        /** 命盘库里有几张盘 */
+        profileCount: 0,
+        /**
          * 这个宿主能不能打字（浏览器/模拟器能，眼镜不能）—— 见 lib/host-caps.js。
          *
          * ⚠️ 眼镜上**必须为 false**：眼镜没有键盘，
@@ -344,7 +366,7 @@ export default {
          *  · 有键盘（模拟器 / 电脑）⇒ 给**可点的建议语 + 输入框**；
          *  · 没有键盘（眼镜）⇒ 只给「双击问这一句」，**不出现输入框**。
          */
-        this.setData({ canType: canTypeText() });
+        this.setData({ canType: canTypeText(), profileCount: (loadProfiles() || []).length });
         this._cursor = createCursorState();
         this._tilt = createTiltState();
         /**
@@ -836,12 +858,21 @@ export default {
     _hintFor(screen) {
         if (screen === SCREEN.INPUT) return this.data.inputHint;
         /**
-         * ⚠️ 「向前滑动看更早」不是随口写的：
-         * 真机前滑 = `Right`+`Down` ⇒ `isPrevDirection` 为假 ⇒ 滚动量 +1 ⇒ **往下**。
-         * 而会话流是**倒序**的（最新在最上），往下 = 更早的一轮。
-         * 前滑 = 往过去翻，与盘面页「前滑 = 下一宫」是同一个方向逻辑。
+         * ⚠️ 对话页的滑动语义在 2026-11-14 改过一次（缺陷 B）：
+         *
+         * **旧口径**「向前滑动看更早」—— 把滑动说成「翻会话流」。
+         * 但用户真正的痛点是**当前这一轮的长正文读不完**：
+         * 一轮解读 30~38 个渲染行、一屏只放得下 13 行，
+         * 而对话页**没有第二个入口**去看溢出部分 ⇒ 看着就像「内容被吞了」。
+         *
+         * **新口径**「滑动看正文」—— 滑动就是滚动当前看到的文字，
+         * 不再把它说成「翻会话流」这个用户没概念的功能。
+         *
+         * ⚠️ 方向仍然不变：真机前滑 = `Right`+`Down` ⇒ `isPrevDirection` 为假
+         * ⇒ 滚动量 +1 ⇒ 往下。会话流是**倒序**的（最新在最上），
+         * 往下 = 先看完最新这一轮的后半段，再看到更早的一轮。
          */
-        if (screen === SCREEN.CHAT) return '向前滑动看更早　单击开口问　双击问建议语';
+        if (screen === SCREEN.CHAT) return '滑动看正文　单击开口问　双击问建议语';
         return '滑动选宫　单击问这宫　双击切层';
     },
 
@@ -946,6 +977,7 @@ export default {
             chatTurns: viewTurns(this._turns),
             chatRows: viewRows(this._turns),
             chatEmpty: this._turns.length === 0,
+            profileCount: (loadProfiles() || []).length,
             digestQuestion: digest.question ? summarize(digest.question, 20) : '',
             digestAnswer: digest.answer,
             digestLead,
@@ -1137,6 +1169,92 @@ export default {
             suggestionIndex: nextSuggestionIndex(list, this.data.suggestionIndex, 1)
         });
         await this._submitAsk(question);
+    },
+
+    /**
+     * 命盘库 → 视图行。
+     *
+     * ⚠️ **只取前 20 张**（`MAX_PROFILES`），一张一行。
+     *
+     * @returns {Array<{ id: string, label: string, tag: string }>}
+     */
+    _profileRows() {
+        const list = loadProfiles() || [];
+        return list.map((p, i) => ({
+            id: p.id,
+            label: `${p.year}年${p.month}月${p.day}日 ${HOUR_LABELS[p.hour] || ''} ${
+                p.gender === 'female' ? '女' : '男'
+            }`,
+            /** 第一张是最近用的那张（`upsertProfile` 把它放在最前） */
+            tag: i === 0 ? '当前' : ''
+        }));
+    },
+
+    /**
+     * 打开 / 关闭命盘库面板（**有键盘的宿主**才有入口）。
+     *
+     * ⚠️ 眼镜上没有触摸 ⇒ 面板开不了 ⇒ 眼镜上的换盘走**语音说生辰**。
+     *
+     * @returns {void}
+     */
+    onOpenProfilePanel() {
+        const open = !this.data.profilePanel;
+        const rows = open ? this._profileRows() : [];
+        this.setData({
+            profilePanel: open,
+            profileRows: rows,
+            profileIndex: 0,
+            profileCurrent: rows[0] || {
+                id: '',
+                label: '还没有你的盘 —— 说个生辰吧'
+            }
+        });
+    },
+
+    /** 面板里往上一张 */
+    onProfilePrev() {
+        const rows = this.data.profileRows || [];
+        if (!rows.length) return;
+        const index = (this.data.profileIndex - 1 + rows.length) % rows.length;
+        this.setData({ profileIndex: index, profileCurrent: rows[index] });
+    },
+
+    /** 面板里往下一张 */
+    onProfileNext() {
+        const rows = this.data.profileRows || [];
+        if (!rows.length) return;
+        const index = (this.data.profileIndex + 1) % rows.length;
+        this.setData({ profileIndex: index, profileCurrent: rows[index] });
+    },
+
+    /**
+     * 切到面板里高亮的那张盘。
+     *
+     * ⚠️ 换盘必清会话流 —— `_chart()` 里已经清（解读缓存、引文标注、
+     * 会话流、追问上下文都是上一张盘的，不清会读到旧人的解读）。
+     *
+     * @returns {Promise<void>}
+     */
+    async onProfilePick() {
+        const current = this.data.profileCurrent || {};
+        const list = loadProfiles() || [];
+        const p = list.find((x) => x.id === current.id);
+        if (!p) {
+            this._refreshStatus('没有可切换的盘');
+            return;
+        }
+        this.setData({ profilePanel: false, profileRows: [] });
+        this._birth = {
+            year: p.year,
+            month: p.month,
+            day: p.day,
+            hour: p.hour,
+            gender: p.gender,
+            name: p.name || '',
+            hourEstimated: p.hourEstimated === true
+        };
+        speak('好，换盘');
+        await this._chart(this._birth);
     },
 
     /**
@@ -1807,6 +1925,23 @@ export default {
             <text class="chat-ask-single-text">双击镜腿问这一句：{{suggestionText}}</text>
         </view>
 
+        <view class="chat-lib" bindtap="onOpenProfilePanel" ink:if="{{canType}}">
+            <text class="chat-lib-text">命盘库 {{profileCount}} 张 · 点这里换一张盘</text>
+        </view>
+        <view class="chat-lib" ink:if="{{!canType}}">
+            <text class="chat-lib-text">命盘库 {{profileCount}} 张 · 说生辰换盘</text>
+        </view>
+
+        <view class="chat-panel" ink:if="{{profilePanel}}">
+            <text class="chat-panel-title">命盘库 · 共 {{profileCount}} 张</text>
+            <text class="chat-panel-cur">{{profileCurrent.label}}</text>
+            <view class="chat-panel-btns">
+                <view class="chat-panel-btn" bindtap="onProfilePrev">上一张</view>
+                <view class="chat-panel-btn" bindtap="onProfileNext">下一张</view>
+                <view class="chat-panel-btn" bindtap="onProfilePick">切到这张</view>
+            </view>
+        </view>
+
         <view class="chat-foot">
             <text class="foot-hint">{{hintLine}}</text>
             <text class="foot-status" ink:if="{{footStatus}}">{{footStatus}}</text>
@@ -2353,6 +2488,52 @@ page {
     font-size: 11px;
     line-height: 15px;
     color: #269938;
+}
+
+.chat-lib {
+    padding: 2px 12px;
+}
+
+.chat-lib-text {
+    font-size: 11px;
+    line-height: 15px;
+    color: #269938;
+}
+
+.chat-panel {
+    padding: 4px 12px;
+    border-top: 1px solid #174526;
+}
+
+.chat-panel-title {
+    display: block;
+    font-size: 11px;
+    line-height: 15px;
+    color: #269938;
+}
+
+.chat-panel-cur {
+    display: block;
+    font-size: 13px;
+    line-height: 18px;
+    color: #40FF5E;
+}
+
+.chat-panel-btns {
+    display: flex;
+    flex-direction: row;
+    margin-top: 3px;
+}
+
+.chat-panel-btn {
+    flex: 1;
+    margin-right: 6px;
+    padding: 2px 4px;
+    border: 1px solid #40FF5E;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 15px;
+    color: #40FF5E;
 }
 
 .chat-foot {

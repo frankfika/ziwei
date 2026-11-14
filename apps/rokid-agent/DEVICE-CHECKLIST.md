@@ -9,6 +9,11 @@
 > - 每一步都写清「看什么、点哪里、按几下」。不要跳步。
 > - 每一个不通过都**先查 §3 故障对照表**再改代码，不要凭感觉调参数。
 > - 凡是本清单写「待确认（需现场确认）」的，就是**源码里读不出来、必须在设备上确认**的；确认完回来把结论写进本文件的 §1.5。
+>
+> 🔴 **上机前先看 `DEVICE-TIMING-PROTOCOL.md`**（10 分钟）：
+> 镜腿手势的 7 条**时序约束**（双击两下要隔多久、补发有多久到、方向键一对隔多久…）——
+> **这层模拟器测不出来**（它把时序写死成常量），而商店那次驳回恰恰就发生在这一层。
+> 真机只要越界一条，界面就会以特定方式坏掉（协议里逐条列了症状）。
 
 ---
 
@@ -20,7 +25,7 @@
 |---|---|---|
 | **准星通道** | 绝对方向传感器 → 四元数 → 欧拉角 → 4×4 网格 → 十二宫，连续二维光标 | `lib/head-cursor.js` `updateCursor()`；页面 `_startSensors()` |
 | **倾斜通道** | 加速度计重力方向 → 带符号倾角 → 一次切一宫（抬头/低头） | `lib/head-cursor.js` `updateTilt()` |
-| **镜腿手势** | 滑动 / 轻点 / 连点两下。代码里**不直接认键值**，统一走 `lib/temple-input.js` 归一化：`event.code`/`event.key`/数字 `keyCode` 三路兜底 → 动作 `up`/`down`/`left`/`right`/`confirm`/`back`/`double`；`GlobalHook` 单独识别为「镜腿触摸」，挂起 300 ms 判定是滑动还是点按（真机：滑动 50~120 ms 后来方向键、点按 550~600 ms 后补发 `Enter`、连点两下补发 `Backspace`） | `apps/rokid-agent/lib/temple-input.js`、`pages/index/index.ink` `onKeyDown()` / `onKeyUp()` / `_feedKey()` / `_dispatchKey()` |
+| **镜腿手势** | 滑动 / 轻点 / 连点两下。代码里**不直接认键值**，统一走 `lib/temple-input.js` 归一化：`event.code`/`event.key`/数字 `keyCode` 三路兜底 → 动作 `up`/`down`/`left`/`right`/`confirm`/`back`/`double`；`GlobalHook` 单独识别为「镜腿触摸」，挂起 300 ms 判定是滑动还是点按（真机：滑动 50~120 ms 后来方向键、点按 550~600 ms 后补发 `Enter`、连点两下补发 `Backspace`）<br>⚠️ **这套时序是「假设」，不是「事实」** —— 越界后的确切症状见 `DEVICE-TIMING-PROTOCOL.md`（7 条约束 + 取证方法） | `apps/rokid-agent/lib/temple-input.js`、`pages/index/index.ink` `onKeyDown()` / `onKeyUp()` / `_feedKey()` / `_dispatchKey()` |
 | **两屏结构** | v1.0.20 起产品只有**两屏**：`SCREEN.BOARD`（12 宫盘 + **中宫常驻对话区**）与 `SCREEN.CHAT`（顶部盘面缩略带 + 会话流）。**没有「解读浮层」「追问浮层」了** | `pages/index/index.ink` `_dispatchKey()` |
 | **手势分工**（每屏每个手势只一个含义） | **盘面页**：滑动=选宫 / 单击=问这一宫 / 连点两下=切时间层 / 返回=**退出应用**。<br>**对话页**：滑动=翻会话流 / 单击=语音提问 / 连点两下=用建议语发问 / 返回=回盘面页。<br>⚠️ **「换生辰」不占手势，走语音** —— 对话页开口，说的是生辰就重排盘，说的是问题就追问 | `pages/index/index.ink` `_dispatchKey()`（`_askPalace` / `_startVoiceQuestion` / `_askSuggestion` / `_cycleLayer` / `finish()`） |
 

@@ -140,7 +140,7 @@ export const suite: SuiteFn = async (t: Tester) => {
 
     await t.test('页面在加载时探测宿主能力并写进 canType', () => {
         assert.ok(
-            page.includes('this.setData({ canType: canTypeText() })'),
+            page.includes('canType: canTypeText()'),
             'onLoad 里没有探测宿主打字能力'
         );
     });
@@ -149,6 +149,80 @@ export const suite: SuiteFn = async (t: Tester) => {
         assert.ok(
             page.includes('双击镜腿问这一句'),
             '眼镜端没有可执行的下一步提示 —— 用户会不知道该干什么'
+        );
+    });
+
+    /* -------------------------------------------------------------- *
+     * 缺陷 B：对话页的滑动 = 滚正文（不是「翻会话流」）
+     * -------------------------------------------------------------- */
+    await t.test('缺陷 B：滚动步长从 60 提到 120 —— 读完一轮要滑的次数减半', () => {
+        assert.ok(
+            page.includes('const SCROLL_STEP_PX = 120;'),
+            '滚动步长应当是 120px（60px 要滑十几次才读完一轮）'
+        );
+        assert.equal(
+            page.includes('const SCROLL_STEP_PX = 60;'),
+            false,
+            '滚动步长退回 60px 了 —— 缺陷 B 复发'
+        );
+    });
+
+    await t.test('缺陷 B：对话页提示改成「滑动看正文」', () => {
+        // ⚠️ **只匹配代码行**：页面注释里就写着「向前滑动看更早」作为旧口径的反例，
+        // 用整页子串匹配会把那条反例当成「口径没改」—— 2026-11-14 踩过两次这个坑。
+        const hintLines = page
+            .split('\n')
+            .filter((l) => /^\s*if \(screen === SCREEN\.CHAT\) return '/.test(l));
+        assert.equal(hintLines.length, 1, '对话页的提示行应当只有一处');
+        assert.ok(
+            hintLines[0].includes('滑动看正文'),
+            '对话页提示没有改成「滑动看正文」'
+        );
+        assert.equal(
+            hintLines[0].includes('向前滑动看更早'),
+            false,
+            '旧的「向前滑动看更早」口径不许回来 —— 那是缺陷 B 的病根'
+        );
+    });
+
+    /* -------------------------------------------------------------- *
+     * 命盘库：多张盘能列出来、能切回去
+     * -------------------------------------------------------------- */
+    await t.test('命盘库：界面有入口，且分「可点」与「眼镜只读」两种', () => {
+        assert.ok(
+            page.includes('bindtap="onOpenProfilePanel"'),
+            '没有命盘库的可点入口'
+        );
+        assert.ok(
+            page.includes('命盘库 {{profileCount}} 张'),
+            '命盘库没有显示张数'
+        );
+        assert.ok(
+            page.includes('说生辰换盘'),
+            '眼镜端没有给出换盘的下一步（说生辰）'
+        );
+    });
+
+    await t.test('命盘库：上一张 / 下一张 / 切到这张 三个动作都在', () => {
+        for (const name of ['onProfilePrev', 'onProfileNext', 'onProfilePick']) {
+            assert.ok(
+                page.includes(`bindtap="${name}"`),
+                `命盘库缺 ${name}`
+            );
+        }
+    });
+
+    await t.test('命盘库：切盘必须走 _chart（它会清会话流与解读缓存）', () => {
+        assert.ok(
+            page.includes('await this._chart(this._birth);'),
+            '切盘没有走 _chart —— 旧盘的解读缓存与会话流会留在屏上'
+        );
+    });
+
+    await t.test('命盘库：读的是本机命盘库（loadProfiles）', () => {
+        assert.ok(
+            page.includes('loadProfiles'),
+            '页面没有读本机命盘库'
         );
     });
 };

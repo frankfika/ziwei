@@ -72,7 +72,7 @@ import {
 import { resolveChart } from '../../lib/chart-source.js';
 import { HOUR_LABELS } from '../../lib/birth-parser.js';
 import { requestReading, requestAsk } from '../../lib/api.js';
-import { latestProfile, upsertProfile, loadProfiles } from '../../lib/storage.js';
+import { latestProfile, upsertProfile, loadProfiles, initStorage } from '../../lib/storage.js';
 import { canTypeText } from '../../lib/host-caps.js';
 import { resolveInitialBirth } from '../../lib/birth-source.js';
 import { speak, stopSpeaking } from '../../lib/tts.js';
@@ -366,7 +366,7 @@ export default {
          *  · 有键盘（模拟器 / 电脑）⇒ 给**可点的建议语 + 输入框**；
          *  · 没有键盘（眼镜）⇒ 只给「双击问这一句」，**不出现输入框**。
          */
-        this.setData({ canType: canTypeText(), profileCount: (loadProfiles() || []).length });
+        this.setData({ canType: canTypeText() });
         this._cursor = createCursorState();
         this._tilt = createTiltState();
         /**
@@ -421,9 +421,21 @@ export default {
          * 永远停在「说出你的生辰」浮层，盘面一次都出不来（2026-11-07 实测）。
          * 所以第三级是**必须的**，不是兜底装饰。
          */
-        const { birth, demo } = resolveInitialBirth(query, latestProfile());
-        this._birth = birth;
-        this._chart(birth, { demo, persist: !demo });
+        /**
+         * ⚠️ 2026-11-14：**读盘前必须等存储层就位**。
+         *
+         *   眼镜端没有 `localStorage`，命盘库住在 `wx.getStorageSync` 里；
+         *   而 `wx` 是**动态 import 的模块**，得等它 import 完才读得到。
+         *   所以这一段挂在 `initStorage()` 的 `.then()` 里 —— 读盘一定在存储就位之后。
+         *
+         *   `initStorage()` 自带 1500ms 超时：万一 wx 卡住，最坏是回示例盘，不是白屏。
+         */
+        initStorage().then(() => {
+            this.setData({ profileCount: (loadProfiles() || []).length });
+            const { birth, demo } = resolveInitialBirth(query, latestProfile());
+            this._birth = birth;
+            this._chart(birth, { demo, persist: !demo });
+        });
     },
 
     onReady() {

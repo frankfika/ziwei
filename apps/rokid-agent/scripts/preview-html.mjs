@@ -96,26 +96,19 @@ export function cellsHtml(cells) {
  * @returns {string}
  */
 export function centerHtml(d) {
-  const digestHtml = d.digestQuestion
-    ? `      <text class="digest-q">${esc(d.digestQuestion)}</text>
-      <text class="digest-a">${esc(d.digestAnswer)}</text>`
-    : `      <text class="digest-lead">${esc(d.digestLead)}</text>
-      <text class="center-suggest">试试问：${esc(d.suggestionText)}</text>`;
-
+  /**
+   * ⚠️ 2026-11-15 UI 改版：这里**必须与 index.ink 的模板逐字对应** ——
+   * 改版后中宫只有四行 + 一条细线：
+   *   ① 焦点宫名 ② 层与标注合成一行 ─── 细线 ③ 主行动文案 ④ 状态 · 手势提示
+   * 摘要解读（digest-q / digest-a）与焦点详情（focus-detail）整块删掉了 ——
+   * 解读只在对话页出现一次。
+   */
   return `    <view class="center">
-      <view class="center-top">
-        <text class="focus-line">${esc(d.focusLine)}</text>
-        ${d.focusDetail ? `<text class="focus-detail">${esc(d.focusDetail)}</text>` : ''}
-      </view>
+      <text class="focus-name">${esc(d.focusLine)}</text>
+      <text class="focus-sub">${esc(d.focusSub)}</text>
       <view class="center-divider"></view>
-      <view class="center-mid">
-${digestHtml}
-      </view>
-      <view class="center-bottom">
-${d.noticeLabel ? `        <text class="center-hint demo">${esc(d.noticeLabel)}</text>` : ''}
-        <text class="center-hint">${esc(d.hintLine)}</text>
-        ${d.statusLine ? `        <text class="center-hint dim">${esc(d.statusLine)}</text>` : ''}
-      </view>
+      <text class="center-suggest">${esc(d.digestLead)}</text>
+      <text class="center-status">${esc(d.centerStatus)} · ${esc(d.hintLine)}</text>
     </view>`;
 }
 
@@ -152,6 +145,12 @@ ${centerHtml(d)}
  */
 export function turnsHtml(turns) {
   return viewRows(turns || [])
+    /**
+     * ⚠️ 标注行（`turn-tag`）**整行不渲染** ——
+     * 与页面 `_syncChat()` 的过滤保持一致（「最新 / 推演 / 焦点 / 引文已降级」
+     * 已经分别并进固定头与固定底条）。
+     */
+    .filter((r) => r.cls.indexOf('turn-tag') !== 0)
     .map(
       (r) => `      <view class="row">
         <text class="${esc(r.cls)}">${esc(r.text)}</text>
@@ -190,23 +189,21 @@ ${(d.suggestions || [])
  * @returns {string}
  */
 export function renderChatHtml(d, style, opts = {}) {
-  const stripHtml = (d.stripCells || [])
-    .map((c) => `        <text class="strip-cell ${c.activeClass}">${esc(c.short)}</text>`)
-    .join('\n');
   const innerOpen = opts.innerClass ? `    <view class="${opts.innerClass}">` : '';
   const innerClose = opts.innerClass ? '    </view>' : '';
+  /**
+   * ⚠️ 2026-11-15 UI 改版：十二宫缩写带、免责独立行、页脚两行结构**全部删掉**，
+   * 换成「固定头一行 + 固定底条两行」。
+   */
+  const libText = d.canType
+    ? `命盘库 ${esc(d.profileCount)} 张 · 点这里换一张盘`
+    : `命盘库 ${esc(d.profileCount)} 张 · 说生辰换盘`;
 
   return doc(
     style,
     `  <view class="chat">
-    <view class="strip">
-      <view class="strip-head">
-        <text class="strip-title">${esc(d.layerTitle)}</text>
-        <text class="strip-focus">${esc(d.selectedName)}</text>
-      </view>
-      <view class="strip-row">
-${stripHtml}
-      </view>
+    <view class="chat-head">
+      <text class="chat-head-text">${esc(d.layerTitle)} · ${esc(d.selectedName)}</text>
     </view>
     <scroll-view class="chat-scroll">
 ${innerOpen}
@@ -215,8 +212,16 @@ ${chatEmptyHtml(d)}
 ${innerClose}
     </scroll-view>
     <view class="chat-foot">
-      <text class="foot-hint">${esc(d.hintLine)}</text>
-      ${d.footStatus ? `      <text class="foot-status">${esc(d.footStatus)}</text>` : ''}
+      <view class="foot-row">
+        <text class="foot-suggest">双击问：${esc(d.suggestionText)}</text>
+        ${d.footStatus ? `        <text class="foot-status">${esc(d.footStatus)}</text>` : ''}
+      </view>
+      <view class="foot-note">
+        <text class="foot-note-text">仅供传统文化学习与研究之用 · 不构成医疗、法律、投资或人生决策建议${esc(d.footCite)}</text>
+        <view class="foot-lib">
+          <text class="foot-lib-text">${esc(libText)}</text>
+        </view>
+      </view>
     </view>
   </view>`,
   );
@@ -242,7 +247,7 @@ export function renderInputHtml(d, style) {
     ${d.heardText ? `    <text class="overlay-body strong">${esc(d.heardText)}</text>` : ''}
     <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
     ${d.errorText ? `    <text class="overlay-body error">${esc(d.errorText)}</text>` : ''}
-    <text class="overlay-hint">${esc(d.hintLine)}</text>
+    <text class="overlay-hint">${esc(d.inputHint || d.hintLine)}</text>
   </view>`,
   );
 }

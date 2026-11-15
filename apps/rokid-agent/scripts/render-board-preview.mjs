@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AGENT_ROOT } from './forbidden-terms.mjs';
+import { SUGGESTIONS } from '../lib/chat-store.js';
 
 const REPO = path.resolve(AGENT_ROOT, '..', '..');
 const load = (p) => import(pathToFileURL(p).href);
@@ -76,19 +77,18 @@ async function main() {
   const active = board.cells.find((c) => c.branch === chart.mingGongBranch);
   const activeCell = cells.find((c) => c.branch === chart.mingGongBranch);
 
+  /**
+   * ⚠️ 2026-11-15 UI 改版：这里**必须与 index.ink 的中宫模板逐字对应** ——
+   * 四行 + 一条细线（焦点宫名 / 层与标注 / 细线 / 主行动文案 / 状态·手势提示）。
+   * 摘要解读与焦点详情整块删掉了。
+   */
+  const focusSub = fortune ? `本命 · ${fortune.label}` : '本命';
   const centerHtml = `    <view class="center">
-    <text class="center-title">${esc(fortune ? fortune.label : '本命盘')}</text>
-    <text class="center-line">命主 ${esc(board.center.mingZhu)}　身主 ${esc(board.center.shenZhu)}</text>
-    <text class="center-line dim">${esc(fortune ? `本层命宫落 ${fortune.mingPalaceName}` : `${board.center.yinYangGender}　${board.center.wuxingJuName}`)}</text>
-    <text class="center-line dim">${esc(fortune ? tl.fortuneSiHuaText(fortune) : board.center.lunarText)}</text>
-    <text class="center-line dim">${esc(board.center.pillarsText)}</text>
+    <text class="focus-name">${esc(activeCell?.name ?? '')}</text>
+    <text class="focus-sub">${esc(focusSub)}</text>
     <view class="center-divider"></view>
-    <view class="selected-row">
-      <text class="center-line strong">${esc(activeCell?.name ?? '')}</text>
-      <text class="center-role">${esc(activeCell?.fortuneShort ?? '')}</text>
-    </view>
-    <text class="center-hint">滑动选宫　单击听解读　双击切层</text>
-    <text class="center-hint dim">头部准星　端侧计算</text>
+    <text class="center-suggest">试试问：${esc(SUGGESTIONS[0])}</text>
+    <text class="center-status">端侧计算 · 滑动选宫　单击问这宫　双击切层</text>
   </view>`;
 
   const html = `<!doctype html><html><head><meta charset="utf-8">

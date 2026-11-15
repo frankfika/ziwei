@@ -1511,7 +1511,7 @@ export const suite = async (t: Tester): Promise<void> => {
       }
     });
 
-    await t.test('中宫提示行不重复（只输出 hintLine 一次）', () => {
+    await t.test('中宫提示行不重复（hintLine 全站只渲染一次）', () => {
       /**
        * 回归：模板曾写成 `<text class="center-hint">单击听解读　{{navHint}}</text>`，
        * 而提示行本身就是「滑动选宫　单击听解读　双击切层」⇒ 渲染出来是
@@ -1521,10 +1521,18 @@ export const suite = async (t: Tester): Promise<void> => {
        * ⚠️ 2026-11-12 重做后字段名从 `navHint` 改成 `hintLine` ——
        * 因为提示行现在**每屏都不同**（盘面页 / 对话页 / 录入页各说各的），
        * 不再是盘面页专属的一个字段。
+       *
+       * ⚠️ 2026-11-15 UI 改版（`apps/rokid-agent/UI-REDESIGN.md`）之后：
+       * 中宫那一行变成 `<text class="center-status">{{centerStatus}} · {{hintLine}}</text>`
+       * （状态与手势提示合成一行），对话页底条**不再**渲染 hintLine ——
+       * 于是 `{{hintLine}}` 在模板里**总共只允许出现一次**。
        */
+      const tpl = ink.slice(ink.indexOf('<page>'), ink.indexOf('</page>'));
+      const hintHits = tpl.split('{{hintLine}}').length - 1;
+      assert.equal(hintHits, 1, `{{hintLine}} 在模板里应只渲染一次，实际 ${hintHits} 处`);
       assert.ok(
-        ink.includes('<text class="center-hint">{{hintLine}}</text>'),
-        '中宫提示行应只输出 {{hintLine}}，模板里不要再拼一段固定前缀'
+        tpl.includes('{{centerStatus}} · {{hintLine}}'),
+        '中宫那一行应是「状态 · 手势提示」合成一行（不再是两条独立的提示行）'
       );
       assert.ok(
         !ink.includes('center-hint">单击'),
@@ -1662,6 +1670,124 @@ export const suite = async (t: Tester): Promise<void> => {
       const seg = ink.slice(closeIdx, closeIdx + 700);
       assert.ok(seg.includes('_chartJson'), '判据应是「有没有盘」（_chartJson）');
       assert.ok(seg.includes('this.finish()'), '没有盘时才退出应用');
+    });
+
+    /* ---------------------------------------------------------------- *
+     * F2. index.ink —— 2026-11-15 UI 改版（UI-REDESIGN.md）的显示层契约
+     *
+     * 方向名「一屏一件事 · 分层退让」。这几条把改版的验收标准钉成回归：
+     *  · 盘面页中宫不超过 5 行文字；
+     *  · 对话页正文区不再有「十二宫缩写 / 标注行 / 独立免责行 / 独立建议语块」；
+     *  · 「双击问：…」在对话页只出现一次；
+     *  · 全站字号只有 4 级（22 / 15 / 12 / 10）；
+     *  · 十二宫几何与中宫几何一动不动。
+     * ---------------------------------------------------------------- */
+    const tpl = ink.slice(ink.indexOf('<page>'), ink.indexOf('</page>'));
+    const style = ink.slice(ink.indexOf('<style>'), ink.indexOf('</style>'));
+
+    await t.test('盘面页中宫不超过 5 行文字', () => {
+      const cStart = tpl.indexOf('<view class="center">');
+      const cEnd = tpl.indexOf('<view class="chat"');
+      assert.ok(cStart > 0 && cEnd > cStart, '模板里找不到中宫块');
+      const center = tpl.slice(cStart, cEnd);
+      const textLines = (center.match(/<text /g) || []).length;
+      assert.ok(textLines <= 5, `中宫不该超过 5 行文字，实际 ${textLines} 行`);
+      // 中宫里不许再出现摘要解读那一块（digest-q / digest-a 整块删掉）
+      for (const dead of ['digest-q', 'digest-a', 'digest-lead', 'focus-detail']) {
+        assert.ok(!center.includes(dead), `中宫里不该再出现 ${dead}`);
+      }
+    });
+
+    await t.test('对话页正文区不再有「十二宫缩写 / 标注行 / 独立免责行」', () => {
+      for (const dead of [
+        'strip-row',
+        'strip-cell',
+        'turn-tag',
+        'chat-disclaimer',
+        'chat-ask-single',
+        'chat-lib',
+        'foot-hint',
+      ]) {
+        assert.ok(!tpl.includes(dead), `模板里不该再出现 ${dead}`);
+        assert.ok(!style.includes(`.${dead}`), `样式里不该再残留 .${dead}（死样式）`);
+      }
+      // 固定头一行：层 · 焦点宫
+      assert.ok(
+        tpl.includes('{{layerTitle}} · {{selectedName}}'),
+        '对话页固定头应是「层 · 焦点宫」一行'
+      );
+    });
+
+    await t.test('「双击问：…」在对话页只出现一次', () => {
+      const hits = (tpl.match(/双击问：/g) || []).length;
+      assert.equal(hits, 1, `「双击问：」在模板里应只出现一次，实际 ${hits} 处`);
+      // 建议语 chip 只显示纯问题文本，不带「双击问：」前缀
+      for (const key of ['sug0', 'sug1', 'sug2', 'sug3']) {
+        assert.ok(
+          tpl.includes(`{{${key}}}`),
+          `建议语 chip 应直接显示 ${key} 的纯问题文本`
+        );
+      }
+    });
+
+    await t.test('全站字号只有 4 级（22 / 15 / 12 / 10）', () => {
+      const sizes = [
+        ...new Set(
+          (style.match(/font-size:\s*(\d+)px/g) || []).map((m) => Number(m.match(/(\d+)px/)![1]))
+        ),
+      ].sort((a, b) => a - b);
+      assert.deepEqual(sizes, [10, 12, 15, 22], `字号应只有 4 级，实际 ${sizes.join('/')}`);
+      // 圆角 / 阴影 / 渐变在单色绿屏上只会变噪点
+      for (const banned of ['border-radius', 'box-shadow', 'text-shadow', 'gradient']) {
+        assert.ok(!style.includes(banned), `样式里不该再出现 ${banned}`);
+      }
+    });
+
+    await t.test('十二宫几何与中宫几何一动不动', () => {
+      const geo = [
+        '.p0 { left: 240px; top: 264px; }',
+        '.p1 { left: 120px; top: 264px; }',
+        '.p2 { left: 0px; top: 264px; }',
+        '.p3 { left: 0px; top: 176px; }',
+        '.p4 { left: 0px; top: 88px; }',
+        '.p5 { left: 0px; top: 0px; }',
+        '.p6 { left: 120px; top: 0px; }',
+        '.p7 { left: 240px; top: 0px; }',
+        '.p8 { left: 360px; top: 0px; }',
+        '.p9 { left: 360px; top: 88px; }',
+        '.p10 { left: 360px; top: 176px; }',
+        '.p11 { left: 360px; top: 264px; }',
+      ];
+      for (const g of geo) {
+        assert.ok(style.includes(g), `十二宫几何被改了：缺 ${g}`);
+      }
+      const cIdx = style.indexOf('.center {');
+      assert.ok(cIdx > 0, '样式里找不到 .center');
+      const cSeg = style.slice(cIdx, cIdx + 300);
+      for (const decl of ['left: 120px;', 'top: 88px;', 'width: 240px;', 'height: 176px;']) {
+        assert.ok(cSeg.includes(decl), `中宫几何被改了：缺 ${decl}`);
+      }
+    });
+
+    await t.test('改版没删任何事件绑定', () => {
+      const binds = [
+        'bindtap="onSug0"',
+        'bindtap="onSug1"',
+        'bindtap="onSug2"',
+        'bindtap="onSug3"',
+        'bindtap="onSendTyped"',
+        'bindinput="onTypeInput"',
+        'bindtap="onOpenProfilePanel"',
+        'bindtap="onProfilePrev"',
+        'bindtap="onProfileNext"',
+        'bindtap="onProfilePick"',
+      ];
+      for (const b of binds) {
+        assert.ok(tpl.includes(b), `模板里丢了 ${b}`);
+      }
+      // 建议语 chip 仍是 2 行 + 1 行输入框
+      const chipRows = (tpl.match(/class="chat-chip"/g) || []).length;
+      assert.equal(chipRows, 4, `建议语 chip 应是 4 个，实际 ${chipRows} 个`);
     });
   }
 

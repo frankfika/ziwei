@@ -246,6 +246,8 @@ export default {
         lastInput: '',
         /** 状态行（端侧计算 / 正在听 / 正在推演） */
         statusLine: '',
+        /** 盘面页中宫的状态行（只有计算来源 + 瞬时状态，不带诊断信息） */
+        centerStatus: '',
         /**
          * 瞬时状态（正在听 / 正在推演 / 没听清）。
          *
@@ -257,6 +259,8 @@ export default {
         transient: '',
         /** 对话页页脚的状态行（不含诊断信息） */
         footStatus: '',
+        /** 对话页底条那一行里跟在免责后面的引文标注（自带前导分隔符，没有就是空串） */
+        footCite: '',
         /**
          * 示例盘标注。
          *
@@ -275,8 +279,10 @@ export default {
         noticeLabel: '',
 
         /* ---- 盘面页（中宫 = 常驻对话区） ---- */
-        /** 焦点行：当前宫 + 当前时间层 */
+        /** 焦点行：当前宫（改版后只留一个宫名） */
         focusLine: '',
+        /** 焦点副信息行：层（本命 · 大限 32-41 岁）+ 示例盘 / 时辰标注，合成一行 */
+        focusSub: '',
         /** 焦点详情行：命主身主（本命层）/ 本层落位与四化（运限层） */
         focusDetail: '',
         /** 最近一问（摘要） */
@@ -925,19 +931,46 @@ export default {
         this.setData({
             transient: t,
             statusLine: [this.data.sensorLabel, source, t || key].filter(Boolean).join('　'),
-            footStatus: [source, t].filter(Boolean).join('　')
+            footStatus: [source, t].filter(Boolean).join('　'),
+            /**
+             * 盘面页中宫那一行只留**用户看得懂的两样**（计算来源 + 瞬时状态），
+             * 诊断信息（传感器通道 + 原始键值）不进中宫 —— 中宫只有 240px 宽。
+             */
+            centerStatus: [source, t].filter(Boolean).join('　')
         });
     },
 
     /**
-     * 焦点行：当前宫 + 当前时间层。
+     * 焦点行：**只留一个宫名**。
+     *
+     * ⚠️ 改版前这里是「宫名　层名」挤在一行（例：`命宫　本命盘`），
+     * 15px 粗体一行塞两个信息，在 240px 宽的中宫里又长又挤。
+     * 层信息挪到下一行（`_focusSub()`），一行只说一件事。
      *
      * @returns {string}
      */
     _focusLine() {
-        const name = this.data.selectedName || '命宫';
-        const layer = this.data.layerTitle || '本命盘';
-        return `${name}　${layer}`;
+        return this.data.selectedName || '命宫';
+    },
+
+    /**
+     * 焦点副信息行：**层 + 标注合成一行**。
+     *
+     * 例：`本命`、`本命 · 大限 32-41 岁`、`本命 · 示例盘　说话换成你的生辰`。
+     *
+     * ⚠️ 为什么是「本命 · 大限」而不是只写当前层：
+     * 运限层叠在本命盘上，只写「大限 32-41 岁」用户不知道它压在哪一层；
+     * 两个都用「·」分开，一眼看清「本命盘的大限 32-41 岁」。
+     *
+     * @returns {string}
+     */
+    _focusSub() {
+        const parts = ['本命'];
+        if (this.data.layerKey !== 'natal') {
+            parts.push(this.data.layerTitle || '');
+        }
+        if (this.data.noticeLabel) parts.push(this.data.noticeLabel);
+        return parts.filter(Boolean).join(' · ');
     },
 
     /**
@@ -982,21 +1015,50 @@ export default {
          * ⇒ 示例盘：说生辰（盘面页的单击就是开口）；
          *   自己的盘：先选一宫，单击就解读。
          */
+        /**
+         * 中宫那一行「主行动文案」。
+         *
+         * ⚠️ 改版前这里是**两行**：引导语（`滑动选宫　单击就解读这一宫`）
+         * + 建议语（`试试问：X`）—— 同一件事说了两遍，评审判「偏乱、反复」就是这个。
+         * 现在合并成一行：示例盘说「说出生辰，或直接问我」，
+         * 自己的盘说「试试问：X」。
+         */
+        const suggestionText = (this.data.suggestions || [])[this.data.suggestionIndex] || '';
         const digestLead = this._isDemo
             ? '说出生辰，或直接问我'
-            : '滑动选宫　单击就解读这一宫';
+            : (suggestionText ? `试试问：${suggestionText}` : '');
+        /**
+         * 对话页底条那一行里的「引文已降级」标注。
+         *
+         * ⚠️ 原来它挂在每轮正文前面的标注行里（`turn-tag`）——
+         * 元信息混在阅读流中间。改版后标注行整行删掉，
+         * 引文披露挪到底条，跟免责、命盘库张数并成一条小字。
+         *
+         * @type {Array<Object>}
+         */
+        const turns = this._turns || [];
+        const latest = turns.length ? turns[turns.length - 1] : null;
+        const citation = latest && latest.citation ? latest.citation : '';
         this.setData({
             chatTurns: viewTurns(this._turns),
-            chatRows: viewRows(this._turns),
+            /**
+             * ⚠️ 标注行（`turn-tag`）**整行不渲染**：
+             * 一行里塞了「最新 / 推演 / 焦点 / 引文已降级」四件事，
+             * 而「焦点与层」已经并进对话页的固定头，「引文已降级」并进固定底条。
+             * 剩下的「最新 / 推演」由「最新一轮在最上面」这个顺序本身说明。
+             */
+            chatRows: viewRows(this._turns).filter((r) => r.cls.indexOf('turn-tag') !== 0),
             chatEmpty: this._turns.length === 0,
             profileCount: (loadProfiles() || []).length,
             digestQuestion: digest.question ? summarize(digest.question, 20) : '',
             digestAnswer: digest.answer,
             digestLead,
             focusLine: this._focusLine(),
+            focusSub: this._focusSub(),
             focusDetail: this._focusDetail(),
             stripCells: this._stripCells(),
-            suggestionText: (this.data.suggestions || [])[this.data.suggestionIndex] || '',
+            suggestionText,
+            footCite: citation ? ` · ${citation}` : '',
             hintLine: this._hintFor(this.data.screen)
         });
     },
@@ -1869,40 +1931,18 @@ export default {
         </view>
 
         <view class="center">
-            <view class="center-top">
-                <text class="focus-line">{{focusLine}}</text>
-                <text class="focus-detail" ink:if="{{focusDetail}}">{{focusDetail}}</text>
-            </view>
-
+            <text class="focus-name">{{focusLine}}</text>
+            <text class="focus-sub">{{focusSub}}</text>
             <view class="center-divider"></view>
-
-            <view class="center-mid">
-                <text class="digest-q" ink:if="{{digestQuestion}}">{{digestQuestion}}</text>
-                <text class="digest-a" ink:if="{{digestAnswer}}">{{digestAnswer}}</text>
-                <text class="digest-lead" ink:if="{{!digestQuestion}}">{{digestLead}}</text>
-                <text class="center-suggest" ink:if="{{!digestQuestion && suggestionText}}">试试问：{{suggestionText}}</text>
-            </view>
-
-            <view class="center-bottom">
-                <text class="center-hint demo" ink:if="{{noticeLabel}}">{{noticeLabel}}</text>
-                <text class="center-hint">{{hintLine}}</text>
-                <text class="center-hint dim" ink:if="{{statusLine}}">{{statusLine}}</text>
-            </view>
+            <text class="center-suggest">{{digestLead}}</text>
+            <text class="center-status">{{centerStatus}} · {{hintLine}}</text>
         </view>
     </view>
 
     <view class="chat" ink:if="{{screen === 'chat'}}">
-        <view class="strip">
-            <view class="strip-head">
-                <text class="strip-title">{{layerTitle}}</text>
-                <text class="strip-focus">{{selectedName}}</text>
-            </view>
-            <view class="strip-row">
-                <text class="strip-cell {{item.activeClass}}" ink:for="{{stripCells}}" ink:key="branch">{{item.short}}</text>
-            </view>
+        <view class="chat-head">
+            <text class="chat-head-text">{{layerTitle}} · {{selectedName}}</text>
         </view>
-
-        <text class="chat-disclaimer">仅供传统文化学习与研究之用 · 不构成医疗、法律、投资或人生决策建议</text>
 
         <scroll-view class="chat-scroll" scroll-y="{{true}}" scroll-top="{{chatScrollTop}}">
             <view class="row" ink:for="{{chatRows}}" ink:key="id">
@@ -1933,16 +1973,6 @@ export default {
                 <view class="chat-send" bindtap="onSendTyped">发送</view>
             </view>
         </view>
-        <view class="chat-ask-single" ink:if="{{!canType}}">
-            <text class="chat-ask-single-text">双击镜腿问这一句：{{suggestionText}}</text>
-        </view>
-
-        <view class="chat-lib" bindtap="onOpenProfilePanel" ink:if="{{canType}}">
-            <text class="chat-lib-text">命盘库 {{profileCount}} 张 · 点这里换一张盘</text>
-        </view>
-        <view class="chat-lib" ink:if="{{!canType}}">
-            <text class="chat-lib-text">命盘库 {{profileCount}} 张 · 说生辰换盘</text>
-        </view>
 
         <view class="chat-panel" ink:if="{{profilePanel}}">
             <text class="chat-panel-title">命盘库 · 共 {{profileCount}} 张</text>
@@ -1955,8 +1985,19 @@ export default {
         </view>
 
         <view class="chat-foot">
-            <text class="foot-hint">{{hintLine}}</text>
-            <text class="foot-status" ink:if="{{footStatus}}">{{footStatus}}</text>
+            <view class="foot-row">
+                <text class="foot-suggest">双击问：{{suggestionText}}</text>
+                <text class="foot-status" ink:if="{{footStatus}}">{{footStatus}}</text>
+            </view>
+            <view class="foot-note">
+                <text class="foot-note-text">仅供传统文化学习与研究之用 · 不构成医疗、法律、投资或人生决策建议{{footCite}}</text>
+                <view class="foot-lib" bindtap="onOpenProfilePanel" ink:if="{{canType}}">
+                    <text class="foot-lib-text">命盘库 {{profileCount}} 张 · 点这里换一张盘</text>
+                </view>
+                <view class="foot-lib" ink:if="{{!canType}}">
+                    <text class="foot-lib-text">命盘库 {{profileCount}} 张 · 说生辰换盘</text>
+                </view>
+            </view>
         </view>
     </view>
 
@@ -1966,7 +2007,7 @@ export default {
         <text class="overlay-body strong" ink:if="{{heardText}}">{{heardText}}</text>
         <text class="overlay-body dim">格式：1990年1月1日 早上 男　不知道时辰就说「不知道时辰」</text>
         <text class="overlay-body error" ink:if="{{errorText}}">{{errorText}}</text>
-        <text class="overlay-hint">{{hintLine}}</text>
+        <text class="overlay-hint">{{inputHint}}</text>
     </view>
 </page>
 
@@ -1978,6 +2019,8 @@ page {
 }
 
 /*
+ * ================= 单色绿屏的视觉规范（2026-11-15 UI 改版） =================
+ *
  * 颜色与字体挂在**根 view 的 class** 上，不挂 `page {}`。
  *
  * 原因：AIUI 的 WXSS 元素选择器文档只列了 view / text / image 等**组件**类型，
@@ -1988,8 +2031,12 @@ page {
  * 所有没显式写 color 的文字（宫名、中宫标题、正文）会变成**黑字黑底 = 整屏隐形**。
  * 颜色必须自己有落点，不能指望继承。
  *
- * 主色用官方绿主题的 #40FF5E（不是自选的 #00ff66）；
- * 层级靠**四档亮度**区分（100% / 60% / 40%），不靠换色相。
+ * ⚠️ **只有一个色相**（绿），层次只能靠三样东西拉开：
+ *   · 字重（只有 bold / normal 两档）
+ *   · 透明度（100% / 62% / 38% 三档）
+ *   · 字号（全站只有 4 级：22 / 15 / 12 / 10）
+ * 三档亮度用的是同一支绿的三个既有色值，**不新增任何颜色**：
+ *   100% = #40FF5E（主色）／62% = #269938（次要）／38% = #2f7a46（小字）／22% = #174526（细线）
  */
 .board {
     position: relative;
@@ -2001,12 +2048,15 @@ page {
     font-family: monospace;
 }
 
+/* ------------------------------------------------------------------ *
+ * 十二宫格：每格三行（宫名 / 主星 / 辅星+四化）
+ * ------------------------------------------------------------------ */
 .cell {
     position: absolute;
     width: 120px;
     height: 88px;
     box-sizing: border-box;
-    padding: 4px 5px;
+    padding: 3px 4px;
     overflow: hidden;
     border-right: 1px solid #174526;
     border-bottom: 1px solid #174526;
@@ -2017,7 +2067,7 @@ page {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    height: 15px;
+    height: 17px;
 }
 
 /* 本命宫名 + 运限宫名小标并排 */
@@ -2028,55 +2078,69 @@ page {
 }
 
 .palace-name {
-    font-size: 13px;
-    line-height: 15px;
+    font-size: 15px;
+    line-height: 17px;
     font-weight: bold;
 }
 
 /*
  * 运限宫名小标（只在运限层出现，且与本命宫名相同时不显示）。
  *
- * 字号压到 10px、颜色用次级绿：它是**补充信息**，
- * 不能抢本命宫名的视觉权重，也不能让 120px 宽的格子溢出。
+ * 10px + 38% 亮度：它是**补充信息**，不能抢本命宫名的视觉权重，
+ * 也不能让 120px 宽的格子溢出。
  */
 .fortune-name {
     font-size: 10px;
-    line-height: 15px;
-    color: #269938;
+    line-height: 17px;
+    color: #2f7a46;
     margin-left: 2px;
 }
 
+/* 干支：右上角，10px + 38% */
 .gan-zhi {
-    font-size: 9px;
-    line-height: 15px;
-    color: #269938;
+    font-size: 10px;
+    line-height: 17px;
+    color: #2f7a46;
 }
 
+/*
+ * 主星：全站最大的一档（22px 粗体），最多占两行。
+ *
+ * ⚠️ `word-break: keep-all` 是**必须**的：
+ * 主星串里带四化标记（例：`紫微 贪狼(权)`），22px 下这一串放不下一行，
+ * 普通断行会把「贪狼」和它的「(权)」拆到两行 ——
+ * 四化标记一旦跟星名分家，就变成**看不出是哪个星**的废字。
+ * keep-all 只在词间断行 ⇒ 标记永远跟着它的星。
+ */
 .major {
     display: block;
-    font-size: 12px;
-    line-height: 15px;
+    font-size: 22px;
+    line-height: 24px;
+    font-weight: bold;
     color: #40FF5E;
-    max-height: 30px;
+    word-break: keep-all;
+    max-height: 48px;
     overflow: hidden;
 }
 
+/* 辅星：12px + 62%，只留一行 */
 .minor {
     display: block;
-    font-size: 9px;
-    line-height: 11px;
+    font-size: 12px;
+    line-height: 14px;
     color: #269938;
-    max-height: 11px;
+    max-height: 14px;
     overflow: hidden;
 }
 
+/*
+ * 选中宫：1px 实线描边（100% 亮度）。
+ *
+ * ⚠️ 单色绿屏没有第二种颜色可用，选中态只能靠**描边**说事 ——
+ * 不加底色、不加阴影（圆角和阴影在绿屏上只会变成噪点）。
+ */
 .cell.on {
-    border: 2px solid #40FF5E;
-    padding: 3px 4px;
-}
-
-.cell.on .palace-name {
-    text-decoration: underline;
+    border: 1px solid #40FF5E;
 }
 
 /* 十二宫网格：4×4 四四方阵，中宫留空（与 Web 端 GRID_POS 完全一致） */
@@ -2094,12 +2158,14 @@ page {
 .p11 { left: 360px; top: 264px; }
 
 /*
- * 中宫 = **常驻对话区**。
+ * ================= 中宫 =================
  *
- * ⚠️ 这里原来是「命主/身主/阴阳男女/农历/四化」的静态数据区，
- * 整屏没有任何「对话」的痕迹 —— 用户看到的是一张盘，不是一个能问的东西。
- * 现在中宫的第一行是**焦点**（哪一宫、哪一层），下面就是**最近一问一答**。
- * 十二宫的网格一点没动（这是产品辨识度），对话区正好落在四四方阵中间那个洞上。
+ * ⚠️ 位置与尺寸**不动**（240×176，正好落在四四方阵中间那个洞上）。
+ *
+ * 结构只有四行 + 一条细线（改版前是八行）：
+ *   ① 焦点宫名（15 粗） ② 层与标注合成一行（12 / 62%）
+ *   ─── 1px 细线
+ *   ③ 主行动文案（12 / 62%） ④ 状态 + 手势提示合成一行（10 / 38%）
  */
 .center {
     position: absolute;
@@ -2111,131 +2177,59 @@ page {
     padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
 }
 
-/*
- * 中宫分三块：**焦点 / 对话 / 底部提示**。
- *
- * ⚠️ 为什么中间那块要 flex:1：
- * 之前所有行都堆在顶部（justify-content 默认 flex-start），
- * 中宫下面空出 40% 的高度，整块看起来「什么都没发生」。
- * 让对话块撑开、底部提示块沉底，三块各就各位 ——
- * 空白是留白，不是漏排。
- *
- * ⚠️ 为什么三块都要显式 `display:flex; flex-direction:column`：
- * `<text>` 在 ink 里默认是**行内**元素。一旦把几个 text 包进一个 view，
- * 它们就会**串成一行**（「命宫 本命盘 命主巨门 身主天机」糊成一片）。
- * 每一块自己开一个纵向 flex，行与行才真正分开。
- */
-.center-top {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-}
-
-.center-mid {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.center-bottom {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-}
-
-/* 焦点行：当前宫 + 当前时间层 */
-.focus-line {
+/* ① 焦点宫名 */
+.focus-name {
     display: block;
     font-size: 15px;
     line-height: 20px;
     font-weight: bold;
 }
 
-/* 焦点详情行：命主身主（本命层）/ 本层落位与四化（运限层） */
-.focus-detail {
+/* ② 层与标注合成一行 */
+.focus-sub {
     display: block;
-    font-size: 10px;
-    line-height: 13px;
+    font-size: 12px;
+    line-height: 17px;
     color: #269938;
 }
 
+/* 唯一的分隔细线：1px + 22% */
 .center-divider {
     height: 1px;
     background-color: #174526;
-    margin: 5px 0;
+    margin: 4px 0;
 }
 
-/* 最近一问：60% 亮度（是「用户说的」，不是主角） */
-.digest-q {
-    display: block;
-    font-size: 12px;
-    line-height: 17px;
-    color: #269938;
-}
-
-/* 最近一答：100% 亮度（这是主角） */
-.digest-a {
-    display: block;
-    font-size: 12px;
-    line-height: 17px;
-    color: #40FF5E;
-    max-height: 51px;
-    overflow: hidden;
-}
-
-/* 还没有对话时的引导语 */
-.digest-lead {
-    display: block;
-    font-size: 12px;
-    line-height: 17px;
-    color: #269938;
-}
-
-/* 空态下再给一句「试试问」—— 让用户第一眼就知道这东西能问 */
+/* ③ 主行动文案（示例盘时是「说出生辰，或直接问我」） */
 .center-suggest {
     display: block;
     font-size: 12px;
     line-height: 17px;
-    color: #40FF5E;
+    color: #269938;
 }
 
-.center-hint {
+/*
+ * ④ 状态 + 手势提示合成一行（10px + 38%）。
+ *
+ * 例：`端侧计算 · 滑动选宫　单击问这宫　双击切层`。
+ * 手势提示与状态行合并 ⇒ 中宫只占一行，不再是三行提示。
+ */
+.center-status {
     display: block;
     font-size: 10px;
-    line-height: 13px;
-    color: #269938;
-}
-
-/*
- * 末行（端侧计算 / 服务端计算）。
- *
- * 原来用的是 #174526（深绿）——对比度只有 2.1:1，在单色绿 HUD 上几乎看不见，
- * 而「端侧计算」恰恰是最该让评审看到的一行。
- * 层级靠字号（10px，比正文小）区分，不靠把字调暗。
- */
-.center-hint.dim {
-    color: #269938;
-}
-
-/*
- * 示例盘标注。
- *
- * 「这不是你的盘」这一行必须**比正文更亮**，不能调暗 —— 用户第一眼看到的是
- * 一张陌生人的盘，如果这行很淡，误读成「算错了」的代价很大。
- */
-.center-hint.demo {
-    color: #7fe3a0;
+    line-height: 14px;
+    color: #2f7a46;
 }
 
 /*
  * ================= 对话页 =================
  *
- * 之前没有「对话页」—— 只有两个整屏替换的浮窗（解读 / 追问），
- * 用户看到的是文档，不是对话。现在是：
- *   顶部 56px 盘面缩略带（保住上下文）+ 会话流 + 页脚提示。
+ * 结构：固定头（一行） + 正文（可滚） + 固定底条（两行）。
+ * 顶部的十二宫缩写带、免责独立行、标注行**全部删掉** ——
+ * 它们要么是盘面页的重复，要么是跟正文抢行的元信息。
  */
 .chat {
     position: absolute;
@@ -2251,68 +2245,31 @@ page {
     flex-direction: column;
 }
 
-.strip {
-    height: 56px;
-    padding: 6px 8px;
+/* 固定头：只有一行「层 · 焦点宫」 */
+.chat-head {
+    flex: none;
+    padding: 4px 12px 4px 12px;
     box-sizing: border-box;
     border-bottom: 1px solid #174526;
 }
 
-.strip-head {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    height: 16px;
-}
-
-.strip-title {
+.chat-head-text {
     font-size: 12px;
-    line-height: 16px;
-    font-weight: bold;
-}
-
-.strip-focus {
-    font-size: 11px;
-    line-height: 16px;
+    line-height: 17px;
     color: #269938;
 }
 
-.strip-row {
-    display: flex;
-    flex-direction: row;
-    height: 20px;
-    margin-top: 4px;
-}
-
-.strip-cell {
-    width: 38px;
-    font-size: 11px;
-    line-height: 18px;
-    text-align: center;
-    color: #269938;
-}
-
-.strip-cell.on {
-    color: #40FF5E;
-    font-weight: bold;
-}
-
+/*
+ * 正文区：`flex: 1` 撑满剩余高度。
+ *
+ * ⚠️ `min-height: 0` 是**必须**的：flex 子项默认 `min-height: auto`
+ * ⇒ 正文再长也不会缩，把固定底条顶出 352px 的屏外（底条是合规声明，
+ * 必须一直看得见）。置 0 之后正文超出部分由 scroll-view 自己滚。
+ */
 .chat-scroll {
     flex: 1;
-    padding: 8px 12px;
-}
-/**
- * 眼镜端的免责声明（合规要求：眼镜上能看到）。
- * ⚠️ v1.0.20 重做显示层时把它删掉了（旧版在解读浮层底部的 overlay-note），
- * 2026-11-13 review 发现合规清单还在声称「代码已有」—— 已补回，常驻对话页缩略带下方。
- * 放在**滚动区之外**：会话流会滚，声明必须一直看得见。
- * 放在**页脚之外**：页脚按设计只留「端侧计算」（E22 第⑤项）。
- */
-.chat-disclaimer {
-    font-size: 10px;
-    color: #2f7a46;
-    padding: 2px 12px 0 12px;
+    min-height: 0;
+    padding: 12px;
 }
 
 /*
@@ -2328,78 +2285,60 @@ page {
 }
 
 /*
- * 轮次标注行（出处 + 焦点 + 引文模式）。
+ * 用户问的那一句：22px 粗体 + 左侧 1px 竖线缩进。
  *
- * ⚠️ 为什么提到正文**前面**：
- * 原来它在正文后面 —— 用户要先读完 1400 字才知道这段在讲哪一宫、
- * 是不是降级引文。引文模式是**必须披露**的合规信息，更不该压在最后。
- * 字号也从 9px 提到 11px：9px 在 480×352 的绿屏上基本读不出来。
+ * 竖线是**全页唯一的一条竖线**，用来把「用户说的」和「答的」分开。
  */
-.turn-tag {
-    font-size: 11px;
-    line-height: 15px;
-    color: #269938;
-    margin-bottom: 3px;
-}
-
-/* 最新一轮在最上面，不额外留上边距 */
-.turn-tag.newest {
-    margin-top: 0;
-}
-
-/* 更早的一轮：和上一轮拉开距离 */
-.turn-tag.sep {
-    margin-top: 12px;
-}
-
-/* 用户问的那一句：60% 亮度（是「用户说的」，不是主角） */
 .turn-q {
     display: block;
-    font-size: 12px;
-    line-height: 17px;
-    color: #269938;
-    margin-bottom: 5px;
-}
-
-/*
- * 小标题（`【命格总览】` 这种）：100% 亮度 + 加粗。
- *
- * ⚠️ 单色绿屏没有颜色可分，层级只能靠**字重**和**段距**拉开。
- */
-.turn-h {
-    display: block;
-    font-size: 13px;
-    line-height: 19px;
+    font-size: 22px;
+    line-height: 34px;
     font-weight: bold;
     color: #40FF5E;
-    margin-top: 8px;
-    margin-bottom: 2px;
+    border-left: 1px solid #40FF5E;
+    padding-left: 12px;
+    margin-bottom: 8px;
 }
 
-/* 正文段：100% 亮度 */
+/* 小标题（`【命格总览】` 这种）：15px 粗体 */
+.turn-h {
+    display: block;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: bold;
+    color: #40FF5E;
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+/* 正文段：22px 常规，行高 1.55，段间 12px */
 .turn-p {
     display: block;
-    font-size: 13px;
-    line-height: 19px;
+    font-size: 22px;
+    line-height: 34px;
     color: #40FF5E;
-    margin-bottom: 7px;
+    margin-bottom: 12px;
 }
 
-/* 列表项（推导条目）：比正文段略紧 */
+/* 列表项（推导条目）：缩进 12px */
 .turn-li {
     display: block;
-    font-size: 13px;
-    line-height: 19px;
+    font-size: 22px;
+    line-height: 34px;
     color: #40FF5E;
-    margin-bottom: 3px;
+    padding-left: 12px;
+    margin-bottom: 4px;
 }
 
+/* 等待中：62% 亮度 */
 .turn-p.loading {
     color: #269938;
 }
 
+/* 失败：单色屏没有红色，靠**字重**说事 */
 .turn-p.failed {
-    color: #7fe3a0;
+    color: #40FF5E;
+    font-weight: bold;
 }
 
 .chat-empty {
@@ -2408,75 +2347,76 @@ page {
 
 .chat-empty-title {
     display: block;
-    font-size: 13px;
-    line-height: 19px;
+    font-size: 22px;
+    line-height: 30px;
     font-weight: bold;
 }
 
 .chat-empty-sub {
     display: block;
-    font-size: 11px;
-    line-height: 16px;
+    font-size: 12px;
+    line-height: 18px;
     color: #269938;
-    margin-top: 2px;
+    margin-top: 8px;
 }
 
-/* 换生辰的格式提示 —— 用户得知道「怎么说」才说得出 */
 .chat-empty-format {
     display: block;
-    font-size: 11px;
-    line-height: 16px;
+    font-size: 12px;
+    line-height: 18px;
     color: #269938;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .chat-sug {
+    display: flex;
+    flex-direction: column;
     margin-top: 8px;
 }
 
 .chat-sug-item {
     display: block;
-    font-size: 12px;
-    line-height: 18px;
+    font-size: 15px;
+    line-height: 22px;
     color: #269938;
 }
 
 /*
- * 「怎么问」入口区（2026-11-14 交互重构）。
+ * 「怎么问」入口区（只在**有键盘的宿主**上出现：模拟器 / 电脑）。
  *
- * ⚠️ 只有**有键盘的宿主**（模拟器 / 电脑）才出现 chip 与输入框；
- * 眼镜上没有键盘 ⇒ 这里只留一行「双击问这一句」。
+ * 眼镜上没有键盘 ⇒ 这里只有固定底条那一行「双击问：X」。
  *
  * 布局：`.chat-scroll` 是 `flex: 1` ⇒ 这一区自动占高度、正文区自动让位，
  * 不用手算像素（记忆教训：写了宽度不等于渲染出来是那个宽度）。
  */
 .chat-ask {
-    padding: 4px 12px 2px;
+    flex: none;
+    padding: 8px 12px 4px 12px;
 }
 
 .chat-ask-row {
     display: flex;
     flex-direction: row;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
 }
 
+/* 建议语 chip：纯问题文本（不带「双击问：」前缀），方形描边、无圆角 */
 .chat-chip {
     flex: 1;
     margin-right: 6px;
-    padding: 2px 4px;
+    padding: 4px;
     border: 1px solid #40FF5E;
-    border-radius: 3px;
-    font-size: 11px;
-    line-height: 15px;
+    font-size: 12px;
+    line-height: 16px;
     color: #40FF5E;
 }
 
 .chat-input {
     flex: 1;
-    height: 20px;
+    height: 24px;
     padding: 0 4px;
-    font-size: 11px;
-    line-height: 15px;
+    font-size: 12px;
+    line-height: 16px;
     color: #40FF5E;
     background-color: #000000;
     border: 1px solid #40FF5E;
@@ -2484,89 +2424,110 @@ page {
 
 .chat-send {
     margin-left: 6px;
-    padding: 2px 8px;
+    padding: 4px 8px;
     border: 1px solid #40FF5E;
-    border-radius: 3px;
-    font-size: 11px;
-    line-height: 15px;
+    font-size: 12px;
+    line-height: 16px;
     color: #40FF5E;
 }
 
-.chat-ask-single {
-    padding: 3px 12px 2px;
-}
-
-.chat-ask-single-text {
-    font-size: 11px;
-    line-height: 15px;
-    color: #269938;
-}
-
-.chat-lib {
-    padding: 2px 12px;
-}
-
-.chat-lib-text {
-    font-size: 11px;
-    line-height: 15px;
-    color: #269938;
-}
-
 .chat-panel {
-    padding: 4px 12px;
+    flex: none;
+    padding: 8px 12px;
     border-top: 1px solid #174526;
 }
 
 .chat-panel-title {
     display: block;
-    font-size: 11px;
-    line-height: 15px;
-    color: #269938;
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: bold;
 }
 
 .chat-panel-cur {
     display: block;
-    font-size: 13px;
+    font-size: 12px;
     line-height: 18px;
-    color: #40FF5E;
+    color: #269938;
+    margin-top: 4px;
 }
 
 .chat-panel-btns {
     display: flex;
     flex-direction: row;
-    margin-top: 3px;
+    margin-top: 8px;
 }
 
 .chat-panel-btn {
     flex: 1;
     margin-right: 6px;
-    padding: 2px 4px;
+    padding: 4px;
     border: 1px solid #40FF5E;
-    border-radius: 3px;
-    font-size: 11px;
-    line-height: 15px;
+    font-size: 12px;
+    line-height: 16px;
     color: #40FF5E;
 }
 
+/*
+ * ================= 固定底条 =================
+ *
+ * 两行：
+ *   第 1 行  左：建议语「双击问：X」（12 / 100%）  右：状态「端侧计算」（10 / 38%）
+ *   第 2 行  10 / 38%：免责 + 引文标注 + 命盘库张数，**并成一条小字**
+ *
+ * ⚠️ 免责声明（合规要求：眼镜上能看到）放在**滚动区之外**：
+ * 会话流会滚，声明必须一直看得见。
+ */
 .chat-foot {
-    height: 40px;
-    padding: 4px 12px 6px;
+    flex: none;
+    padding: 6px 12px 6px 12px;
     box-sizing: border-box;
     border-top: 1px solid #174526;
 }
 
-.foot-hint {
-    display: block;
-    font-size: 10px;
-    line-height: 14px;
-    color: #269938;
+.foot-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.foot-suggest {
+    font-size: 12px;
+    line-height: 17px;
+    color: #40FF5E;
 }
 
 .foot-status {
-    display: block;
+    margin-left: 8px;
     font-size: 10px;
-    line-height: 13px;
-    color: #269938;
+    line-height: 14px;
+    color: #2f7a46;
+}
+
+.foot-note {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: 4px;
+}
+
+.foot-note-text {
+    flex: 1;
+    font-size: 10px;
+    line-height: 14px;
+    color: #2f7a46;
+}
+
+.foot-lib {
+    flex: none;
+    margin-left: 8px;
+}
+
+.foot-lib-text {
+    font-size: 10px;
+    line-height: 14px;
+    color: #2f7a46;
 }
 
 /* ================= 生辰录入页 ================= */
@@ -2577,7 +2538,7 @@ page {
     width: 480px;
     height: 352px;
     box-sizing: border-box;
-    padding: 14px 16px;
+    padding: 16px;
     background-color: #000000;
     color: #40FF5E;
     font-family: monospace;
@@ -2586,32 +2547,37 @@ page {
 }
 
 .overlay-title {
-    font-size: 18px;
-    line-height: 24px;
+    font-size: 22px;
+    line-height: 30px;
     font-weight: bold;
-    margin-bottom: 6px;
+    margin-bottom: 12px;
 }
 
 .overlay-body {
-    font-size: 13px;
-    line-height: 19px;
-    margin-bottom: 4px;
+    font-size: 15px;
+    line-height: 22px;
+    margin-bottom: 8px;
 }
 
 .overlay-body.strong {
     font-size: 15px;
-    line-height: 21px;
+    line-height: 22px;
     font-weight: bold;
 }
 
+/* 格式提示：12px + 38% */
 .overlay-body.dim {
-    color: #269938;
-    font-size: 11px;
+    font-size: 12px;
+    line-height: 18px;
+    color: #2f7a46;
 }
 
+/* 错误文案：单色屏没有红色，用**字重**区分 */
 .overlay-body.error {
-    color: #7fe3a0;
-    font-size: 11px;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: bold;
+    color: #40FF5E;
 }
 
 .overlay-hint {
@@ -2620,6 +2586,6 @@ page {
     bottom: 12px;
     font-size: 10px;
     line-height: 14px;
-    color: #269938;
+    color: #2f7a46;
 }
 </style>

@@ -145,10 +145,21 @@ export const suite: SuiteFn = async (t: Tester) => {
         );
     });
 
-    await t.test('眼镜端降级分支给的是「双击问这一句」，不是输入框', () => {
+    await t.test('眼镜端的下一步提示是固定底条那一行「双击问：…」，不是输入框', () => {
+        /**
+         * ⚠️ 2026-11-15 UI 改版（`apps/rokid-agent/UI-REDESIGN.md`）：
+         * 旧的 `.chat-ask-single` 独立块（「双击镜腿问这一句：X」）删掉了 ——
+         * 同一句建议语渲染两处（正文末尾 + 独立块）正是「来回反复」的来源。
+         * 现在眼镜端与模拟器共用**固定底条那一行**「双击问：X」。
+         */
         assert.ok(
-            page.includes('双击镜腿问这一句'),
+            page.includes('双击问：{{suggestionText}}'),
             '眼镜端没有可执行的下一步提示 —— 用户会不知道该干什么'
+        );
+        assert.equal(
+            page.includes('双击镜腿问这一句'),
+            false,
+            '旧的「双击镜腿问这一句」独立块应该删掉 —— 建议语只留固定底条一处'
         );
     });
 

@@ -2699,6 +2699,8 @@ arrow滑动事件问题 无法切换 请检查global hook相关
 > - 📦 **仓库侧无变化**：`git status` 干净、分支与 `origin/feat/rokid-spatial-joy-2026` 同步（`2cb3c6f`）；`apps/rokid-agent/` 下仍**无实机视频**（tracked 视频只有 `submit-kit/preview/ziwei-preview.mp4`，2026-11-13 10:05 模拟器渲染版 1,094,515 B；untracked 视频 0 个）⇒ **实机视频仍未产出**（第 3 步「作品提交」唯一硬阻塞）。
 > - 本轮**未点任何不可逆按钮**（提交作品 / 提交审核 / 签署合同 / 借用）、未改提审表单、未改 Studio 工程、未重新打包、未代填任何账号或凭据；按克制口径**本轮未请 Frank 登录**。
 >
+> 🔁 **00:00:55 档口并行复核（本轮 = run `1c020a6a` / session `mvs_1eef4d39…`，与上面「21:06 档口实际到 00:00 才起跑」那一轮并行）**：独立跑完三墙同测（赛事站 → 落 `https://spatialjoy.rokid.com/login` 登录墙；点「一键查询进度」→ `https://account-web.rokid.com/login?redirect=https://spatialjoy.rokid.com`；`open_tab https://aiui.rokid.com` → 直接落 account-web 登录页）⇒ **三墙同结论**；公开通路三项数字**逐字一致**（88 / 35 / ¥22,800），综合榜 TOP10 与上一轮逐字一致，倒计时读到 **61 天 17 时 57 分 20 秒**（与并行那轮的 61 天 17 时 57 分 38 秒相差 **18 秒** ⇒ 纯自然递减，非状态变化）⇒ **两轮互相交叉验证通过**。写入本行前复查 `git log`：HEAD 已推进到 **`7216b0f`**（并行那轮已提交并 push）⇒ **不重写整段、不重复落盘**，只补这一行；本轮同样**未点任何不可逆按钮**、未改提审表单、未改 Studio 工程、未重新打包、未代填任何账号或凭据、**未请 Frank 登录**。
+>
 >
 ### 5.2 拿到入口后的操作序列（**B1–B2 已于 2026-11-09 完成**，B3 起待触发）
 
